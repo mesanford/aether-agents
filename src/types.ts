@@ -61,3 +61,10 @@ export interface Task {
   dueDate: string;
   repeat?: string;
 }
+
+export interface Workspace {
+  id: number;
+  name: string;
+  role: 'owner' | 'admin' | 'member';
+  created_at?: string;
+}

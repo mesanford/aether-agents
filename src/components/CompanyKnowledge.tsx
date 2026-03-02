@@ -1,18 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Edit2, Save, Building2, Users, Globe, Info } from 'lucide-react';
 import { cn } from '../utils';
 
-export const CompanyKnowledge: React.FC = () => {
-  const [companyName, setCompanyName] = useState('MM Sanford');
-  const [description, setDescription] = useState(
-    "I provide technical marketing solutions for government agencies, higher education institutions, and B2B businesses. My core services are organic search (SEO) for visibility through deep content and technical optimizations, digital advertising with precision targeting and retargeting campaigns, and conversion rate optimization to boost engagement and qualified leads. I'm known for handling complex, large-scale websites and delivering creative, actionable strategies backed by strong analytics expertise—"
-  );
-  const [targetCustomers, setTargetCustomers] = useState(
-    "Government agencies (state and federal), colleges and universities, and B2B organizations with large, complex web presences. My key contacts are executive directors, marketing managers, and decision-makers needing advanced analytics or strategic marketing."
-  );
+interface CompanyKnowledgeProps {
+  activeWorkspaceId: number | null;
+}
+
+export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorkspaceId }) => {
+  const [companyName, setCompanyName] = useState(() => {
+    const saved = localStorage.getItem(`sanford-company-name-${activeWorkspaceId}`);
+    return saved || 'MM Sanford';
+  });
+  const [description, setDescription] = useState(() => {
+    const saved = localStorage.getItem(`sanford-company-desc-${activeWorkspaceId}`);
+    return saved || "I provide technical marketing solutions for government agencies, higher education institutions, and B2B businesses. My core services are organic search (SEO) for visibility through deep content and technical optimizations, digital advertising with precision targeting and retargeting campaigns, and conversion rate optimization to boost engagement and qualified leads. I'm known for handling complex, large-scale websites and delivering creative, actionable strategies backed by strong analytics expertise—";
+  });
+  const [targetCustomers, setTargetCustomers] = useState(() => {
+    const saved = localStorage.getItem(`sanford-company-target-${activeWorkspaceId}`);
+    return saved || "Government agencies (state and federal), colleges and universities, and B2B organizations with large, complex web presences. My key contacts are executive directors, marketing managers, and decision-makers needing advanced analytics or strategic marketing.";
+  });
+
+  const handleSave = () => {
+    if (activeWorkspaceId) {
+      localStorage.setItem(`sanford-company-name-${activeWorkspaceId}`, companyName);
+      localStorage.setItem(`sanford-company-desc-${activeWorkspaceId}`, description);
+      localStorage.setItem(`sanford-company-target-${activeWorkspaceId}`, targetCustomers);
+      alert('Knowledge base updated successfully!');
+    }
+  };
 
   const [isEditingName, setIsEditingName] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoClick = () => {
+    logoInputRef.current?.click();
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      alert(`Logo "${file.name}" selected. In a real app, this would be uploaded as your workspace logo.`);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-slate-50/30 overflow-hidden">
@@ -24,7 +54,10 @@ export const CompanyKnowledge: React.FC = () => {
             General information about your business that all agents use.
           </p>
         </div>
-        <button className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2 flex-shrink-0">
+        <button 
+          onClick={handleSave}
+          className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2 flex-shrink-0"
+        >
           <Save className="w-4 h-4" />
           <span className="hidden sm:inline">Save Changes</span>
           <span className="sm:hidden">Save</span>
@@ -38,6 +71,13 @@ export const CompanyKnowledge: React.FC = () => {
           {/* Profile Section */}
           <div className="flex flex-col items-center text-center space-y-4">
             <div className="relative group">
+              <input 
+                type="file" 
+                ref={logoInputRef} 
+                className="hidden" 
+                onChange={handleLogoChange}
+                accept="image/*"
+              />
               <div className="w-24 h-24 md:w-32 md:h-32 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center p-4 md:p-6 overflow-hidden">
                 <img 
                   src="https://ais-pre-ozn6jhe7zcj3cdiobiz65k-153562024476.us-west2.run.app/logo.png" 
@@ -46,7 +86,10 @@ export const CompanyKnowledge: React.FC = () => {
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <button className="absolute -bottom-2 -right-2 p-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
+              <button 
+                onClick={handleLogoClick}
+                className="absolute -bottom-2 -right-2 p-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 transition-colors"
+              >
                 <Edit2 className="w-4 h-4 text-slate-400" />
               </button>
             </div>

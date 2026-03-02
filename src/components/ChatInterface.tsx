@@ -41,6 +41,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [editValue, setEditValue] = useState('');
   const [newSectionTitle, setNewSectionTitle] = useState('');
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      alert(`File "${file.name}" selected. In a real app, this would be uploaded and processed.`);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim()) {
@@ -1130,11 +1143,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-4 text-slate-400">
-          <button className="hidden sm:flex items-center gap-1.5 text-sm font-medium hover:text-slate-600 transition-colors">
+          <button 
+            onClick={() => setActiveTab('Guidelines')}
+            className={cn(
+              "hidden sm:flex items-center gap-1.5 text-sm font-medium transition-colors",
+              activeTab === 'Guidelines' ? "text-brand-600" : "hover:text-slate-600"
+            )}
+          >
             <Settings className="w-4 h-4" />
             Settings
           </button>
-          <button className="hover:text-slate-600 transition-colors p-2">
+          <button 
+            onClick={() => alert('More options coming soon!')}
+            className="hover:text-slate-600 transition-colors p-2"
+          >
             <MoreHorizontal className="w-5 h-5" />
           </button>
         </div>
@@ -1241,8 +1263,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </div>
 
             <form onSubmit={handleSubmit} className="relative">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                onChange={handleFileChange}
+              />
               <div className="flex items-center bg-white border border-slate-200 rounded-2xl px-4 py-3 focus-within:border-brand-500 transition-all shadow-sm">
-                <button type="button" className="text-slate-400 hover:text-slate-600 mr-3">
+                <button 
+                  type="button" 
+                  onClick={handleFileClick}
+                  className="text-slate-400 hover:text-slate-600 mr-3"
+                >
                   <Paperclip className="w-5 h-5" />
                 </button>
                 <input

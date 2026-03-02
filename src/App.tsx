@@ -12,7 +12,7 @@ import {
   ChevronLeft,
   Menu
 } from 'lucide-react';
-import { Agent, AgentRole, AgentStatus, Message, Task } from './types';
+import { Agent, AgentRole, AgentStatus, Message, Task, Workspace } from './types';
 import { INITIAL_AGENTS, INITIAL_TASKS, INITIAL_MESSAGES } from './constants';
 import { AgentCard } from './components/AgentCard';
 import { ChatInterface } from './components/ChatInterface';
@@ -20,47 +20,135 @@ import { MediaLibrary } from './components/MediaLibrary';
 import { CompanyKnowledge } from './components/CompanyKnowledge';
 import { TeamManagement } from './components/TeamManagement';
 import { TaskManager } from './components/TaskManager';
+import { SettingsView } from './components/SettingsView';
+import { LoginView } from './components/LoginView';
 import { getAgentResponse, parseTaskFromResponse } from './services/geminiService';
 import { cn } from './utils';
 
 export default function App() {
-  const [agents, setAgents] = useState<Agent[]>(() => {
-    const saved = localStorage.getItem('sanford-agents');
-    return saved ? JSON.parse(saved) : INITIAL_AGENTS;
+  const [user, setUser] = useState<any>(() => {
+    const saved = localStorage.getItem('sanford-user');
+    return saved ? JSON.parse(saved) : null;
   });
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('sanford-tasks');
-    if (saved) {
-      const parsedTasks = JSON.parse(saved) as Task[];
+  const [token, setToken] = useState<string | null>(() => {
+    return localStorage.getItem('sanford-token');
+  });
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('sanford-active-workspace');
+    return saved ? parseInt(saved) : null;
+  });
+
+  const [agents, setAgents] = useState<Agent[]>(INITIAL_AGENTS);
+  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  const [activeAgentId, setActiveAgentId] = useState<string>(INITIAL_AGENTS[0].id);
+  const [messages, setMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
+
+  const [isTyping, setIsTyping] = useState(false);
+  const [activeView, setActiveView] = useState<'chat' | 'media' | 'docs' | 'team' | 'tasks' | 'settings'>('chat');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showAgentList, setShowAgentList] = useState(true);
+
+  // Load workspace-specific data
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+
+    const agentsKey = `sanford-agents-${activeWorkspaceId}`;
+    const tasksKey = `sanford-tasks-${activeWorkspaceId}`;
+    const messagesKey = `sanford-messages-${activeWorkspaceId}`;
+
+    const savedAgents = localStorage.getItem(agentsKey);
+    if (savedAgents) setAgents(JSON.parse(savedAgents));
+    else setAgents(INITIAL_AGENTS);
+
+    const savedTasks = localStorage.getItem(tasksKey);
+    if (savedTasks) {
+      const parsedTasks = JSON.parse(savedTasks) as Task[];
       const missingTasks = INITIAL_TASKS.filter(
         (initialTask) => !parsedTasks.some((task) => task.id === initialTask.id)
       );
-      return [...parsedTasks, ...missingTasks];
+      setTasks([...parsedTasks, ...missingTasks]);
+    } else {
+      setTasks(INITIAL_TASKS);
     }
-    return INITIAL_TASKS;
-  });
-  const [activeAgentId, setActiveAgentId] = useState<string>(INITIAL_AGENTS[0].id); // Default to Eva
-  const [messages, setMessages] = useState<Record<string, Message[]>>(() => {
-    const saved = localStorage.getItem('sanford-messages');
-    return saved ? JSON.parse(saved) : INITIAL_MESSAGES;
-  });
+
+    const savedMessages = localStorage.getItem(messagesKey);
+    if (savedMessages) setMessages(JSON.parse(savedMessages));
+    else setMessages(INITIAL_MESSAGES);
+
+    // Reset view to chat when switching workspaces
+    setActiveView('chat');
+    setShowAgentList(true);
+    setActiveAgentId(INITIAL_AGENTS[0].id);
+  }, [activeWorkspaceId]);
+
+  // Save workspace-specific data
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      localStorage.setItem(`sanford-agents-${activeWorkspaceId}`, JSON.stringify(agents));
+    }
+  }, [agents, activeWorkspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('sanford-agents', JSON.stringify(agents));
-  }, [agents]);
+    if (activeWorkspaceId) {
+      localStorage.setItem(`sanford-tasks-${activeWorkspaceId}`, JSON.stringify(tasks));
+    }
+  }, [tasks, activeWorkspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('sanford-tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    if (activeWorkspaceId) {
+      localStorage.setItem(`sanford-messages-${activeWorkspaceId}`, JSON.stringify(messages));
+    }
+  }, [messages, activeWorkspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('sanford-messages', JSON.stringify(messages));
-  }, [messages]);
+    if (token) {
+      fetch('/api/workspaces', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        setWorkspaces(data);
+        if (data.length > 0 && !activeWorkspaceId) {
+          setActiveWorkspaceId(data[0].id);
+        }
+      })
+      .catch(err => console.error('Failed to fetch workspaces', err));
+    }
+  }, [token]);
 
-  const [isTyping, setIsTyping] = useState(false);
-  const [activeView, setActiveView] = useState<'chat' | 'media' | 'docs' | 'team' | 'tasks'>('chat');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [showAgentList, setShowAgentList] = useState(true);
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      localStorage.setItem('sanford-active-workspace', activeWorkspaceId.toString());
+    }
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('sanford-user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('sanford-user');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('sanford-token', token);
+    } else {
+      localStorage.removeItem('sanford-token');
+    }
+  }, [token]);
+
+  const handleLogin = (userData: any, authToken: string) => {
+    setUser(userData);
+    setToken(authToken);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setToken(null);
+    setActiveView('chat');
+  };
 
   const activeAgent = agents.find(a => a.id === activeAgentId) || agents[0];
 
@@ -129,12 +217,17 @@ export default function App() {
     ));
   }, []);
 
+  if (!user || !token) {
+    return <LoginView onLogin={handleLogin} />;
+  }
+
   const handleSendMessage = async (content: string) => {
+    if (!user) return;
     const newMessage: Message = {
       id: Date.now().toString(),
       senderId: 'user',
-      senderName: 'Marcus Sanford',
-      senderAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=marcus',
+      senderName: user.name,
+      senderAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
       content,
       timestamp: Date.now(),
       type: 'user'
@@ -251,7 +344,7 @@ export default function App() {
         </button>
         <div className="font-bold text-slate-900">Sanford AI</div>
         <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
-          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=marcus" alt="User" />
+          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} alt="User" />
         </div>
       </div>
 
@@ -262,6 +355,49 @@ export default function App() {
       )}>
         <div className="w-10 h-10 flex items-center justify-center">
           <img src="https://api.marblism.com/favicon.ico" alt="Logo" className="w-8 h-8 opacity-80" />
+        </div>
+
+        {/* Workspace Switcher */}
+        <div className="flex flex-col gap-3">
+          {workspaces.map(ws => (
+            <button
+              key={ws.id}
+              onClick={() => setActiveWorkspaceId(ws.id)}
+              className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold transition-all border-2",
+                activeWorkspaceId === ws.id 
+                  ? "bg-brand-500 text-white border-brand-500 shadow-lg shadow-brand-500/20" 
+                  : "bg-slate-50 text-slate-400 border-slate-100 hover:border-slate-200"
+              )}
+              title={ws.name}
+            >
+              {ws.name.substring(0, 2).toUpperCase()}
+            </button>
+          ))}
+          <button
+            onClick={() => {
+              const name = prompt('Enter workspace name:');
+              if (name && token) {
+                fetch('/api/workspaces', {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({ name })
+                })
+                .then(res => res.json())
+                .then(newWs => {
+                  setWorkspaces(prev => [...prev, newWs]);
+                  setActiveWorkspaceId(newWs.id);
+                });
+              }
+            }}
+            className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 border-2 border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-all"
+            title="Add Workspace"
+          >
+            +
+          </button>
         </div>
 
         <nav className="flex flex-col gap-6">
@@ -285,6 +421,7 @@ export default function App() {
                 "p-2 rounded-lg transition-colors relative group",
                 activeView === item.id ? "text-slate-900 bg-slate-50" : "text-slate-400 hover:text-slate-600"
               )}
+              title={item.id.charAt(0).toUpperCase() + item.id.slice(1)}
             >
               {activeView === item.id && (
                 <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-500 rounded-r-full" />
@@ -295,9 +432,18 @@ export default function App() {
         </nav>
 
         <div className="mt-auto flex flex-col gap-6">
-          <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
-            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=marcus" alt="User" />
-          </div>
+          <button 
+            onClick={() => {
+              setActiveView('settings');
+              setShowAgentList(false);
+            }}
+            className={cn(
+              "w-10 h-10 rounded-full bg-slate-100 overflow-hidden border-2 transition-all",
+              activeView === 'settings' ? "border-brand-500 scale-110" : "border-slate-200 hover:border-slate-300"
+            )}
+          >
+            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} alt="User" />
+          </button>
         </div>
       </aside>
 
@@ -330,18 +476,28 @@ export default function App() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {agents.map((agent) => (
-            <AgentCard 
-              key={agent.id} 
-              agent={agent} 
-              isActive={activeAgentId === agent.id}
-              onClick={() => {
-                setActiveAgentId(agent.id);
-                setActiveView('chat');
-                setShowAgentList(false);
-              }}
-            />
-          ))}
+          {agents.map((agent) => {
+            const agentMessages = messages[agent.id] || [];
+            const lastAgentMessage = [...agentMessages].reverse().find(m => m.type === 'agent');
+            
+            return (
+              <AgentCard 
+                key={agent.id} 
+                agent={agent} 
+                isActive={activeAgentId === agent.id}
+                lastMessage={lastAgentMessage ? {
+                  content: lastAgentMessage.content,
+                  timestamp: lastAgentMessage.timestamp,
+                  senderName: lastAgentMessage.senderName
+                } : undefined}
+                onClick={() => {
+                  setActiveAgentId(agent.id);
+                  setActiveView('chat');
+                  setShowAgentList(false);
+                }}
+              />
+            );
+          })}
         </div>
         
         {/* Stats Widget */}
@@ -382,11 +538,13 @@ export default function App() {
               <h2 className="font-bold text-slate-900 capitalize">{activeView}</h2>
             </div>
             {activeView === 'media' ? (
-              <MediaLibrary />
+              <MediaLibrary activeWorkspaceId={activeWorkspaceId} />
             ) : activeView === 'docs' ? (
-              <CompanyKnowledge />
+              <CompanyKnowledge activeWorkspaceId={activeWorkspaceId} />
             ) : activeView === 'team' ? (
-              <TeamManagement />
+              <TeamManagement activeWorkspaceId={activeWorkspaceId} token={token} />
+            ) : activeView === 'settings' ? (
+              <SettingsView user={user} onLogout={handleLogout} />
             ) : (
               <TaskManager 
                 tasks={tasks}

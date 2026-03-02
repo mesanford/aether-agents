@@ -8,9 +8,25 @@ interface AgentCardProps {
   agent: Agent;
   isActive: boolean;
   onClick: () => void;
+  lastMessage?: {
+    content: string;
+    timestamp: number;
+    senderName?: string;
+  };
 }
 
-export const AgentCard: React.FC<AgentCardProps> = ({ agent, isActive, onClick }) => {
+export const AgentCard: React.FC<AgentCardProps> = ({ agent, isActive, onClick, lastMessage }) => {
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  };
+
   return (
     <motion.div
       layout
@@ -36,11 +52,13 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, isActive, onClick }
           <div className="flex items-center justify-between mb-0.5">
             <h3 className="font-bold text-slate-900 text-[15px] truncate">{agent.role}</h3>
             <span className="text-[11px] text-slate-400 font-medium">
-              {agent.lastAction || 'Just now'}
+              {lastMessage ? formatTime(lastMessage.timestamp) : (agent.lastAction || 'Just now')}
             </span>
           </div>
           <p className="text-[13px] text-slate-500 truncate leading-tight">
-            <span className="font-medium text-slate-700">{agent.name}:</span> {agent.description}
+            <span className="font-medium text-slate-700">
+              {lastMessage?.senderName || agent.name}:
+            </span> {lastMessage ? lastMessage.content : agent.description}
           </p>
         </div>
       </div>

@@ -3,50 +3,55 @@ import { motion } from 'motion/react';
 import { Image as ImageIcon, Video, FileText, Upload, MoreHorizontal, Search, Plus } from 'lucide-react';
 import { cn } from '../utils';
 
-export const MediaLibrary: React.FC = () => {
-  const [activeCategory, setActiveCategory] = React.useState<'all' | 'uploads' | 'generated'>('all');
+interface MediaLibraryProps {
+  activeWorkspaceId: number | null;
+}
 
-  const mediaItems = [
-    {
-      id: '1',
-      name: 'MM Sanford Logo',
-      type: 'image',
-      category: 'uploads',
-      thumbnail: 'https://ais-pre-ozn6jhe7zcj3cdiobiz65k-153562024476.us-west2.run.app/logo.png',
-      size: '42 KB',
-      date: 'Mar 1, 2026'
-    },
-    {
-      id: '2',
-      name: 'Innovation Paradox Hero',
-      type: 'image',
-      category: 'generated',
-      thumbnail: 'https://picsum.photos/seed/innovation/800/600',
-      size: '156 KB',
-      date: 'Mar 1, 2026',
-      author: 'Sonny'
-    },
-    {
-      id: '3',
-      name: 'SEO Intent Diagram',
-      type: 'image',
-      category: 'generated',
-      thumbnail: 'https://picsum.photos/seed/seo-diagram/800/600',
-      size: '89 KB',
-      date: 'Feb 28, 2026',
-      author: 'Penny'
-    },
-    {
-      id: '4',
-      name: 'Futuristic Workspace',
-      type: 'image',
-      category: 'generated',
-      thumbnail: 'https://picsum.photos/seed/workspace/800/600',
-      size: '210 KB',
-      date: 'Feb 27, 2026',
-      author: 'Sonny'
+export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId }) => {
+  const [activeCategory, setActiveCategory] = React.useState<'all' | 'uploads' | 'generated'>('all');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      alert(`File "${file.name}" selected. In a real app, this would be uploaded to your workspace media library.`);
     }
-  ];
+  };
+  const [mediaItems, setMediaItems] = React.useState(() => {
+    const saved = localStorage.getItem(`sanford-media-${activeWorkspaceId}`);
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: '1',
+        name: 'MM Sanford Logo',
+        type: 'image',
+        category: 'uploads',
+        thumbnail: 'https://ais-pre-ozn6jhe7zcj3cdiobiz65k-153562024476.us-west2.run.app/logo.png',
+        size: '42 KB',
+        date: 'Mar 1, 2026'
+      },
+      {
+        id: '2',
+        name: 'Innovation Paradox Hero',
+        type: 'image',
+        category: 'generated',
+        thumbnail: 'https://picsum.photos/seed/innovation/800/600',
+        size: '156 KB',
+        date: 'Mar 1, 2026',
+        author: 'Sonny'
+      }
+    ];
+  });
+
+  React.useEffect(() => {
+    if (activeWorkspaceId) {
+      localStorage.setItem(`sanford-media-${activeWorkspaceId}`, JSON.stringify(mediaItems));
+    }
+  }, [mediaItems, activeWorkspaceId]);
 
   const filteredItems = mediaItems.filter(item => {
     if (activeCategory === 'all') return true;
@@ -72,7 +77,16 @@ export const MediaLibrary: React.FC = () => {
               className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all w-full md:w-64"
             />
           </div>
-          <button className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2 flex-shrink-0">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={handleFileChange}
+          />
+          <button 
+            onClick={handleUploadClick}
+            className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2 flex-shrink-0"
+          >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Upload</span>
           </button>
@@ -102,7 +116,10 @@ export const MediaLibrary: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
           {/* Upload Placeholder */}
           {activeCategory !== 'generated' && (
-            <button className="aspect-square border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-3 text-slate-400 hover:text-brand-600 hover:border-brand-200 hover:bg-brand-50/50 transition-all group">
+            <button 
+              onClick={handleUploadClick}
+              className="aspect-square border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-3 text-slate-400 hover:text-brand-600 hover:border-brand-200 hover:bg-brand-50/50 transition-all group"
+            >
               <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center group-hover:bg-white transition-colors">
                 <Upload className="w-6 h-6" />
               </div>
