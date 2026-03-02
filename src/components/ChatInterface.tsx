@@ -11,9 +11,17 @@ interface ChatInterfaceProps {
   onSendMessage: (content: string) => void;
   isTyping: boolean;
   onUpdateGuidelines: (agentId: string, guidelines: GuidelineSection[]) => void;
+  onBack?: () => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, messages, onSendMessage, isTyping, onUpdateGuidelines }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
+  agent, 
+  messages, 
+  onSendMessage, 
+  isTyping, 
+  onUpdateGuidelines,
+  onBack 
+}) => {
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState('Chat');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1105,33 +1113,41 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, messages, o
       {/* Header */}
       <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="md:hidden p-2 -ml-2 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
             <img src={agent.avatar} alt={agent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
           </div>
-          <div>
-            <h2 className="font-bold text-slate-900 text-lg leading-tight">{agent.role}</h2>
-            <p className="text-sm text-slate-500">{agent.name}</p>
+          <div className="min-w-0">
+            <h2 className="font-bold text-slate-900 text-base md:text-lg leading-tight truncate">{agent.role}</h2>
+            <p className="text-xs md:text-sm text-slate-500 truncate">{agent.name}</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-slate-400">
-          <button className="flex items-center gap-1.5 text-sm font-medium hover:text-slate-600 transition-colors">
+        <div className="flex items-center gap-2 md:gap-4 text-slate-400">
+          <button className="hidden sm:flex items-center gap-1.5 text-sm font-medium hover:text-slate-600 transition-colors">
             <Settings className="w-4 h-4" />
             Settings
           </button>
-          <button className="hover:text-slate-600 transition-colors">
+          <button className="hover:text-slate-600 transition-colors p-2">
             <MoreHorizontal className="w-5 h-5" />
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="px-6 border-b border-slate-100 flex gap-8">
+      <div className="px-6 border-b border-slate-100 flex gap-8 overflow-x-auto no-scrollbar">
         {tabs.map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "py-3 text-sm font-bold transition-all border-b-2",
+              "py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
               activeTab === tab 
                 ? "text-slate-900 border-brand-500" 
                 : "text-slate-400 border-transparent hover:text-slate-600"

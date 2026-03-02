@@ -231,6 +231,60 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
 
 export const INITIAL_TASKS: Task[] = [
   {
+    id: 'proactive-ea',
+    title: 'Proactive: Daily Inbox & Schedule Triage',
+    description: 'Review incoming emails, flag important solicitations, and organize the daily schedule.',
+    assigneeId: 'executive-assistant',
+    status: 'todo',
+    dueDate: 'Today, 8:00 AM',
+    repeat: 'Every day'
+  },
+  {
+    id: 'proactive-smm',
+    title: 'Proactive: Social Media Research & Engagement',
+    description: 'Research new social post ideas, engage with followers, and monitor industry trends.',
+    assigneeId: 'social-media-manager',
+    status: 'todo',
+    dueDate: 'Today, 8:30 AM',
+    repeat: 'Every day'
+  },
+  {
+    id: 'proactive-bw',
+    title: 'Proactive: Content Research & Ideation',
+    description: 'Research new blog post topics, gather data-driven insights, and outline upcoming articles.',
+    assigneeId: 'blog-writer',
+    status: 'todo',
+    dueDate: 'Today, 9:00 AM',
+    repeat: 'Every day'
+  },
+  {
+    id: 'proactive-sa',
+    title: 'Proactive: Lead Generation & Outreach',
+    description: 'Find new leads for the company, draft outreach emails, and follow up with potential clients.',
+    assigneeId: 'sales-associate',
+    status: 'todo',
+    dueDate: 'Today, 9:30 AM',
+    repeat: 'Every day'
+  },
+  {
+    id: 'proactive-la',
+    title: 'Proactive: Compliance & Contract Review',
+    description: 'Review recent legal updates, check compliance status, and monitor contract renewals.',
+    assigneeId: 'legal-associate',
+    status: 'todo',
+    dueDate: 'Today, 10:00 AM',
+    repeat: 'Every day'
+  },
+  {
+    id: 'proactive-r',
+    title: 'Proactive: User Feedback & Inquiry Management',
+    description: 'Collect user feedback, review customer inquiries, and organize support tickets.',
+    assigneeId: 'receptionist',
+    status: 'todo',
+    dueDate: 'Today, 10:30 AM',
+    repeat: 'Every day'
+  },
+  {
     id: '1',
     title: 'Daily Engagement',
     description: 'Help me move my social media forward. Take initiative by alternating your actions based on what you...',
@@ -291,5 +345,29 @@ export const INITIAL_TASKS: Task[] = [
     assigneeId: 'legal-associate',
     status: 'done',
     dueDate: 'Yesterday, 2:00 PM'
+  },
+  {
+    id: '8',
+    title: 'Draft 5 Blog Posts for March',
+    description: 'Create detailed outlines and first drafts for 5 technical SEO blog posts.',
+    assigneeId: 'blog-writer',
+    status: 'done',
+    dueDate: 'Feb 25, 2026'
+  },
+  {
+    id: '9',
+    title: 'Reschedule 15 Social Media Posts',
+    description: 'Update images and reschedule 15 posts to match the new brand aesthetic.',
+    assigneeId: 'social-media-manager',
+    status: 'done',
+    dueDate: 'Feb 26, 2026'
+  },
+  {
+    id: '10',
+    title: 'Research 20 leads for GovCon',
+    description: 'Find 20 new leads in the government contracting space.',
+    assigneeId: 'sales-associate',
+    status: 'done',
+    dueDate: 'Feb 27, 2026'
   }
 ];

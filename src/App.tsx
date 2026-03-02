@@ -9,7 +9,8 @@ import {
   HelpCircle,
   Gift,
   User as UserIcon,
-  ChevronLeft
+  ChevronLeft,
+  Menu
 } from 'lucide-react';
 import { Agent, AgentRole, AgentStatus, Message, Task } from './types';
 import { INITIAL_AGENTS, INITIAL_TASKS, INITIAL_MESSAGES } from './constants';
@@ -29,7 +30,14 @@ export default function App() {
   });
   const [tasks, setTasks] = useState<Task[]>(() => {
     const saved = localStorage.getItem('sanford-tasks');
-    return saved ? JSON.parse(saved) : INITIAL_TASKS;
+    if (saved) {
+      const parsedTasks = JSON.parse(saved) as Task[];
+      const missingTasks = INITIAL_TASKS.filter(
+        (initialTask) => !parsedTasks.some((task) => task.id === initialTask.id)
+      );
+      return [...parsedTasks, ...missingTasks];
+    }
+    return INITIAL_TASKS;
   });
   const [activeAgentId, setActiveAgentId] = useState<string>(INITIAL_AGENTS[0].id); // Default to Eva
   const [messages, setMessages] = useState<Record<string, Message[]>>(() => {
@@ -51,8 +59,53 @@ export default function App() {
 
   const [isTyping, setIsTyping] = useState(false);
   const [activeView, setActiveView] = useState<'chat' | 'media' | 'docs' | 'team' | 'tasks'>('chat');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showAgentList, setShowAgentList] = useState(true);
 
   const activeAgent = agents.find(a => a.id === activeAgentId) || agents[0];
+
+  const hoursSaved = Math.round(tasks.filter(t => t.status === 'done').reduce((acc, task) => {
+    const mapping: Record<string, number> = {
+      'blog-writer': 60,
+      'social-media-manager': 20,
+      'sales-associate': 10,
+      'receptionist': 10,
+      'legal-associate': 20,
+      'executive-assistant': 5,
+    };
+    
+    let time = mapping[task.assigneeId] || 10;
+    
+    const combinedText = (task.title + ' ' + task.description).toLowerCase();
+    
+    // Special handling for lead research: 10 mins per lead
+    if (task.assigneeId === 'sales-associate' || task.assigneeId === 'receptionist') {
+      const leadMatch = combinedText.match(/(\d+)-(\d+)\s+leads/i) || 
+                       combinedText.match(/(\d+)\s+leads/i);
+      if (leadMatch) {
+        const count = leadMatch[2] ? (parseInt(leadMatch[1]) + parseInt(leadMatch[2])) / 2 : parseInt(leadMatch[1]);
+        time = count * 10;
+      }
+    }
+    
+    // Special handling for blog posts: 60 mins per post
+    if (task.assigneeId === 'blog-writer') {
+      const postMatch = combinedText.match(/(\d+)\s+blog posts/i) || combinedText.match(/(\d+)\s+posts/i);
+      if (postMatch) {
+        time = parseInt(postMatch[1]) * 60;
+      }
+    }
+    
+    // Special handling for social media: 20 mins per post
+    if (task.assigneeId === 'social-media-manager') {
+      const postMatch = combinedText.match(/(\d+)\s+social media posts/i) || combinedText.match(/(\d+)\s+posts/i);
+      if (postMatch) {
+        time = parseInt(postMatch[1]) * 20;
+      }
+    }
+    
+    return acc + time;
+  }, 0) / 60);
 
   const updateAgentStatus = useCallback((id: string, status: AgentStatus) => {
     setAgents(prev => prev.map(a => 
@@ -187,9 +240,26 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden font-sans">
+    <div className="flex h-screen bg-white overflow-hidden font-sans relative">
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-100 z-40 flex items-center justify-between px-4">
+        <button 
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="p-2 text-slate-500"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <div className="font-bold text-slate-900">Sanford AI</div>
+        <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=marcus" alt="User" />
+        </div>
+      </div>
+
       {/* Sidebar Rail */}
-      <aside className="w-[72px] bg-white border-r border-slate-100 flex flex-col items-center py-6 gap-8">
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-50 w-[72px] bg-white border-r border-slate-100 flex flex-col items-center py-6 gap-8 transition-transform md:relative md:translate-x-0",
+        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
         <div className="w-10 h-10 flex items-center justify-center">
           <img src="https://api.marblism.com/favicon.ico" alt="Logo" className="w-8 h-8 opacity-80" />
         </div>
@@ -207,6 +277,8 @@ export default function App() {
               onClick={() => {
                 if (['chat', 'media', 'docs', 'team', 'tasks'].includes(item.id)) {
                   setActiveView(item.id as any);
+                  setIsMobileMenuOpen(false);
+                  if (item.id !== 'chat') setShowAgentList(false);
                 }
               }}
               className={cn(
@@ -229,10 +301,33 @@ export default function App() {
         </div>
       </aside>
 
+      {/* Mobile Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Agent List Column */}
-      <aside className="w-[340px] border-r border-slate-100 flex flex-col bg-white">
-        <div className="p-6">
+      <aside className={cn(
+        "fixed inset-y-0 left-0 md:relative z-30 w-full md:w-[340px] border-r border-slate-100 flex flex-col bg-white transition-transform md:translate-x-0",
+        showAgentList ? "translate-x-0" : "-translate-x-full",
+        "pt-16 md:pt-0"
+      )}>
+        <div className="p-6 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">Agents</h1>
+          <button 
+            className="md:hidden p-2 text-slate-400"
+            onClick={() => setShowAgentList(false)}
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto">
           {agents.map((agent) => (
@@ -243,16 +338,17 @@ export default function App() {
               onClick={() => {
                 setActiveAgentId(agent.id);
                 setActiveView('chat');
+                setShowAgentList(false);
               }}
             />
           ))}
         </div>
         
         {/* Stats Widget */}
-        <div className="p-6 mt-auto">
+        <div className="p-6 mt-auto hidden md:block">
           <div className="bg-orange-50/50 rounded-3xl p-6 relative overflow-hidden">
             <div className="relative z-10">
-              <h3 className="text-4xl font-bold text-slate-900 mb-1">10 <span className="text-2xl font-medium">hours</span></h3>
+              <h3 className="text-4xl font-bold text-slate-900 mb-1">{hoursSaved} <span className="text-2xl font-medium">hours</span></h3>
               <p className="text-sm text-slate-500">saved this month</p>
             </div>
             <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-orange-200/30 rounded-full blur-3xl" />
@@ -264,7 +360,10 @@ export default function App() {
       </aside>
 
       {/* Main Area */}
-      <main className="flex-1 flex flex-col bg-white">
+      <main className={cn(
+        "flex-1 flex flex-col bg-white pt-16 md:pt-0 transition-transform",
+        !showAgentList ? "translate-x-0" : "translate-x-full md:translate-x-0"
+      )}>
         {activeView === 'chat' ? (
           <ChatInterface 
             agent={activeAgent}
@@ -272,19 +371,30 @@ export default function App() {
             onSendMessage={handleSendMessage}
             isTyping={isTyping}
             onUpdateGuidelines={handleUpdateGuidelines}
+            onBack={() => setShowAgentList(true)}
           />
-        ) : activeView === 'media' ? (
-          <MediaLibrary />
-        ) : activeView === 'docs' ? (
-          <CompanyKnowledge />
-        ) : activeView === 'team' ? (
-          <TeamManagement />
         ) : (
-          <TaskManager 
-            tasks={tasks}
-            onUpdateTask={(id, status) => setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t))}
-            onCreateTask={handleTaskCreation}
-          />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="md:hidden px-6 py-4 border-b border-slate-100 flex items-center gap-4">
+              <button onClick={() => setShowAgentList(true)} className="p-2 -ml-2 text-slate-400">
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <h2 className="font-bold text-slate-900 capitalize">{activeView}</h2>
+            </div>
+            {activeView === 'media' ? (
+              <MediaLibrary />
+            ) : activeView === 'docs' ? (
+              <CompanyKnowledge />
+            ) : activeView === 'team' ? (
+              <TeamManagement />
+            ) : (
+              <TaskManager 
+                tasks={tasks}
+                onUpdateTask={(id, status) => setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t))}
+                onCreateTask={handleTaskCreation}
+              />
+            )}
+          </div>
         )}
       </main>
     </div>

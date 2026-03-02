@@ -56,37 +56,37 @@ export const MediaLibrary: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Header */}
-      <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+      <div className="px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Media</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Give access to your media files to your AI Employees. <span className="font-bold text-slate-700">Only Penny and Sonny can use media files.</span>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Media</h1>
+          <p className="text-xs md:text-sm text-slate-500 mt-1">
+            Give access to your media files to your AI Employees. <span className="font-bold text-slate-700 hidden sm:inline">Only Penny and Sonny can use media files.</span>
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
+        <div className="flex items-center gap-2 md:gap-4">
+          <div className="relative flex-1 md:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
-              placeholder="Search media..." 
-              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all w-64"
+              placeholder="Search..." 
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all w-full md:w-64"
             />
           </div>
-          <button className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2">
+          <button className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2 flex-shrink-0">
             <Plus className="w-4 h-4" />
-            Upload
+            <span className="hidden sm:inline">Upload</span>
           </button>
         </div>
       </div>
 
       {/* Category Tabs */}
-      <div className="px-8 border-b border-slate-100 flex gap-8">
+      <div className="px-4 md:px-8 border-b border-slate-100 flex gap-6 md:gap-8 overflow-x-auto no-scrollbar">
         {(['all', 'uploads', 'generated'] as const).map(cat => (
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
             className={cn(
-              "py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2",
+              "py-3 md:py-4 text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all border-b-2 whitespace-nowrap",
               activeCategory === cat 
                 ? "text-slate-900 border-brand-500" 
                 : "text-slate-400 border-transparent hover:text-slate-600"
@@ -98,8 +98,8 @@ export const MediaLibrary: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
           {/* Upload Placeholder */}
           {activeCategory !== 'generated' && (
             <button className="aspect-square border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-3 text-slate-400 hover:text-brand-600 hover:border-brand-200 hover:bg-brand-50/50 transition-all group">

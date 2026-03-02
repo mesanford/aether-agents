@@ -53,18 +53,17 @@ export const TeamManagement: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Header */}
-      <div className="px-8 py-8 flex items-center justify-between">
+      <div className="px-4 md:px-8 py-6 md:py-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Team</h1>
-          <p className="text-sm text-slate-500 mt-2">
-            You're currently using <span className="font-bold text-slate-700">{members.length} out of 5 seats</span> • 
-            <button className="text-brand-600 hover:underline ml-1">Add Seats</button> • 
-            <button className="text-brand-600 hover:underline ml-1">Manage Seats</button>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Team</h1>
+          <p className="text-xs md:text-sm text-slate-500 mt-1 md:mt-2">
+            <span className="font-bold text-slate-700">{members.length} / 5 seats</span> • 
+            <button className="text-brand-600 hover:underline ml-1">Add Seats</button>
           </p>
         </div>
         <button 
           onClick={() => setIsInviteModalOpen(true)}
-          className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all flex items-center gap-2 shadow-lg shadow-slate-200"
+          className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200"
         >
           <UserPlus className="w-4 h-4" />
           Invite Member
@@ -72,32 +71,32 @@ export const TeamManagement: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-y-auto px-8 pb-8">
-        <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
-          <table className="w-full text-left border-collapse">
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8">
+        <div className="bg-white border border-slate-100 rounded-2xl md:rounded-3xl overflow-x-auto shadow-sm">
+          <table className="w-full text-left border-collapse min-w-[600px] md:min-w-0">
             <thead>
               <tr className="border-b border-slate-50">
-                <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-wider text-slate-400">Member</th>
-                <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-wider text-slate-400">Role</th>
-                <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-wider text-slate-400">Joined</th>
-                <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-wider text-slate-400 text-right">Actions</th>
+                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-slate-400">Member</th>
+                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-slate-400">Role</th>
+                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-slate-400">Joined</th>
+                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-slate-400 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {members.map((member) => (
                 <tr key={member.id} className="group hover:bg-slate-50/50 transition-colors">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+                  <td className="px-6 md:px-8 py-4 md:py-5">
+                    <div className="flex items-center gap-3 md:gap-4">
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200 flex-shrink-0">
                         <img src={member.avatar} alt={member.name} />
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-900">{member.name}</p>
-                        <p className="text-xs text-slate-500 font-medium">{member.email}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900 truncate">{member.name}</p>
+                        <p className="text-xs text-slate-500 font-medium truncate">{member.email}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-8 py-5">
+                  <td className="px-6 md:px-8 py-4 md:py-5">
                     <div className="flex items-center gap-2">
                       {member.role === 'Owner' ? (
                         <ShieldCheck className="w-4 h-4 text-brand-600" />
@@ -107,10 +106,10 @@ export const TeamManagement: React.FC = () => {
                       <span className="text-sm font-medium text-slate-700">{member.role}</span>
                     </div>
                   </td>
-                  <td className="px-8 py-5">
+                  <td className="px-6 md:px-8 py-4 md:py-5">
                     <span className="text-sm font-medium text-slate-500">{member.joinedDate}</span>
                   </td>
-                  <td className="px-8 py-5 text-right">
+                  <td className="px-6 md:px-8 py-4 md:py-5 text-right">
                     {member.role !== 'Owner' && (
                       <button 
                         onClick={() => removeMember(member.id)}
