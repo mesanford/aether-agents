@@ -8,13 +8,30 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/292f0614-ee04-4099-bfc4-d30e1d05798d
 
-## Run Locally
+## Development Setup
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Create an `.env.local` file by copying `.env.example`:
+   `cp .env.example .env.local`
+3. Set your `GEMINI_API_KEY` in `.env.local`
+4. Run the app in development mode:
    `npm run dev`
+
+## Local Production Deployment
+
+For a robust local deployment (e.g. running on a local server or background process):
+
+1. Follow the Development Setup prerequisites and `.env.local` configuration.
+2. (Optional but Recommended) Set additional environment variables in `.env.local`:
+   * `JWT_SECRET`: A strong secret key for session tokens.
+   * `APP_URL`: The URL where your app is hosted (e.g., `http://192.168.1.100:3000`).
+   * `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: For Google OAuth login.
+3. Build the frontend assets:
+   `npm run build`
+4. Start the production server:
+   `npm start`
+
+The server runs on port 3000 and binds to `0.0.0.0`, making it accessible on your local network.

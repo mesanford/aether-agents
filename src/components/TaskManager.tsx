@@ -1,33 +1,33 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  CheckCircle2, 
-  Circle, 
-  Clock, 
-  Calendar, 
-  RefreshCw, 
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  Calendar,
+  RefreshCw,
   User,
   ChevronRight,
   X
 } from 'lucide-react';
 import { Task, Agent } from '../types';
-import { INITIAL_AGENTS } from '../constants';
 import { cn } from '../utils';
 
 interface TaskManagerProps {
   tasks: Task[];
+  agents: Agent[];
   onUpdateTask: (id: string, status: Task['status']) => void;
   onCreateTask: (task: Omit<Task, 'id' | 'status'>) => void;
 }
 
-export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, onCreateTask }) => {
+export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, agents, onUpdateTask, onCreateTask }) => {
   const [filter, setFilter] = useState<'all' | 'todo' | 'running' | 'done' | 'failed'>('all');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newTask, setNewTask] = useState<Omit<Task, 'id' | 'status'>>({
     title: '',
     description: '',
-    assigneeId: INITIAL_AGENTS[0].id,
+    assigneeId: agents[0]?.id || '',
     dueDate: 'Tomorrow, 9:00 AM',
     repeat: ''
   });
@@ -38,7 +38,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
   });
 
   const selectedTask = tasks.find(t => t.id === selectedTaskId);
-  const assignee = selectedTask ? INITIAL_AGENTS.find(a => a.id === selectedTask.assigneeId) : null;
+  const assignee = selectedTask ? agents.find(a => a.id === selectedTask.assigneeId) : null;
 
   const counts = {
     all: tasks.length,
@@ -55,7 +55,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
     setNewTask({
       title: '',
       description: '',
-      assigneeId: INITIAL_AGENTS[0].id,
+      assigneeId: agents[0]?.id || '',
       dueDate: 'Tomorrow, 9:00 AM',
       repeat: ''
     });
@@ -71,7 +71,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
               <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Tasks</h1>
               <p className="text-xs md:text-sm text-slate-500 mt-1">View all tasks created by your AI employees</p>
             </div>
-            <button 
+            <button
               onClick={() => setIsCreating(true)}
               className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex-shrink-0"
             >
@@ -79,7 +79,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
               <span className="sm:hidden">New</span>
             </button>
           </div>
-          
+
           <div className="flex gap-2 mt-6 overflow-x-auto no-scrollbar pb-1">
             {(['all', 'todo', 'running', 'done', 'failed'] as const).map((f) => (
               <button
@@ -87,8 +87,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
                 onClick={() => setFilter(f)}
                 className={cn(
                   "px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
-                  filter === f 
-                    ? "bg-slate-900 text-white" 
+                  filter === f
+                    ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                 )}
               >
@@ -107,7 +107,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
         <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8">
           <div className="space-y-1">
             {filteredTasks.map((task) => {
-              const agent = INITIAL_AGENTS.find(a => a.id === task.assigneeId);
+              const agent = agents.find(a => a.id === task.assigneeId);
               return (
                 <button
                   key={task.id}
@@ -157,7 +157,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
         {selectedTaskId && selectedTask && (
           <>
             {/* Mobile Overlay for Detail Panel */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -181,7 +181,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
                     </span>
                   )}
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedTaskId(null)}
                   className="p-2 hover:bg-slate-100 rounded-full transition-colors"
                 >
@@ -239,7 +239,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
               </div>
 
               <div className="p-4 md:p-6 border-t border-slate-50 mt-auto">
-                <button 
+                <button
                   onClick={() => onUpdateTask(selectedTask.id, selectedTask.status === 'done' ? 'todo' : 'done')}
                   className="w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all"
                 >
@@ -277,22 +277,22 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
               <form onSubmit={handleCreateSubmit} className="p-8 space-y-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Title</label>
-                  <input 
+                  <input
                     required
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                     placeholder="Task title"
                     value={newTask.title}
-                    onChange={e => setNewTask({...newTask, title: e.target.value})}
+                    onChange={e => setNewTask({ ...newTask, title: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Assignee</label>
-                  <select 
+                  <select
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                     value={newTask.assigneeId}
-                    onChange={e => setNewTask({...newTask, assigneeId: e.target.value})}
+                    onChange={e => setNewTask({ ...newTask, assigneeId: e.target.value })}
                   >
-                    {INITIAL_AGENTS.map(agent => (
+                    {agents.map(agent => (
                       <option key={agent.id} value={agent.id}>{agent.name} ({agent.role})</option>
                     ))}
                   </select>
@@ -300,33 +300,33 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Due Date</label>
-                    <input 
+                    <input
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                       placeholder="Tomorrow, 9:00 AM"
                       value={newTask.dueDate}
-                      onChange={e => setNewTask({...newTask, dueDate: e.target.value})}
+                      onChange={e => setNewTask({ ...newTask, dueDate: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Repeat</label>
-                    <input 
+                    <input
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                       placeholder="e.g. Every day"
                       value={newTask.repeat}
-                      onChange={e => setNewTask({...newTask, repeat: e.target.value})}
+                      onChange={e => setNewTask({ ...newTask, repeat: e.target.value })}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Description</label>
-                  <textarea 
+                  <textarea
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all min-h-[100px]"
                     placeholder="What needs to be done?"
                     value={newTask.description}
-                    onChange={e => setNewTask({...newTask, description: e.target.value})}
+                    onChange={e => setNewTask({ ...newTask, description: e.target.value })}
                   />
                 </div>
-                <button 
+                <button
                   type="submit"
                   className="w-full py-4 bg-brand-600 text-white rounded-2xl font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/25"
                 >
@@ -342,22 +342,22 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdateTask, o
 };
 
 const FileText: React.FC<{ className?: string }> = ({ className }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="24" 
-    height="24" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
-    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="16" y1="13" x2="8" y2="13"/>
-    <line x1="16" y1="17" x2="8" y2="17"/>
-    <line x1="10" y1="9" x2="8" y2="9"/>
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <line x1="10" y1="9" x2="8" y2="9" />
   </svg>
 );

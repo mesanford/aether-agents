@@ -17,7 +17,7 @@ export const INITIAL_AGENTS: Agent[] = [
     name: 'Eva',
     role: AgentRole.EXECUTIVE_ASSISTANT,
     status: AgentStatus.IDLE,
-    description: "I've scanned that latest Qwoted email for you...",
+    description: "I'm here to help manage your inbox, categorize emails, and keep your schedule running smoothly.",
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Eva&gender=female',
     capabilities: ['Inbox Management', 'Scheduling', 'Research'],
     lastAction: '2:12 PM',
@@ -34,13 +34,15 @@ export const INITIAL_AGENTS: Agent[] = [
         id: '2',
         title: "How should I write emails?",
         items: [
-          { id: '1', content: `# Email Tone and Style Analysis
+          {
+            id: '1', content: `# Email Tone and Style Analysis
 
 ## Overall Tone
 - **Professional yet approachable**: Maintains business professionalism while being personable and conversational
 - **Direct and concise**: Gets to the point quickly without unnecessary pleasantries or filler
 - **Helpful and solution-oriented**: Focuses on providing information, solving problems, or moving projects forward
-- **Calm and measured**: Even when expressing frustration (payout issues), maintains composure and professionalism`, isMarkdown: true }
+- **Calm and measured**: Even when expressing frustration (payout issues), maintains composure and professionalism`, isMarkdown: true
+          }
         ],
         showInput: false
       }
@@ -60,7 +62,8 @@ export const INITIAL_AGENTS: Agent[] = [
         id: '1',
         title: "Content Themes",
         items: [
-          { id: '1', content: `• Google Search algorithm updates and ranking volatility
+          {
+            id: '1', content: `• Google Search algorithm updates and ranking volatility
 • Google AI features and developments (AI Overviews, LLMs)
 • Google technical SEO (Googlebot crawling, indexing limits, file types)
 • Google's financial performance and revenue reports
@@ -70,7 +73,8 @@ export const INITIAL_AGENTS: Agent[] = [
 • SEO industry news and commentary
 • Technical implementation for search engines (markdown pages, structured data)
 • Google company news and personnel updates` },
-          { id: '2', content: `* Google Apps Script for Data Integration and Process Automation
+          {
+            id: '2', content: `* Google Apps Script for Data Integration and Process Automation
 * Python for search engine optimization and language processing
 * Google BigQuery for reporting and data integration
 * Google Looker Studio for reporting, dashboards, and visualization
@@ -97,18 +101,18 @@ export const INITIAL_AGENTS: Agent[] = [
         id: '1',
         title: "Writing Style",
         items: [
-          { 
-            id: '1', 
+          {
+            id: '1',
             content: `**Sanford Consulting: Tone & Style Guide**
 
 1. Core Philosophy: The "Technical Peer" / "Accessible Expert"
 
 Sanford Consulting does not talk at clients; it talks with them as a high-level strategic partner. Maintain expert credibility while prioritizing clarity and minimalism. Explain the data so it makes sense to a CEO.
 
-The Brand Promise: Get Found. Get Cited. Get Qualified Leads.` 
+The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
           },
-          { 
-            id: '2', 
+          {
+            id: '2',
             content: `# Tone Analysis
 
 - Write as an accessible expert: professional but casual, minimalist language, prioritize clarity
@@ -117,7 +121,7 @@ The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
 - Keep wit for internal drafts; keep external blog posts in "Accessible Expert" voice
 - Start with question-based headlines that challenge assumptions or provoke curiosity about the topic
 - Use italicized text sparingly and only when it improves clarity
-- Insert skepticism about conventional wisdom early in the piece, but keep it measured and` 
+- Insert skepticism about conventional wisdom early in the piece, but keep it measured and`
           }
         ],
         showInput: true
