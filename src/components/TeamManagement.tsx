@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserPlus, MoreVertical, Trash2, Mail, Shield, ShieldCheck } from 'lucide-react';
 import { cn } from '../utils';
+import { apiFetch } from '../services/apiClient';
 
 interface TeamMember {
   id: number;
@@ -14,19 +15,20 @@ interface TeamMember {
 interface TeamManagementProps {
   activeWorkspaceId: number | null;
   token: string | null;
+  onAuthFailure?: () => void;
 }
 
-export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceId, token }) => {
+export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceId, token, onAuthFailure }) => {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (activeWorkspaceId && token) {
       setIsLoading(true);
-      fetch(`/api/workspaces/${activeWorkspaceId}/members`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/members`, {
+        token,
+        onAuthFailure: () => onAuthFailure?.(),
       })
-      .then(res => res.json())
       .then(data => {
         setMembers(data.map((m: any) => ({
           ...m,

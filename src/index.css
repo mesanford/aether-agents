@@ -33,6 +33,9 @@
 
 .markdown-body {
   @apply text-[15px] leading-relaxed;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .markdown-body p {

@@ -2,61 +2,144 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Image as ImageIcon, Video, FileText, Upload, MoreHorizontal, Search, Plus } from 'lucide-react';
 import { cn } from '../utils';
+import { apiFetch } from '../services/apiClient';
 
 interface MediaLibraryProps {
   activeWorkspaceId: number | null;
+  token: string | null;
+  onAuthFailure?: () => void;
 }
 
-export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId }) => {
+type MediaItem = {
+  id: number;
+  name: string;
+  type: 'image' | 'video' | 'file';
+  category: 'uploads' | 'generated';
+  thumbnail: string;
+  size?: string | null;
+  author?: string | null;
+  created_at?: string;
+};
+
+export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, token, onAuthFailure }) => {
   const [activeCategory, setActiveCategory] = React.useState<'all' | 'uploads' | 'generated'>('all');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [mediaItems, setMediaItems] = React.useState<MediaItem[]>([]);
+  const [uploading, setUploading] = React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<number | null>(null);
+
+  const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Unable to read file'));
+      }
+    };
+    reader.onerror = () => reject(reader.error || new Error('Unable to read file'));
+    reader.readAsDataURL(file);
+  });
+
+  const fetchMedia = React.useCallback(async () => {
+    if (!activeWorkspaceId || !token) {
+      setMediaItems([]);
+      return;
+    }
+
+    try {
+      const data = await apiFetch<MediaItem[]>(`/api/workspaces/${activeWorkspaceId}/media`, {
+        token,
+        onAuthFailure,
+      });
+      setMediaItems(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load media library', error);
+      setMediaItems([]);
+    }
+  }, [activeWorkspaceId, token, onAuthFailure]);
+
+  React.useEffect(() => {
+    void fetchMedia();
+  }, [fetchMedia]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      alert(`File "${file.name}" selected. In a real app, this would be uploaded to your workspace media library.`);
+    e.target.value = '';
+    if (!file || !activeWorkspaceId || !token) {
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const thumbnail = await readFileAsDataUrl(file);
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/media`, {
+        method: 'POST',
+        token,
+        onAuthFailure,
+        body: JSON.stringify({
+          name: file.name,
+          type: file.type.startsWith('image/') ? 'image' : 'file',
+          category: 'uploads',
+          thumbnail,
+          size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
+        }),
+      });
+      await fetchMedia();
+    } catch (error) {
+      console.error('Failed to upload media asset', error);
+      alert('Could not upload this media file.');
+    } finally {
+      setUploading(false);
     }
   };
-  const [mediaItems, setMediaItems] = React.useState(() => {
-    const saved = localStorage.getItem(`sanford-media-${activeWorkspaceId}`);
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: '1',
-        name: 'MM Sanford Logo',
-        type: 'image',
-        category: 'uploads',
-        thumbnail: 'https://ais-pre-ozn6jhe7zcj3cdiobiz65k-153562024476.us-west2.run.app/logo.png',
-        size: '42 KB',
-        date: 'Mar 1, 2026'
-      },
-      {
-        id: '2',
-        name: 'Innovation Paradox Hero',
-        type: 'image',
-        category: 'generated',
-        thumbnail: 'https://picsum.photos/seed/innovation/800/600',
-        size: '156 KB',
-        date: 'Mar 1, 2026',
-        author: 'Sonny'
-      }
-    ];
-  });
 
-  React.useEffect(() => {
-    if (activeWorkspaceId) {
-      localStorage.setItem(`sanford-media-${activeWorkspaceId}`, JSON.stringify(mediaItems));
+  const handleDeleteMedia = async (mediaId: number) => {
+    if (!activeWorkspaceId || !token) {
+      return;
     }
-  }, [mediaItems, activeWorkspaceId]);
+
+    try {
+      setDeletingId(mediaId);
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/media/${mediaId}`, {
+        method: 'DELETE',
+        token,
+        onAuthFailure,
+      });
+      setMediaItems((current) => current.filter((item) => item.id !== mediaId));
+    } catch (error) {
+      console.error('Failed to delete media asset', error);
+      alert('Could not delete this media file.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const filteredItems = mediaItems.filter(item => {
     if (activeCategory === 'all') return true;
     return item.category === activeCategory;
   });
+
+  const formatDate = (value?: string) => {
+    if (!value) {
+      return 'Just now';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Just now';
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date);
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-white overflow-hidden">
@@ -88,7 +171,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId })
             className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2 flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Upload</span>
+            <span className="hidden sm:inline">{uploading ? 'Uploading...' : 'Upload'}</span>
           </button>
         </div>
       </div>
@@ -147,12 +230,22 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId })
                 <div className="flex items-center justify-between">
                   <div className="min-w-0">
                     <p className="text-white text-sm font-bold truncate">{item.name}</p>
-                    <p className="text-white/70 text-[10px] font-medium">{item.size} • {item.date}</p>
+                    <p className="text-white/70 text-[10px] font-medium">{item.size || 'Unknown size'} • {formatDate(item.created_at)}</p>
                     {item.category === 'generated' && (
-                      <p className="text-brand-400 text-[10px] font-bold uppercase tracking-wider mt-1">By {item.author}</p>
+                      <p className="text-brand-400 text-[10px] font-bold uppercase tracking-wider mt-1">By {item.author || 'Agent'}</p>
                     )}
                   </div>
-                  <button className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/30 transition-colors">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void handleDeleteMedia(item.id);
+                    }}
+                    disabled={deletingId === item.id}
+                    className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/30 transition-colors disabled:opacity-50"
+                    aria-label={`Delete ${item.name}`}
+                  >
                     <MoreHorizontal className="w-4 h-4" />
                   </button>
                 </div>

@@ -9,7 +9,10 @@
     "build": "vite build",
     "preview": "npm run build && npm start",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "node --import tsx --test tests/unit/**/*.test.ts",
+    "test:integration": "node --test tests/security.integration.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

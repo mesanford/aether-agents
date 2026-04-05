@@ -1,34 +1,281 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Agent, Message, GuidelineSection, GuidelineItem } from '../types';
+import { Agent, AgentPersonality, Message, GuidelineSection, GuidelineItem, Lead } from '../types';
 import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash } from 'lucide-react';
 import Markdown from 'react-markdown';
-import { cn } from '../utils';
+import { buildAgentPromptContext, cn, normalizeAgentPersonality } from '../utils';
+import { apiFetch } from '../services/apiClient';
 
 interface ChatInterfaceProps {
   agent: Agent;
   messages: Message[];
+  token: string | null;
+  activeWorkspaceId: number | null;
+  onAuthFailure?: () => void;
   onSendMessage: (content: string) => void;
   isTyping: boolean;
-  onUpdateGuidelines: (agentId: string, guidelines: GuidelineSection[]) => void;
+  onUpdateGuidelines: (agentId: string, guidelines: GuidelineSection[]) => Promise<boolean>;
+  onUpdateCapabilities: (agentId: string, capabilities: string[]) => Promise<boolean>;
+  onUpdatePersonality: (agentId: string, personality: AgentPersonality) => Promise<boolean>;
   onBack?: () => void;
 }
+
+const MAX_AGENT_SKILLS = 25;
+const MAX_SKILL_LENGTH = 80;
+const ROLE_SKILL_PRESETS: Record<string, string[]> = {
+  'Executive Assistant': ['Inbox Triage', 'Calendar Coordination', 'Follow-up Drafting'],
+  'Social Media Manager': ['Content Repurposing', 'Campaign Analytics', 'Audience Engagement'],
+  'Blog Writer': ['SEO Strategy', 'Long-form Drafting', 'Topic Research'],
+  'Sales Associate': ['Lead Qualification', 'Outreach Sequencing', 'CRM Hygiene'],
+  'Legal Associate': ['Contract Review', 'Risk Flagging', 'Compliance Checks'],
+  'Receptionist': ['Call Routing', 'Inquiry Handling', 'Appointment Intake'],
+};
+
+type PromptVersionEntry = {
+  id: number;
+  userId: number | null;
+  before?: {
+    description?: string;
+    capabilities?: string[];
+    guidelines?: GuidelineSection[];
+    personality?: AgentPersonality;
+  } | null;
+  after?: {
+    description?: string;
+    capabilities?: string[];
+    guidelines?: GuidelineSection[];
+    personality?: AgentPersonality;
+  } | null;
+  versionAt?: number | null;
+  createdAt?: string | null;
+};
+
+type PersonalityDiffItem = {
+  label: string;
+  before: string;
+  after: string;
+};
+
+const PERSONALITY_TONE_OPTIONS: Array<AgentPersonality['tone']> = ['warm', 'direct', 'analytical', 'playful', 'formal'];
+const PERSONALITY_STYLE_OPTIONS: Array<AgentPersonality['communicationStyle']> = ['concise', 'balanced', 'detailed'];
+const PERSONALITY_ASSERTIVENESS_OPTIONS: Array<AgentPersonality['assertiveness']> = ['low', 'medium', 'high'];
+const PERSONALITY_HUMOR_OPTIONS: Array<AgentPersonality['humor']> = ['none', 'light'];
+const PERSONALITY_VERBOSITY_OPTIONS: Array<AgentPersonality['verbosity']> = ['short', 'medium', 'long'];
+
+function formatPersonalityValue(value: string | string[]) {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(', ') : 'none';
+  }
+
+  return value.trim().length > 0 ? value : 'none';
+}
+
+function buildPersonalityDiff(before?: AgentPersonality | null, after?: AgentPersonality | null): PersonalityDiffItem[] {
+  const normalizedBefore = normalizeAgentPersonality(before);
+  const normalizedAfter = normalizeAgentPersonality(after);
+  const comparisons: Array<{ label: string; before: string | string[]; after: string | string[] }> = [
+    { label: 'Tone', before: normalizedBefore.tone, after: normalizedAfter.tone },
+    { label: 'Style', before: normalizedBefore.communicationStyle, after: normalizedAfter.communicationStyle },
+    { label: 'Assertiveness', before: normalizedBefore.assertiveness, after: normalizedAfter.assertiveness },
+    { label: 'Humor', before: normalizedBefore.humor, after: normalizedAfter.humor },
+    { label: 'Verbosity', before: normalizedBefore.verbosity, after: normalizedAfter.verbosity },
+    { label: 'Signature', before: normalizedBefore.signaturePhrase, after: normalizedAfter.signaturePhrase },
+    { label: 'Do Nots', before: normalizedBefore.doNots, after: normalizedAfter.doNots },
+  ];
+
+  return comparisons
+    .map((comparison) => ({
+      label: comparison.label,
+      before: formatPersonalityValue(comparison.before),
+      after: formatPersonalityValue(comparison.after),
+    }))
+    .filter((comparison) => comparison.before !== comparison.after);
+}
+
+type PersonalityPreset = {
+  id: string;
+  label: string;
+  description: string;
+  personality: Partial<AgentPersonality>;
+};
+
+const DEFAULT_PERSONALITY_PRESETS: PersonalityPreset[] = [
+  {
+    id: 'trusted-advisor',
+    label: 'Trusted Advisor',
+    description: 'Calm and strategic guidance with concise recommendations.',
+    personality: {
+      tone: 'warm',
+      communicationStyle: 'balanced',
+      assertiveness: 'medium',
+      humor: 'light',
+      verbosity: 'medium',
+      signaturePhrase: 'Let us lock in the next best move.',
+      doNots: ['Do not hedge with vague language', 'Do not overpromise outcomes'],
+    },
+  },
+  {
+    id: 'operator',
+    label: 'Operator',
+    description: 'Decisive execution focus with clear next actions.',
+    personality: {
+      tone: 'direct',
+      communicationStyle: 'concise',
+      assertiveness: 'high',
+      humor: 'none',
+      verbosity: 'short',
+      signaturePhrase: 'Next action is ready.',
+      doNots: ['Do not add unnecessary context', 'Do not leave decisions unresolved'],
+    },
+  },
+  {
+    id: 'deep-analyst',
+    label: 'Deep Analyst',
+    description: 'Evidence-driven breakdowns with explicit tradeoffs.',
+    personality: {
+      tone: 'analytical',
+      communicationStyle: 'detailed',
+      assertiveness: 'medium',
+      humor: 'none',
+      verbosity: 'long',
+      signaturePhrase: 'Here is the reasoning behind the recommendation.',
+      doNots: ['Do not skip assumptions', 'Do not hide uncertainty'],
+    },
+  },
+];
+
+const ROLE_PERSONALITY_PRESETS: Record<string, PersonalityPreset[]> = {
+  'Executive Assistant': [
+    {
+      id: 'ea-chief-of-staff',
+      label: 'Chief of Staff',
+      description: 'Proactive planner with polished executive tone.',
+      personality: {
+        tone: 'formal',
+        communicationStyle: 'concise',
+        assertiveness: 'high',
+        humor: 'none',
+        verbosity: 'short',
+        signaturePhrase: 'Prepared and queued for your approval.',
+        doNots: ['Do not miss priorities', 'Do not bury the headline'],
+      },
+    },
+    {
+      id: 'ea-concierge',
+      label: 'Concierge',
+      description: 'Warm, service-oriented support with clear options.',
+      personality: {
+        tone: 'warm',
+        communicationStyle: 'balanced',
+        assertiveness: 'medium',
+        humor: 'light',
+        verbosity: 'medium',
+        signaturePhrase: 'I have this coordinated for you.',
+        doNots: ['Do not sound robotic', 'Do not overload with detail'],
+      },
+    },
+  ],
+  'Sales Associate': [
+    {
+      id: 'sales-closer',
+      label: 'Closer',
+      description: 'Outcome-driven messaging with strong CTA language.',
+      personality: {
+        tone: 'direct',
+        communicationStyle: 'concise',
+        assertiveness: 'high',
+        humor: 'light',
+        verbosity: 'short',
+        signaturePhrase: 'Ready to move this forward?',
+        doNots: ['Do not use passive asks', 'Do not bury call-to-action'],
+      },
+    },
+    {
+      id: 'sales-consultant',
+      label: 'Consultant',
+      description: 'Advisory tone that clarifies value and tradeoffs.',
+      personality: {
+        tone: 'warm',
+        communicationStyle: 'balanced',
+        assertiveness: 'medium',
+        humor: 'none',
+        verbosity: 'medium',
+        signaturePhrase: 'Let us align this to your business priority.',
+        doNots: ['Do not oversell', 'Do not skip discovery questions'],
+      },
+    },
+  ],
+  'Legal Associate': [
+    {
+      id: 'legal-risk-counsel',
+      label: 'Risk Counsel',
+      description: 'Formal and precise with strong risk framing.',
+      personality: {
+        tone: 'formal',
+        communicationStyle: 'detailed',
+        assertiveness: 'high',
+        humor: 'none',
+        verbosity: 'long',
+        signaturePhrase: 'Risk posture and mitigation are outlined below.',
+        doNots: ['Do not give absolute legal certainty', 'Do not omit caveats'],
+      },
+    },
+    {
+      id: 'legal-plain-english',
+      label: 'Plain-English Counsel',
+      description: 'Clear legal interpretation for non-legal stakeholders.',
+      personality: {
+        tone: 'analytical',
+        communicationStyle: 'balanced',
+        assertiveness: 'medium',
+        humor: 'none',
+        verbosity: 'medium',
+        signaturePhrase: 'In plain terms, here is what this means.',
+        doNots: ['Do not use unexplained jargon', 'Do not skip key obligations'],
+      },
+    },
+  ],
+};
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
   agent, 
   messages, 
+  token,
+  activeWorkspaceId,
+  onAuthFailure,
   onSendMessage, 
   isTyping, 
   onUpdateGuidelines,
+  onUpdateCapabilities,
+  onUpdatePersonality,
   onBack 
 }) => {
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState('Chat');
+  const [guidelineState, setGuidelineState] = useState<{ status: 'idle' | 'saving' | 'success' | 'error'; message: string }>({
+    status: 'idle',
+    message: '',
+  });
+  const [promptVersions, setPromptVersions] = useState<PromptVersionEntry[]>([]);
+  const [promptVersionState, setPromptVersionState] = useState<{ status: 'idle' | 'loading' | 'error'; message: string }>({
+    status: 'idle',
+    message: '',
+  });
+  const [personalityDraft, setPersonalityDraft] = useState<AgentPersonality>(() => normalizeAgentPersonality(agent.personality));
+  const [personalityState, setPersonalityState] = useState<{ status: 'idle' | 'saving' | 'success' | 'error'; message: string }>({
+    status: 'idle',
+    message: '',
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setActiveTab('Chat');
-  }, [agent.id]);
+    setGuidelineState({ status: 'idle', message: '' });
+    setSkillState({ status: 'idle', message: '' });
+    setPersonalityState({ status: 'idle', message: '' });
+    setPersonalityDraft(normalizeAgentPersonality(agent.personality));
+    setNewCapability('');
+  }, [agent.id, agent.personality]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -36,10 +283,36 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   }, [messages, isTyping, activeTab]);
 
+  useEffect(() => {
+    if (activeTab !== 'Guidelines' || !token || !activeWorkspaceId || !agent.id) {
+      return;
+    }
+
+    setPromptVersionState({ status: 'loading', message: '' });
+    apiFetch<PromptVersionEntry[]>(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agent.id)}/prompt-versions?limit=8`, {
+      token,
+      onAuthFailure: () => onAuthFailure?.(),
+    })
+      .then((data) => {
+        setPromptVersions(Array.isArray(data) ? data : []);
+        setPromptVersionState({ status: 'idle', message: '' });
+      })
+      .catch((error) => {
+        console.error('Failed to fetch prompt versions', error);
+        setPromptVersions([]);
+        setPromptVersionState({ status: 'error', message: 'Could not load prompt history.' });
+      });
+  }, [activeTab, token, activeWorkspaceId, agent.id, onAuthFailure]);
+
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [newSectionTitle, setNewSectionTitle] = useState('');
+  const [newCapability, setNewCapability] = useState('');
+  const [skillState, setSkillState] = useState<{ status: 'idle' | 'saving' | 'success' | 'error'; message: string }>({
+    status: 'idle',
+    message: '',
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,11 +354,58 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       ];
 
   const renderGuidelines = () => {
+    const trimmedCapability = newCapability.trim();
+    const normalizedCapabilities = agent.capabilities.map((capability) => capability.toLowerCase());
+    const hasDuplicateCapability = trimmedCapability.length > 0 && normalizedCapabilities.includes(trimmedCapability.toLowerCase());
+    const exceedsSkillLength = trimmedCapability.length > MAX_SKILL_LENGTH;
+    const hasSkillCapacity = agent.capabilities.length < MAX_AGENT_SKILLS;
+    const canAddSkill = trimmedCapability.length > 0 && !hasDuplicateCapability && !exceedsSkillLength && hasSkillCapacity;
+    const effectivePromptPreview = buildAgentPromptContext({
+      description: agent.description,
+      capabilities: agent.capabilities,
+      guidelines: agent.guidelines,
+      personality: personalityDraft,
+    });
+    const savedPersonality = normalizeAgentPersonality(agent.personality);
+    const hasUnsavedPersonalityChanges = JSON.stringify(savedPersonality) !== JSON.stringify(personalityDraft);
+    const personalityPresets = ROLE_PERSONALITY_PRESETS[agent.role] || DEFAULT_PERSONALITY_PRESETS;
+    const rolePresetSkills = ROLE_SKILL_PRESETS[agent.role] || [];
+    const missingRolePresetSkills = rolePresetSkills.filter((skill) => !normalizedCapabilities.includes(skill.toLowerCase()));
+
+    const persistGuidelinesUpdate = async (nextGuidelines: GuidelineSection[], successMessage: string) => {
+      setGuidelineState({ status: 'saving', message: '' });
+      const success = await onUpdateGuidelines(agent.id, nextGuidelines);
+      setGuidelineState(success
+        ? { status: 'success', message: successMessage }
+        : { status: 'error', message: 'Failed to save guideline changes.' });
+    };
+
+    const applyRoleSkillPreset = async () => {
+      if (missingRolePresetSkills.length === 0 || skillState.status === 'saving') {
+        return;
+      }
+
+      const filteredPresetSkills = missingRolePresetSkills
+        .filter((skill) => skill.length <= MAX_SKILL_LENGTH)
+        .slice(0, Math.max(0, MAX_AGENT_SKILLS - agent.capabilities.length));
+
+      if (filteredPresetSkills.length === 0) {
+        setSkillState({ status: 'error', message: 'No preset skills can be applied due to current limits.' });
+        return;
+      }
+
+      setSkillState({ status: 'saving', message: '' });
+      const success = await onUpdateCapabilities(agent.id, [...agent.capabilities, ...filteredPresetSkills]);
+      setSkillState(success
+        ? { status: 'success', message: `Applied ${filteredPresetSkills.length} preset skill${filteredPresetSkills.length > 1 ? 's' : ''}.` }
+        : { status: 'error', message: 'Failed to apply skill presets.' });
+    };
+
     const handleUpdateSectionTitle = (sectionId: string, newTitle: string) => {
       const updated = agent.guidelines.map(s => 
         s.id === sectionId ? { ...s, title: newTitle } : s
       );
-      onUpdateGuidelines(agent.id, updated);
+      void persistGuidelinesUpdate(updated, 'Section title updated.');
       setEditingSectionId(null);
     };
 
@@ -99,7 +419,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         }
         return s;
       });
-      onUpdateGuidelines(agent.id, updated);
+      void persistGuidelinesUpdate(updated, 'Guideline updated.');
       setEditingItemId(null);
     };
 
@@ -113,12 +433,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         }
         return s;
       });
-      onUpdateGuidelines(agent.id, updated);
+      void persistGuidelinesUpdate(updated, 'Guideline removed.');
     };
 
     const handleDeleteSection = (sectionId: string) => {
       const updated = agent.guidelines.filter(s => s.id !== sectionId);
-      onUpdateGuidelines(agent.id, updated);
+      void persistGuidelinesUpdate(updated, 'Section removed.');
     };
 
     const handleAddItem = (sectionId: string, content: string) => {
@@ -132,7 +452,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         }
         return s;
       });
-      onUpdateGuidelines(agent.id, updated);
+      void persistGuidelinesUpdate(updated, 'Guideline added.');
     };
 
     const handleAddSection = () => {
@@ -143,8 +463,67 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         items: [],
         showInput: true
       };
-      onUpdateGuidelines(agent.id, [...agent.guidelines, newSection]);
+      void persistGuidelinesUpdate([...agent.guidelines, newSection], 'Section added.');
       setNewSectionTitle('');
+    };
+
+    const handleAddCapability = async () => {
+      if (!canAddSkill) return;
+
+      setSkillState({ status: 'saving', message: '' });
+      const success = await onUpdateCapabilities(agent.id, [...agent.capabilities, trimmedCapability]);
+      setSkillState(success
+        ? { status: 'success', message: 'Skill saved.' }
+        : { status: 'error', message: 'Failed to save skill.' });
+      setNewCapability('');
+    };
+
+    const handleRemoveCapability = async (capabilityToRemove: string) => {
+      setSkillState({ status: 'saving', message: '' });
+      const success = await onUpdateCapabilities(agent.id, agent.capabilities.filter((capability) => capability !== capabilityToRemove));
+      setSkillState(success
+        ? { status: 'success', message: 'Skill removed.' }
+        : { status: 'error', message: 'Failed to remove skill.' });
+    };
+
+    const updateDoNotList = (rawValue: string) => {
+      const nextValues = rawValue
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+        .slice(0, 5);
+      setPersonalityDraft((current) => ({ ...current, doNots: nextValues }));
+    };
+
+    const savePersonality = async () => {
+      setPersonalityState({ status: 'saving', message: '' });
+      const success = await onUpdatePersonality(agent.id, personalityDraft);
+      setPersonalityState(success
+        ? { status: 'success', message: 'Personality profile saved.' }
+        : { status: 'error', message: 'Could not save personality. Keep profiles distinct and try again.' });
+    };
+
+    const revertPersonalityDraft = () => {
+      setPersonalityDraft(savedPersonality);
+      setPersonalityState({ status: 'idle', message: '' });
+    };
+
+    const applyPersonalityPreset = async (preset: PersonalityPreset) => {
+      if (personalityState.status === 'saving') {
+        return;
+      }
+
+      const nextPersonality = normalizeAgentPersonality({
+        ...personalityDraft,
+        ...preset.personality,
+      });
+      setPersonalityDraft(nextPersonality);
+
+      setPersonalityState({ status: 'saving', message: '' });
+      const success = await onUpdatePersonality(agent.id, nextPersonality);
+      setPersonalityState(success
+        ? { status: 'success', message: `Applied ${preset.label} preset.` }
+        : { status: 'error', message: 'Could not apply preset. Keep profiles distinct and try again.' });
     };
 
     return (
@@ -154,6 +533,283 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             <h1 className="text-4xl font-bold text-slate-900">Guidelines</h1>
           </div>
           <p className="text-slate-500 mb-10">Use this space to give {agent.name} custom instructions to follow</p>
+          {guidelineState.message ? (
+            <p className={cn(
+              'text-xs mb-6 font-medium',
+              guidelineState.status === 'error' ? 'text-rose-600' : 'text-emerald-600',
+            )}>
+              {guidelineState.message}
+            </p>
+          ) : null}
+
+          <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Personality Profile</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={revertPersonalityDraft}
+                  disabled={!hasUnsavedPersonalityChanges || personalityState.status === 'saving'}
+                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                >
+                  Revert Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void savePersonality()}
+                  disabled={personalityState.status === 'saving' || !hasUnsavedPersonalityChanges}
+                  className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-all disabled:bg-slate-200 disabled:text-slate-500"
+                >
+                  {personalityState.status === 'saving' ? 'Saving...' : 'Save Personality'}
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">Define voice traits that make this agent behavior distinct from others.</p>
+            <div className="mb-3 rounded-xl border border-slate-200 bg-white p-2.5">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Quick Presets</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {personalityPresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => void applyPersonalityPreset(preset)}
+                    disabled={personalityState.status === 'saving'}
+                    className="text-left rounded-lg border border-slate-200 px-3 py-2 hover:border-slate-300 hover:bg-slate-50 transition-all disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <p className="text-xs font-bold text-slate-800">{preset.label}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{preset.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <label className="text-xs text-slate-600 flex flex-col gap-1">
+                Tone
+                <select
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5"
+                  value={personalityDraft.tone}
+                  onChange={(event) => setPersonalityDraft((current) => ({ ...current, tone: event.target.value as AgentPersonality['tone'] }))}
+                >
+                  {PERSONALITY_TONE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-slate-600 flex flex-col gap-1">
+                Communication Style
+                <select
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5"
+                  value={personalityDraft.communicationStyle}
+                  onChange={(event) => setPersonalityDraft((current) => ({ ...current, communicationStyle: event.target.value as AgentPersonality['communicationStyle'] }))}
+                >
+                  {PERSONALITY_STYLE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-slate-600 flex flex-col gap-1">
+                Assertiveness
+                <select
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5"
+                  value={personalityDraft.assertiveness}
+                  onChange={(event) => setPersonalityDraft((current) => ({ ...current, assertiveness: event.target.value as AgentPersonality['assertiveness'] }))}
+                >
+                  {PERSONALITY_ASSERTIVENESS_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-slate-600 flex flex-col gap-1">
+                Humor
+                <select
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5"
+                  value={personalityDraft.humor}
+                  onChange={(event) => setPersonalityDraft((current) => ({ ...current, humor: event.target.value as AgentPersonality['humor'] }))}
+                >
+                  {PERSONALITY_HUMOR_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-slate-600 flex flex-col gap-1">
+                Verbosity
+                <select
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5"
+                  value={personalityDraft.verbosity}
+                  onChange={(event) => setPersonalityDraft((current) => ({ ...current, verbosity: event.target.value as AgentPersonality['verbosity'] }))}
+                >
+                  {PERSONALITY_VERBOSITY_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-slate-600 flex flex-col gap-1">
+                Signature Phrase
+                <input
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5"
+                  value={personalityDraft.signaturePhrase}
+                  onChange={(event) => setPersonalityDraft((current) => ({ ...current, signaturePhrase: event.target.value.slice(0, 120) }))}
+                  placeholder="Optional signature line"
+                />
+              </label>
+            </div>
+            <label className="text-xs text-slate-600 flex flex-col gap-1">
+              Do Nots (comma-separated, up to 5)
+              <input
+                className="bg-white border border-slate-200 rounded-lg px-2 py-1.5"
+                value={personalityDraft.doNots.join(', ')}
+                onChange={(event) => updateDoNotList(event.target.value)}
+                placeholder="Do not use filler phrases, Do not overpromise"
+              />
+            </label>
+            {personalityState.message ? (
+              <p className={cn(
+                'text-xs mt-3 font-medium',
+                personalityState.status === 'error' ? 'text-rose-600' : 'text-emerald-600',
+              )}>
+                {personalityState.message}
+              </p>
+            ) : null}
+          </section>
+
+          <section className="mb-12">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Skills</h2>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-slate-500">{agent.capabilities.length} / {MAX_AGENT_SKILLS} skills</p>
+              <p className="text-xs text-slate-500">{trimmedCapability.length} / {MAX_SKILL_LENGTH} chars</p>
+            </div>
+            {rolePresetSkills.length > 0 ? (
+              <div className="flex items-center justify-between mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs text-slate-600">Role presets: {rolePresetSkills.join(', ')}</p>
+                <button
+                  type="button"
+                  onClick={() => void applyRoleSkillPreset()}
+                  disabled={missingRolePresetSkills.length === 0 || skillState.status === 'saving' || !hasSkillCapacity}
+                  className="px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                >
+                  Apply Preset
+                </button>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {agent.capabilities.map((capability) => (
+                <span
+                  key={capability}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold border border-brand-100"
+                >
+                  {capability}
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveCapability(capability)}
+                    className="text-brand-500 hover:text-brand-700"
+                    aria-label={`Remove ${capability}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {agent.capabilities.length === 0 ? (
+                <p className="text-sm text-slate-500">No skills configured yet.</p>
+              ) : null}
+            </div>
+            <div className="flex gap-3">
+              <input
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
+                placeholder="Add a skill, e.g. SEO Strategy"
+                value={newCapability}
+                onChange={(event) => setNewCapability(event.target.value)}
+                disabled={!hasSkillCapacity || skillState.status === 'saving'}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void handleAddCapability();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => void handleAddCapability()}
+                disabled={!canAddSkill || skillState.status === 'saving'}
+                className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed"
+              >
+                {skillState.status === 'saving' ? 'Saving...' : 'Add Skill'}
+              </button>
+            </div>
+            {!hasSkillCapacity ? (
+              <p className="text-xs text-amber-600 mt-2">Maximum skills reached. Remove one before adding another.</p>
+            ) : null}
+            {hasDuplicateCapability ? (
+              <p className="text-xs text-amber-600 mt-2">This skill already exists for the agent.</p>
+            ) : null}
+            {exceedsSkillLength ? (
+              <p className="text-xs text-rose-600 mt-2">Keep each skill under {MAX_SKILL_LENGTH} characters.</p>
+            ) : null}
+            {skillState.message ? (
+              <p className={cn(
+                'text-xs mt-2 font-medium',
+                skillState.status === 'error' ? 'text-rose-600' : 'text-emerald-600',
+              )}>
+                {skillState.message}
+              </p>
+            ) : null}
+          </section>
+
+          <section className="mb-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Effective Prompt Context</h2>
+            <p className="text-xs text-slate-500 mb-3">This is the agent profile context sent with each AI response request.</p>
+            <pre className="text-xs text-slate-700 whitespace-pre-wrap bg-white border border-slate-200 rounded-xl p-3 max-h-56 overflow-y-auto">{effectivePromptPreview}</pre>
+          </section>
+
+          <section className="mb-12 rounded-2xl border border-slate-200 bg-white px-4 py-4">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Prompt History</h2>
+            <p className="text-xs text-slate-500 mb-3">Recent prompt profile versions captured from agent settings updates.</p>
+            {promptVersionState.status === 'loading' ? (
+              <p className="text-xs text-slate-500">Loading prompt history...</p>
+            ) : null}
+            {promptVersionState.status === 'error' ? (
+              <p className="text-xs text-rose-600">{promptVersionState.message}</p>
+            ) : null}
+            {promptVersionState.status !== 'loading' && promptVersions.length === 0 ? (
+              <p className="text-xs text-slate-500">No prompt versions recorded yet.</p>
+            ) : null}
+            {promptVersions.length > 0 ? (
+              <div className="space-y-2">
+                {promptVersions.map((entry) => {
+                  const createdLabel = entry.createdAt || (entry.versionAt ? new Date(entry.versionAt).toISOString() : 'Unknown time');
+                  const beforeCaps = Array.isArray(entry.before?.capabilities) ? entry.before?.capabilities?.length || 0 : 0;
+                  const afterCaps = Array.isArray(entry.after?.capabilities) ? entry.after?.capabilities?.length || 0 : 0;
+                  const beforeGuidelines = Array.isArray(entry.before?.guidelines) ? entry.before?.guidelines?.length || 0 : 0;
+                  const afterGuidelines = Array.isArray(entry.after?.guidelines) ? entry.after?.guidelines?.length || 0 : 0;
+                  const personalityDiff = buildPersonalityDiff(entry.before?.personality, entry.after?.personality);
+
+                  return (
+                    <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-700">Version #{entry.id} • {createdLabel}</p>
+                      <p className="text-xs text-slate-600 mt-1">
+                        Skills: {beforeCaps} → {afterCaps} · Sections: {beforeGuidelines} → {afterGuidelines}
+                      </p>
+                      {personalityDiff.length > 0 ? (
+                        <div className="mt-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Personality Delta</p>
+                          <div className="space-y-1.5">
+                            {personalityDiff.map((change) => (
+                              <div key={change.label} className="grid grid-cols-[80px_1fr_auto_1fr] gap-2 text-xs items-start">
+                                <span className="font-semibold text-slate-500">{change.label}</span>
+                                <span className="text-slate-500 break-words">{change.before}</span>
+                                <span className="text-slate-300">→</span>
+                                <span className="text-slate-800 break-words">{change.after}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 mt-2">No personality field changes recorded for this version.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </section>
 
           <div className="space-y-12">
             {agent.guidelines.length === 0 && (
@@ -378,8 +1034,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   const [selectedBlogPost, setSelectedBlogPost] = useState<any>(null);
-  const [leads, setLeads] = useState<any[]>([]);
-  const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedSequence, setSelectedSequence] = useState<any>(null);
   const [sequences, setSequences] = useState<any[]>([
     {
@@ -402,15 +1058,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (activeTab === 'Leads') {
+    if (activeTab === 'Leads' && token && activeWorkspaceId) {
       fetchLeads();
     }
-  }, [activeTab]);
+  }, [activeTab, token, activeWorkspaceId]);
 
   const fetchLeads = async () => {
+    if (!token || !activeWorkspaceId) return;
+
     try {
-      const response = await fetch('/api/leads');
-      const data = await response.json();
+      const data = await apiFetch(`/api/workspaces/${activeWorkspaceId}/leads`, {
+        token,
+        onAuthFailure: () => onAuthFailure?.(),
+      });
       setLeads(data);
     } catch (error) {
       console.error('Error fetching leads:', error);
@@ -566,6 +1226,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Sequence</label>
                         <div className="text-sm text-slate-700">{selectedLead.sequence}</div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-12">
+                    <h3 className="font-bold text-slate-900 mb-4">Notes</h3>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 whitespace-pre-wrap text-sm text-slate-600 leading-relaxed">
+                      {selectedLead.notes?.trim() || 'No saved notes for this lead yet.'}
                     </div>
                   </div>
 
@@ -1192,7 +1859,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           {/* Messages */}
           <div 
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-8 space-y-8"
+            className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-8"
           >
             <AnimatePresence initial={false}>
               {messages.map((msg) => (

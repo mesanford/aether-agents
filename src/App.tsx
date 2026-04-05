@@ -10,7 +10,7 @@ import {
   ChevronLeft,
   Menu
 } from 'lucide-react';
-import { Agent, AgentRole, AgentStatus, Message, Task, Workspace } from './types';
+import { Agent, AgentPersonality, AgentRole, AgentStatus, Message, Task, Workspace } from './types';
 import { AgentCard } from './components/AgentCard';
 import { ChatInterface } from './components/ChatInterface';
 import { MediaLibrary } from './components/MediaLibrary';
@@ -20,9 +20,15 @@ import { TaskManager } from './components/TaskManager';
 import { SettingsView } from './components/SettingsView';
 import { LoginView } from './components/LoginView';
 import { getAgentResponse, parseTaskFromResponse, parseDraftEmailFromResponse, stripAgentJson, LiveContext, ConnectedServices } from './services/geminiService';
-import { cn } from './utils';
+import { apiFetch } from './services/apiClient';
+import { buildAgentPromptContext, cn, normalizeAgentPersonality } from './utils';
 
 export default function App() {
+  const [googleContextDefaults, setGoogleContextDefaults] = useState<{ analyticsPropertyId: string | null; searchConsoleSiteUrl: string | null }>({
+    analyticsPropertyId: null,
+    searchConsoleSiteUrl: null,
+  });
+
   const [user, setUser] = useState<any>(() => {
     const saved = localStorage.getItem('sanford-user');
     return saved ? JSON.parse(saved) : null;
@@ -54,18 +60,17 @@ export default function App() {
     if (!activeWorkspaceId || !token) return;
 
     setIsLoading(true);
-    const headers = { 'Authorization': `Bearer ${token}` };
-
     Promise.all([
-      fetch(`/api/workspaces/${activeWorkspaceId}/agents`, { headers }).then(r => r.json()),
-      fetch(`/api/workspaces/${activeWorkspaceId}/tasks`, { headers: {} }).then(r => r.json()),
-      fetch(`/api/workspaces/${activeWorkspaceId}/messages`, { headers: {} }).then(r => r.json()),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/agents`, { token, onAuthFailure: () => handleLogout() }),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/tasks`, { token, onAuthFailure: () => handleLogout() }),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/messages`, { token, onAuthFailure: () => handleLogout() }),
     ]).then(([agentsData, tasksData, messagesData]) => {
       const agentsList: Agent[] = (agentsData || []).map((a: any) => ({
         ...a,
         status: AgentStatus.IDLE,
         capabilities: Array.isArray(a.capabilities) ? a.capabilities : [],
         guidelines: Array.isArray(a.guidelines) ? a.guidelines : [],
+        personality: normalizeAgentPersonality(a.personality),
       }));
       setAgents(agentsList);
       if (agentsList.length > 0 && !activeAgentId) {
@@ -109,10 +114,9 @@ export default function App() {
   useEffect(() => {
     if (token) {
       setIsLoading(true);
-      const headers = { 'Authorization': `Bearer ${token}` };
       Promise.all([
-        fetch('/api/workspaces', { headers }).then(r => r.json()),
-        fetch('/api/integrations/google/status', { headers }).then(r => r.ok ? r.json() : {}),
+        apiFetch('/api/workspaces', { token, onAuthFailure: () => handleLogout() }),
+        apiFetch('/api/integrations/google/status', { token, onAuthFailure: () => handleLogout() }).catch(() => ({})),
       ]).then(([wsData, gsData]: [any, any]) => {
         setWorkspaces(wsData);
         if (wsData.length > 0 && !activeWorkspaceId) {
@@ -124,6 +128,16 @@ export default function App() {
           gmail: gsData?.gmail ?? false,
           calendar: gsData?.calendar ?? false,
           drive: gsData?.drive ?? false,
+          slack: false,
+          teams: false,
+          notion: false,
+          linkedin: false,
+          buffer: false,
+          twilio: false,
+          analytics: gsData?.analytics ?? false,
+          searchConsole: gsData?.searchConsole ?? false,
+          wordpress: false,
+          hubspot: false,
         });
       }).catch(err => {
         console.error('Failed to fetch workspaces', err);
@@ -133,6 +147,40 @@ export default function App() {
       setIsLoading(false);
     }
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !activeWorkspaceId) return;
+
+    Promise.all([
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/slack/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/teams/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/notion/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/linkedin/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/buffer/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false, profiles: [] })),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/twilio/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/wordpress/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/hubspot/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/google/defaults`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ analyticsPropertyId: null, searchConsoleSiteUrl: null })),
+    ]).then(([slackData, teamsData, notionData, linkedinData, bufferData, twilioData, wordpressData, hubspotData, googleDefaultsData]: [any, any, any, any, any, any, any, any, any]) => {
+      setConnectedServices((current) => ({
+        ...current,
+        slack: slackData?.connected ?? false,
+        teams: teamsData?.connected ?? false,
+        notion: notionData?.connected ?? false,
+        linkedin: linkedinData?.connected ?? false,
+        buffer: bufferData?.connected ?? false,
+        twilio: twilioData?.connected ?? false,
+        wordpress: wordpressData?.connected ?? false,
+        hubspot: hubspotData?.connected ?? false,
+      }));
+      setGoogleContextDefaults({
+        analyticsPropertyId: googleDefaultsData?.analyticsPropertyId ?? null,
+        searchConsoleSiteUrl: googleDefaultsData?.searchConsoleSiteUrl ?? null,
+      });
+    }).catch((err) => {
+      console.error('Failed to fetch workspace integration status', err);
+    });
+  }, [token, activeWorkspaceId]);
 
   useEffect(() => {
     if (activeWorkspaceId) {
@@ -184,9 +232,10 @@ export default function App() {
     };
     setTasks(prev => [newTask, ...prev]);
     if (activeWorkspaceId) {
-      fetch(`/api/workspaces/${activeWorkspaceId}/tasks`, {
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/tasks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        token,
+        onAuthFailure: () => handleLogout(),
         body: JSON.stringify({
           title: taskData.title,
           description: taskData.description,
@@ -194,29 +243,110 @@ export default function App() {
           dueDate: taskData.dueDate,
           repeat: taskData.repeat,
         }),
-      }).then(r => r.json()).then(saved => {
+      }).then((saved: any) => {
         setTasks(prev => prev.map(t => t.id === newTask.id ? { ...t, id: saved.id } : t));
       }).catch(err => console.error('Failed to save task', err));
     }
     return newTask;
-  }, [activeWorkspaceId]);
+  }, [activeWorkspaceId, token]);
 
-  const handleUpdateGuidelines = useCallback((agentId: string, guidelines: any[]) => {
+  const handleUpdateGuidelines = useCallback(async (agentId: string, guidelines: any[]) => {
+    let previousGuidelines: any[] = [];
     setAgents(prev => prev.map(a =>
-      a.id === agentId ? { ...a, guidelines } : a
+      a.id === agentId
+        ? (() => {
+            previousGuidelines = a.guidelines;
+            return { ...a, guidelines };
+          })()
+        : a
     ));
-    fetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ guidelines }),
-    }).catch(err => console.error('Failed to save guidelines', err));
-  }, [activeWorkspaceId]);
+
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
+        method: 'PATCH',
+        token,
+        onAuthFailure: () => handleLogout(),
+        body: JSON.stringify({ guidelines }),
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to save guidelines', err);
+      setAgents(prev => prev.map(a =>
+        a.id === agentId ? { ...a, guidelines: previousGuidelines } : a
+      ));
+      return false;
+    }
+  }, [activeWorkspaceId, token]);
+
+  const handleUpdateCapabilities = useCallback(async (agentId: string, capabilities: string[]) => {
+    let previousCapabilities: string[] = [];
+    setAgents(prev => prev.map(a =>
+      a.id === agentId
+        ? (() => {
+            previousCapabilities = a.capabilities;
+            return { ...a, capabilities };
+          })()
+        : a
+    ));
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
+        method: 'PATCH',
+        token,
+        onAuthFailure: () => handleLogout(),
+        body: JSON.stringify({ capabilities }),
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to save capabilities', err);
+      setAgents(prev => prev.map(a =>
+        a.id === agentId ? { ...a, capabilities: previousCapabilities } : a
+      ));
+      return false;
+    }
+  }, [activeWorkspaceId, token]);
+
+  const handleUpdatePersonality = useCallback(async (agentId: string, personality: AgentPersonality) => {
+    let previousPersonality: AgentPersonality | undefined;
+    const normalized = normalizeAgentPersonality(personality);
+    const fingerprint = JSON.stringify(normalized);
+    const hasDuplicate = agents.some((agent) => agent.id !== agentId && JSON.stringify(normalizeAgentPersonality(agent.personality)) === fingerprint);
+
+    if (hasDuplicate) {
+      return false;
+    }
+
+    setAgents(prev => prev.map(a =>
+      a.id === agentId
+        ? (() => {
+            previousPersonality = a.personality;
+            return { ...a, personality: normalized };
+          })()
+        : a
+    ));
+
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
+        method: 'PATCH',
+        token,
+        onAuthFailure: () => handleLogout(),
+        body: JSON.stringify({ personality: normalized }),
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to save personality', err);
+      setAgents(prev => prev.map(a =>
+        a.id === agentId ? { ...a, personality: previousPersonality } : a
+      ));
+      return false;
+    }
+  }, [activeWorkspaceId, token, agents]);
 
   const persistMessage = useCallback((msg: Message, agentId: string) => {
     if (!activeWorkspaceId) return;
-    fetch(`/api/workspaces/${activeWorkspaceId}/messages`, {
+    apiFetch(`/api/workspaces/${activeWorkspaceId}/messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      token,
+      onAuthFailure: () => handleLogout(),
       body: JSON.stringify({
         agentId,
         senderId: msg.senderId,
@@ -228,7 +358,7 @@ export default function App() {
         type: msg.type,
       }),
     }).catch(err => console.error('Failed to persist message', err));
-  }, [activeWorkspaceId]);
+  }, [activeWorkspaceId, token]);
 
   // Auto-fetch real Gmail/Calendar/Drive context for Eva based on what the user asked about
   const fetchLiveContext = useCallback(async (message: string): Promise<LiveContext | undefined> => {
@@ -237,25 +367,52 @@ export default function App() {
     const wantsEmail = /email|inbox|mail|message|unread|reply|respond|draft|send/i.test(lower);
     const wantsCalendar = /schedul|calendar|meeting|event|appointment|today|tomorrow|week/i.test(lower);
     const wantsDrive = /drive|doc|file|document|slide|sheet|folder/i.test(lower);
+    const wantsAnalytics = /analytics|traffic|sessions|users|page ?views|conversion|ga4|funnel|performance report/i.test(lower);
+    const wantsSearchConsole = /search console|seo|query|queries|keyword|impression|click ?through|ctr|ranking|position/i.test(lower);
 
-    if (!wantsEmail && !wantsCalendar && !wantsDrive) return undefined;
+    if (!wantsEmail && !wantsCalendar && !wantsDrive && !wantsAnalytics && !wantsSearchConsole) return undefined;
 
     const ctx: LiveContext = {};
-    const headers = { Authorization: `Bearer ${token}` };
 
     try {
-      const [emailRes, calRes, driveRes] = await Promise.allSettled([
-        wantsEmail ? fetch('/api/integrations/gmail/messages?maxResults=10', { headers }).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
-        wantsCalendar ? fetch('/api/integrations/calendar/events?days=7', { headers }).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
-        wantsDrive ? fetch('/api/integrations/drive/files?maxResults=15', { headers }).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
+      const [emailRes, calRes, driveRes, analyticsPropsRes, searchSitesRes] = await Promise.allSettled([
+        wantsEmail ? apiFetch('/api/integrations/gmail/messages?maxResults=10', { token, onAuthFailure: () => handleLogout(), timeoutMs: 8000 }).catch(() => null) : Promise.resolve(null),
+        wantsCalendar ? apiFetch('/api/integrations/calendar/events?days=7', { token, onAuthFailure: () => handleLogout(), timeoutMs: 8000 }).catch(() => null) : Promise.resolve(null),
+        wantsDrive ? apiFetch('/api/integrations/drive/files?maxResults=15', { token, onAuthFailure: () => handleLogout(), timeoutMs: 8000 }).catch(() => null) : Promise.resolve(null),
+        wantsAnalytics ? apiFetch('/api/integrations/analytics/properties', { token, onAuthFailure: () => handleLogout(), timeoutMs: 8000 }).catch(() => null) : Promise.resolve(null),
+        wantsSearchConsole ? apiFetch('/api/integrations/search-console/sites', { token, onAuthFailure: () => handleLogout(), timeoutMs: 8000 }).catch(() => null) : Promise.resolve(null),
       ]);
       if (emailRes.status === 'fulfilled' && emailRes.value?.messages) ctx.emails = emailRes.value.messages;
       if (calRes.status === 'fulfilled' && calRes.value?.events) ctx.events = calRes.value.events;
       if (driveRes.status === 'fulfilled' && driveRes.value?.files) ctx.files = driveRes.value.files;
+
+      const availableProperties = analyticsPropsRes.status === 'fulfilled' ? (analyticsPropsRes.value?.properties || []) : [];
+      const availableSites = searchSitesRes.status === 'fulfilled' ? (searchSitesRes.value?.sites || []) : [];
+
+      const propertyId = (
+        (googleContextDefaults.analyticsPropertyId && availableProperties.find((p: any) => p.propertyId === googleContextDefaults.analyticsPropertyId)?.propertyId) ||
+        availableProperties[0]?.propertyId
+      );
+      const siteUrl = (
+        (googleContextDefaults.searchConsoleSiteUrl && availableSites.find((s: any) => s.siteUrl === googleContextDefaults.searchConsoleSiteUrl)?.siteUrl) ||
+        availableSites[0]?.siteUrl
+      );
+
+      const [analyticsReportRes, searchConsoleReportRes] = await Promise.allSettled([
+        wantsAnalytics && propertyId
+          ? apiFetch(`/api/integrations/analytics/report?propertyId=${encodeURIComponent(propertyId)}&days=28`, { token, onAuthFailure: () => handleLogout(), timeoutMs: 8000 }).catch(() => null)
+          : Promise.resolve(null),
+        wantsSearchConsole && siteUrl
+          ? apiFetch(`/api/integrations/search-console/performance?siteUrl=${encodeURIComponent(siteUrl)}&days=28`, { token, onAuthFailure: () => handleLogout(), timeoutMs: 8000 }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+      if (analyticsReportRes.status === 'fulfilled' && analyticsReportRes.value?.rows) ctx.analyticsRows = analyticsReportRes.value.rows;
+      if (searchConsoleReportRes.status === 'fulfilled' && searchConsoleReportRes.value?.rows) ctx.searchConsoleRows = searchConsoleReportRes.value.rows;
     } catch { /* ignore — non-connected services return 403 gracefully */ }
 
-    return (ctx.emails || ctx.events || ctx.files) ? ctx : undefined;
-  }, [token]);
+    return (ctx.emails || ctx.events || ctx.files || ctx.analyticsRows || ctx.searchConsoleRows) ? ctx : undefined;
+  }, [token, googleContextDefaults.analyticsPropertyId, googleContextDefaults.searchConsoleSiteUrl]);
 
   // ── Early returns (after all hooks) ───────────────────────────────────────
   if (!user || !token) {
@@ -263,7 +420,7 @@ export default function App() {
   }
 
   // Show a loading spinner while fetching workspace data from the backend
-  if (isLoading || !activeAgent) {
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3">
@@ -273,6 +430,8 @@ export default function App() {
       </div>
     );
   }
+
+  const activeWorkspace = workspaces.find((ws) => ws.id === activeWorkspaceId) || null;
 
   const hoursSaved = Math.round(tasks.filter(t => t.status === 'done').reduce((acc, task) => {
     const mapping: Record<string, number> = {
@@ -343,7 +502,22 @@ export default function App() {
       // Team Chat logic: pick a relevant agent or have multiple respond
       const eva = agents.find(a => a.id.startsWith('executive-assistant'))!;
       const liveCtx = eva ? await fetchLiveContext(content) : undefined;
-      const { text, imageUrl } = await getAgentResponse(eva.role, content, eva.description, false, liveCtx, connectedServices);
+      const { text, imageUrl } = await getAgentResponse(
+        eva.role,
+        content,
+        buildAgentPromptContext({
+          description: eva.description,
+          capabilities: eva.capabilities,
+          guidelines: eva.guidelines,
+          personality: eva.personality,
+        }),
+        false,
+        liveCtx,
+        connectedServices,
+        token,
+        activeWorkspaceId,
+        handleLogout,
+      );
 
       // Check if Eva wants to schedule a task
       const potentialTask = parseTaskFromResponse(text);
@@ -356,17 +530,15 @@ export default function App() {
       let draftStatusMessage = "";
       if (potentialDraft && connectedServices.gmail) {
         try {
-          const res = await fetch('/api/integrations/gmail/drafts', {
+          await apiFetch('/api/integrations/gmail/drafts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            token,
+            onAuthFailure: () => handleLogout(),
             body: JSON.stringify(potentialDraft)
           });
-          if (res.ok) {
-            draftStatusMessage = "\n\n*(I have successfully created a draft reply in your Gmail account.)*";
-          } else {
-            draftStatusMessage = "\n\n*(I attempted to create a draft reply, but encountered an error. Please ensure Gmail is connected.)*";
-          }
+          draftStatusMessage = "\n\n*(I have successfully created a draft reply in your Gmail account.)*";
         } catch (e) {
+          draftStatusMessage = "\n\n*(I attempted to create a draft reply, but encountered an error. Please ensure Gmail is connected.)*";
           console.error("Failed to inject draft", e);
         }
       }
@@ -395,7 +567,22 @@ export default function App() {
         updateAgentStatus(randomAgent.id, AgentStatus.THINKING);
 
         const canGenerateImage = randomAgent.capabilities.includes('Image Generation');
-        const { text: secondText, imageUrl: secondImageUrl } = await getAgentResponse(randomAgent.role, `In a team context, respond to: ${content}`, randomAgent.description, canGenerateImage);
+        const { text: secondText, imageUrl: secondImageUrl } = await getAgentResponse(
+          randomAgent.role,
+          `In a team context, respond to: ${content}`,
+          buildAgentPromptContext({
+            description: randomAgent.description,
+            capabilities: randomAgent.capabilities,
+            guidelines: randomAgent.guidelines,
+            personality: randomAgent.personality,
+          }),
+          canGenerateImage,
+          undefined,
+          undefined,
+          token,
+          activeWorkspaceId,
+          handleLogout,
+        );
 
         // Check if random agent wants to schedule a task
         const secondPotentialTask = parseTaskFromResponse(secondText);
@@ -424,10 +611,29 @@ export default function App() {
 
     } else {
       const canGenerateImage = activeAgent.capabilities.includes('Image Generation');
-      // Fetch live Google Workspace data for Eva (executive-assistant)
-      const isEva = activeAgentId.startsWith('executive-assistant');
-      const liveCtx = isEva ? await fetchLiveContext(content) : undefined;
-      const { text, imageUrl } = await getAgentResponse(activeAgent.role, content, activeAgent.description, canGenerateImage, liveCtx, isEva ? connectedServices : undefined);
+      // Fetch live context for roles that benefit from connected data.
+      const shouldUseLiveContext = (
+        activeAgentId.startsWith('executive-assistant') ||
+        activeAgentId.startsWith('blog-writer') ||
+        activeAgentId.startsWith('social-media-manager')
+      );
+      const liveCtx = shouldUseLiveContext ? await fetchLiveContext(content) : undefined;
+      const { text, imageUrl } = await getAgentResponse(
+        activeAgent.role,
+        content,
+        buildAgentPromptContext({
+          description: activeAgent.description,
+          capabilities: activeAgent.capabilities,
+          guidelines: activeAgent.guidelines,
+          personality: activeAgent.personality,
+        }),
+        canGenerateImage,
+        liveCtx,
+        shouldUseLiveContext ? connectedServices : undefined,
+        token,
+        activeWorkspaceId,
+        handleLogout,
+      );
 
       // Check if agent wants to schedule a task
       const potentialTask = parseTaskFromResponse(text);
@@ -440,17 +646,15 @@ export default function App() {
       let draftStatusMessage = "";
       if (potentialDraft && connectedServices.gmail) {
         try {
-          const res = await fetch('/api/integrations/gmail/drafts', {
+          await apiFetch('/api/integrations/gmail/drafts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            token,
+            onAuthFailure: () => handleLogout(),
             body: JSON.stringify(potentialDraft)
           });
-          if (res.ok) {
-            draftStatusMessage = "\n\n*(I have successfully created a draft reply in your Gmail account.)*";
-          } else {
-            draftStatusMessage = "\n\n*(I attempted to create a draft reply, but encountered an error. Please ensure Gmail is connected.)*";
-          }
+          draftStatusMessage = "\n\n*(I have successfully created a draft reply in your Gmail account.)*";
         } catch (e) {
+          draftStatusMessage = "\n\n*(I attempted to create a draft reply, but encountered an error. Please ensure Gmail is connected.)*";
           console.error("Failed to inject draft", e);
         }
       }
@@ -523,15 +727,12 @@ export default function App() {
             onClick={() => {
               const name = prompt('Enter workspace name:');
               if (name && token) {
-                fetch('/api/workspaces', {
+                apiFetch('/api/workspaces', {
                   method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  },
+                  token,
+                  onAuthFailure: () => handleLogout(),
                   body: JSON.stringify({ name })
                 })
-                  .then(res => res.json())
                   .then(newWs => {
                     setWorkspaces(prev => [...prev, newWs]);
                     setActiveWorkspaceId(newWs.id);
@@ -662,18 +863,38 @@ export default function App() {
 
       {/* Main Area */}
       <main className={cn(
-        "flex-1 flex flex-col bg-white pt-16 md:pt-0 transition-transform",
+        "flex-1 min-w-0 flex flex-col bg-white pt-16 md:pt-0 transition-transform",
         !showAgentList ? "translate-x-0" : "translate-x-full md:translate-x-0"
       )}>
         {activeView === 'chat' ? (
-          <ChatInterface
-            agent={activeAgent}
-            messages={messages[activeAgentId] || []}
-            onSendMessage={handleSendMessage}
-            isTyping={isTyping}
-            onUpdateGuidelines={handleUpdateGuidelines}
-            onBack={() => setShowAgentList(true)}
-          />
+          activeAgent ? (
+            <ChatInterface
+              agent={activeAgent}
+              messages={messages[activeAgentId] || []}
+              token={token}
+              activeWorkspaceId={activeWorkspaceId}
+              onAuthFailure={handleLogout}
+              onSendMessage={handleSendMessage}
+              isTyping={isTyping}
+              onUpdateGuidelines={handleUpdateGuidelines}
+              onUpdateCapabilities={handleUpdateCapabilities}
+              onUpdatePersonality={handleUpdatePersonality}
+              onBack={() => setShowAgentList(true)}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center px-6">
+              <div className="max-w-md text-center">
+                <h2 className="text-2xl font-bold text-slate-900">No agents in this workspace yet</h2>
+                <p className="mt-2 text-slate-500">Create an agent from Team view or switch to a workspace that already has agents.</p>
+                <button
+                  onClick={() => setActiveView('team')}
+                  className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 transition-colors"
+                >
+                  Open Team View
+                </button>
+              </div>
+            </div>
+          )
         ) : (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="md:hidden px-6 py-4 border-b border-slate-100 flex items-center gap-4">
@@ -683,23 +904,40 @@ export default function App() {
               <h2 className="font-bold text-slate-900 capitalize">{activeView}</h2>
             </div>
             {activeView === 'media' ? (
-              <MediaLibrary activeWorkspaceId={activeWorkspaceId} />
+              <MediaLibrary activeWorkspaceId={activeWorkspaceId} token={token} onAuthFailure={() => handleLogout()} />
             ) : activeView === 'docs' ? (
               <CompanyKnowledge activeWorkspaceId={activeWorkspaceId} />
             ) : activeView === 'team' ? (
-              <TeamManagement activeWorkspaceId={activeWorkspaceId} token={token} />
+              <TeamManagement activeWorkspaceId={activeWorkspaceId} token={token} onAuthFailure={handleLogout} />
             ) : activeView === 'settings' ? (
-              <SettingsView user={user} token={token} onLogout={handleLogout} />
+              <SettingsView
+                user={user}
+                token={token}
+                activeWorkspaceId={activeWorkspaceId}
+                onLogout={handleLogout}
+                onConnectedServicesChange={setConnectedServices}
+                onGoogleDefaultsChange={setGoogleContextDefaults}
+              />
             ) : (
               <TaskManager
                 tasks={tasks}
                 agents={agents}
+                token={token}
+                activeWorkspaceId={activeWorkspaceId}
+                workspaceRole={activeWorkspace?.role ?? null}
+                gmailConnected={connectedServices.gmail}
+                linkedinConnected={connectedServices.linkedin}
+                bufferConnected={connectedServices.buffer}
+                wordpressConnected={connectedServices.wordpress}
+                hubspotConnected={connectedServices.hubspot}
+                onAuthFailure={handleLogout}
                 onUpdateTask={(id, status) => {
                   setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t));
                   if (activeWorkspaceId) {
-                    fetch(`/api/workspaces/${activeWorkspaceId}/tasks/${encodeURIComponent(id)}`, {
+                    apiFetch(`/api/workspaces/${activeWorkspaceId}/tasks/${encodeURIComponent(id)}`, {
                       method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
+                      token,
+                      onAuthFailure: () => handleLogout(),
                       body: JSON.stringify({ status }),
                     }).catch(err => console.error('Failed to update task status', err));
                   }

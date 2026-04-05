@@ -29,6 +29,22 @@ export interface GuidelineSection {
   showInput?: boolean;
 }
 
+export type AgentPersonalityTone = 'warm' | 'direct' | 'analytical' | 'playful' | 'formal';
+export type AgentPersonalityStyle = 'concise' | 'balanced' | 'detailed';
+export type AgentPersonalityAssertiveness = 'low' | 'medium' | 'high';
+export type AgentPersonalityHumor = 'none' | 'light';
+export type AgentPersonalityVerbosity = 'short' | 'medium' | 'long';
+
+export interface AgentPersonality {
+  tone: AgentPersonalityTone;
+  communicationStyle: AgentPersonalityStyle;
+  assertiveness: AgentPersonalityAssertiveness;
+  humor: AgentPersonalityHumor;
+  verbosity: AgentPersonalityVerbosity;
+  signaturePhrase: string;
+  doNots: string[];
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -39,6 +55,7 @@ export interface Agent {
   capabilities: string[];
   lastAction?: string;
   guidelines: GuidelineSection[];
+  personality?: AgentPersonality;
 }
 
 export interface Message {
@@ -52,6 +69,28 @@ export interface Message {
   type: 'user' | 'agent' | 'system';
 }
 
+export interface Lead {
+  id: number;
+  name: string;
+  role?: string;
+  company?: string;
+  location?: string;
+  email?: string;
+  status?: string;
+  sequence?: string;
+  linkedin_url?: string;
+  avatar?: string;
+  notes?: string | null;
+}
+
+export interface TaskArtifact {
+  type: 'brief' | 'plan' | 'review' | 'notes';
+  title: string;
+  body: string;
+  bullets: string[];
+  imageUrl?: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -60,6 +99,15 @@ export interface Task {
   status: 'todo' | 'running' | 'done' | 'failed';
   dueDate: string;
   repeat?: string;
+  executionType?: 'generic' | 'research' | 'draft' | 'outreach' | 'review';
+  outputSummary?: string | null;
+  lastError?: string | null;
+  lastRunAt?: number | null;
+  startedAt?: number | null;
+  completedAt?: number | null;
+  selectedMediaAssetId?: number | null;
+  artifactType?: TaskArtifact['type'] | null;
+  artifact?: TaskArtifact | null;
 }
 
 export interface Workspace {
