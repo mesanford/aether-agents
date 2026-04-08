@@ -1190,7 +1190,7 @@ export function registerIntegrationsRoutes({
     const rows = (await db.prepare(`
       SELECT provider, secret, rotated_at
       FROM workspace_webhook_secrets
-      WHERE workspace_id = ? AND is_active = 1
+      WHERE workspace_id = ? AND is_active = true
       ORDER BY provider ASC
     `).all?.(req.workspaceId) || []) as Array<{ provider: string; secret: string; rotated_at: string | null }>;
 
@@ -1218,13 +1218,13 @@ export function registerIntegrationsRoutes({
       }
 
       const secret = generateSecretToken();
-      db.prepare(
-        "UPDATE workspace_webhook_secrets SET is_active = 0 WHERE workspace_id = ? AND provider = ? AND is_active = 1",
+      await db.prepare(
+        "UPDATE workspace_webhook_secrets SET is_active = false WHERE workspace_id = ? AND provider = ? AND is_active = true",
       ).run(req.workspaceId, provider);
 
       await db.prepare(`
         INSERT INTO workspace_webhook_secrets (workspace_id, provider, secret, created_by_user_id, is_active, rotated_at)
-        VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, true, CURRENT_TIMESTAMP)
       `).run(req.workspaceId, provider, secret, req.userId || null);
 
       writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.webhook_secret.rotated", "workspace_webhook_secrets", {
@@ -1257,7 +1257,7 @@ export function registerIntegrationsRoutes({
       }
 
       const activeSecretRow = await db.prepare(
-        "SELECT secret FROM workspace_webhook_secrets WHERE workspace_id = ? AND provider = ? AND is_active = 1",
+        "SELECT secret FROM workspace_webhook_secrets WHERE workspace_id = ? AND provider = ? AND is_active = true",
       ).get(workspaceId, provider) as { secret: string } | undefined;
 
       if (!activeSecretRow || activeSecretRow.secret !== receivedSecret) {

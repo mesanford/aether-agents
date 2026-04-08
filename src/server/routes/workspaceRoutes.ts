@@ -346,7 +346,7 @@ export function registerWorkspaceRoutes({
 
   app.post("/api/workspaces/:id/complete-onboarding", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      await db.prepare("UPDATE workspaces SET is_onboarded = 1 WHERE id = ?").run(req.workspaceId);
+      await db.prepare("UPDATE workspaces SET is_onboarded = true WHERE id = ?").run(req.workspaceId);
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: "Failed to complete onboarding" });
