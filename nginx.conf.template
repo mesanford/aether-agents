@@ -1,0 +1,33 @@
+# NGINX Proxy Configuration for AgencyOS
+# Save this file to: /etc/nginx/sites-available/agencyos.conf
+# Then symlink: sudo ln -s /etc/nginx/sites-available/agencyos.conf /etc/nginx/sites-enabled/
+# Then check syntax and restart: sudo nginx -t && sudo systemctl restart nginx
+
+server {
+    listen 80;
+    server_name example.com www.example.com; # <--- REPLACE WITH YOUR ACTUAL DOMAIN
+
+    # Route all requests to the PM2 server running on port 3000
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        
+        # WebSockets support (for future-proofing LangGraph streaming)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        
+        # Standard Headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Caching bypassing
+        proxy_cache_bypass $http_upgrade;
+
+        # Keep alive settings for LLM generation timeouts
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
