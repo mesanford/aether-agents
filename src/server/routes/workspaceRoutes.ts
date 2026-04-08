@@ -18,7 +18,7 @@ type RegisterWorkspaceRoutesArgs = {
   requireWorkspaceRole: (...allowedRoles: string[]) => express.RequestHandler;
   getAllowedAgentUpdate: (body: any) => { updates?: Record<string, unknown>; error?: string };
   getAllowedTaskCreate: (body: any) => { value?: { title: string; description: string; assigneeId: string; dueDate: string; repeat: string }; error?: string };
-  getAllowedTaskStatusUpdate: (body: any) => { status?: string; error?: string };
+  getAllowedTaskUpdate: (body: any) => { updates?: Record<string, string>; error?: string };
   getAllowedMessageCreate: (body: any) => { value?: { agentId: string; senderId: string; senderName: string; senderAvatar: string; content: string; imageUrl: string | null; timestamp: number; type: string }; error?: string };
   isNonEmptyString: (value: unknown) => value is string;
   writeAuditLog: (params: { workspaceId?: number; userId?: number; action: string; resource: string; details?: Record<string, unknown> }) => void;
@@ -33,7 +33,7 @@ export function registerWorkspaceRoutes({
   requireWorkspaceRole,
   getAllowedAgentUpdate,
   getAllowedTaskCreate,
-  getAllowedTaskStatusUpdate,
+  getAllowedTaskUpdate,
   getAllowedMessageCreate,
   isNonEmptyString,
   writeAuditLog,
@@ -1188,20 +1188,30 @@ export function registerWorkspaceRoutes({
   app.patch("/api/workspaces/:workspaceId/tasks/:taskId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const taskId = req.params.taskId;
-      const { status, error } = getAllowedTaskStatusUpdate(req.body);
-      if (error || !status) {
-        return res.status(400).json({ error: error || "Invalid task status" });
+      const { updates, error } = getAllowedTaskUpdate(req.body);
+      if (error || !updates) {
+        return res.status(400).json({ error: error || "Invalid task update" });
       }
 
-      await db.prepare("UPDATE tasks SET status = ? WHERE id = ? AND workspace_id = ?").run(status, taskId, req.workspaceId);
+      const keys = Object.keys(updates);
+      const values = Object.values(updates);
+
+      // Convert snake_case for DB columns: dueDate -> due_date
+      const dbKeys = keys.map(k => k === "dueDate" ? "due_date" : k);
+
+      const setClause = dbKeys.map((k) => `${k} = ?`).join(", ");
+
+      const sql = `UPDATE tasks SET ${setClause} WHERE id = ? AND workspace_id = ?`;
+      await db.prepare(sql).run(...values, taskId, req.workspaceId);
+
       writeAuditLog({
         workspaceId: req.workspaceId,
         userId: req.userId,
-        action: "task.status_updated",
+        action: "task.updated",
         resource: "tasks",
-        details: { taskId, status },
+        details: { taskId, ...updates },
       });
-      return res.json({ success: true });
+      return res.json({ success: true, updates });
     } catch {
       return res.status(500).json({ error: "Failed to update task" });
     }

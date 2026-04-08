@@ -265,6 +265,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [showClearHistoryModal, setShowClearHistoryModal] = useState(false);
   const [tasks, setTasks] = useState<any[]>([]);
+  const [editingTaskScheduleId, setEditingTaskScheduleId] = useState<string | null>(null);
+  const [taskScheduleForm, setTaskScheduleForm] = useState<{repeat: string; dueDate: string}>({repeat: '', dueDate: ''});
+  const [isUpdatingTask, setIsUpdatingTask] = useState(false);
   const [guidelineState, setGuidelineState] = useState<{ status: 'idle' | 'saving' | 'success' | 'error'; message: string }>({
     status: 'idle',
     message: '',
@@ -365,6 +368,27 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSaveTaskSchedule = async (taskId: string) => {
+    try {
+      setIsUpdatingTask(true);
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/tasks/${taskId}`, {
+        method: 'PATCH',
+        token: token || undefined,
+        onAuthFailure: () => onAuthFailure?.(),
+        body: JSON.stringify({
+          repeat: taskScheduleForm.repeat,
+          dueDate: taskScheduleForm.dueDate,
+        }),
+      });
+      setTasks(tasks.map(t => t.id === taskId ? { ...t, ...taskScheduleForm } : t));
+      setEditingTaskScheduleId(null);
+    } catch (err) {
+      console.error('Failed to update task schedule:', err);
+    } finally {
+      setIsUpdatingTask(false);
+    }
+  };
 
   const handleFileClick = () => {
     fileInputRef.current?.click();
@@ -2636,11 +2660,59 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                 <span className="text-[14px] font-medium text-slate-800 flex items-center gap-2.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-500" /> {task.dueDate || 'Tomorrow at 3:00 PM'}</span>
                               </div>
                               <div className="flex items-center gap-4 transition-opacity">
-                                <button className="text-slate-800 hover:text-slate-900 transition-colors"><svg className="w-[15px] h-[15px] fill-current" viewBox="0 0 24 24"><path d="M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z"/></svg></button>
-                                <button className="text-slate-800 hover:text-slate-900 transition-colors"><svg className="w-[15px] h-[15px] fill-current" viewBox="0 0 24 24"><path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm6 13h-7v-7h2v5h5v2z"/></svg></button>
+                                <button 
+                                  onClick={() => {
+                                    setEditingTaskScheduleId(task.id);
+                                    setTaskScheduleForm({ repeat: task.repeat || '', dueDate: task.dueDate || '' });
+                                  }}
+                                  className="text-slate-800 hover:text-slate-900 transition-colors"
+                                >
+                                  <svg className="w-[15px] h-[15px] fill-current" viewBox="0 0 24 24"><path d="M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z"/></svg>
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setEditingTaskScheduleId(task.id);
+                                    setTaskScheduleForm({ repeat: task.repeat || '', dueDate: task.dueDate || '' });
+                                  }}
+                                  className="text-slate-800 hover:text-slate-900 transition-colors"
+                                >
+                                  <svg className="w-[15px] h-[15px] fill-current" viewBox="0 0 24 24"><path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm6 13h-7v-7h2v5h5v2z"/></svg>
+                                </button>
                                 <button className="px-4 py-2 bg-black text-white text-[14px] font-medium rounded-lg flex items-center gap-2 hover:bg-slate-900 transition-colors shadow-sm ml-1">Publish <svg className="w-[15px] h-[15px] fill-current" viewBox="0 0 24 24"><path d="M24 0l-6 22-8.129-7.239 7.802-8.234-10.458 7.227-7.215-1.754 24-12zm-15 16.668v7.332l3.258-4.431-3.258-2.901z"/></svg></button>
                               </div>
                             </div>
+                            
+                            {editingTaskScheduleId === task.id && (
+                              <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
+                                <input
+                                  type="text"
+                                  value={taskScheduleForm.dueDate}
+                                  onChange={e => setTaskScheduleForm({...taskScheduleForm, dueDate: e.target.value})}
+                                  placeholder="Due e.g., Tomorrow at 3PM"
+                                  className="px-3 py-1.5 text-sm rounded bg-white border border-slate-200 outline-none focus:border-blue-500 w-[180px]"
+                                />
+                                <input
+                                  type="text"
+                                  value={taskScheduleForm.repeat}
+                                  onChange={e => setTaskScheduleForm({...taskScheduleForm, repeat: e.target.value})}
+                                  placeholder="Repeat e.g., Daily"
+                                  className="px-3 py-1.5 text-sm rounded bg-white border border-slate-200 outline-none focus:border-blue-500 w-[140px]"
+                                />
+                                <button
+                                  onClick={() => handleSaveTaskSchedule(task.id)}
+                                  disabled={isUpdatingTask}
+                                  className="ml-auto px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                  {isUpdatingTask ? 'Saving...' : 'Save'}
+                                </button>
+                                <button
+                                  onClick={() => setEditingTaskScheduleId(null)}
+                                  className="px-3 py-1.5 text-slate-500 hover:bg-slate-200 text-sm font-medium rounded"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
                             <div className="p-5 flex-1 flex flex-col">
                               <h4 className="font-bold text-slate-900 text-[15px] mb-4 leading-snug">{task.title}</h4>
                               {task.artifact?.imageUrl ? (

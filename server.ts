@@ -16,7 +16,7 @@ import {
   getAllowedAgentUpdate,
   getAllowedMessageCreate,
   getAllowedTaskCreate,
-  getAllowedTaskStatusUpdate,
+  getAllowedTaskUpdate,
   isNonEmptyString,
 } from "./src/server/validators.ts";
 import type { AuthenticatedRequest, ConnectedServices, LiveContext } from "./src/server/types.ts";
@@ -188,7 +188,7 @@ async function startServer() {
     requireWorkspaceRole,
     getAllowedAgentUpdate,
     getAllowedTaskCreate,
-    getAllowedTaskStatusUpdate,
+    getAllowedTaskUpdate,
     getAllowedMessageCreate,
     isNonEmptyString,
     writeAuditLog,

@@ -283,6 +283,63 @@ export const writeWorkspaceFileTool = tool(
   }
 );
 
+export const getWorkspaceTasksTool = tool(
+  async ({}, config) => {
+    try {
+      if (!config?.configurable?.workspaceId) return "Error: Missing workspaceId in config.";
+      const rows = await db.prepare("SELECT id, title, description, repeat, due_date, status, execution_type FROM tasks WHERE workspace_id = ?").all(config.configurable.workspaceId) as any[];
+      if (!rows.length) return "No tasks found in this workspace.";
+      return JSON.stringify(rows, null, 2);
+    } catch (e: any) {
+      return `Failed to get tasks: ${e.message}`;
+    }
+  },
+  {
+    name: "get_tasks",
+    description: "Get a list of all current tasks in the workspace, including their titles, IDs, due dates, execution types, statuses, and repeat schedules. Use this to find the exact ID of a task a user wants to edit.",
+    schema: z.object({})
+  }
+);
+
+export const updateWorkspaceTaskTool = tool(
+  async ({ taskId, repeat, dueDate, title, description }, config) => {
+    try {
+      if (!config?.configurable?.workspaceId) return "Error: Missing workspaceId in config.";
+      const { getAllowedTaskUpdate } = require('../validators.ts');
+      
+      const updateData = { repeat, dueDate, title, description };
+      Object.keys(updateData).forEach(key => updateData[key as keyof typeof updateData] === undefined && delete updateData[key as keyof typeof updateData]);
+      
+      const { updates, error } = getAllowedTaskUpdate(updateData);
+      if (error || !updates) return `Failed to update task: ${error}`;
+
+      const keys = Object.keys(updates);
+      const values = Object.values(updates);
+      const dbKeys = keys.map(k => k === "dueDate" ? "due_date" : k);
+      const setClause = dbKeys.map((k) => `${k} = ?`).join(", ");
+
+      const sql = `UPDATE tasks SET ${setClause} WHERE id = ? AND workspace_id = ?`;
+      const result = await db.prepare(sql).run(...values, taskId, config.configurable.workspaceId);
+      
+      if (result.changes === 0) return `[FAILED] No task found with ID ${taskId}.`;
+      return `[SUCCESS] Task updated successfully with new fields: ${JSON.stringify(updates)}`;
+    } catch (e: any) {
+      return `Failed to update task: ${e.message}`;
+    }
+  },
+  {
+    name: "update_task",
+    description: "Update the configuration of an existing task (like schedule or repeat frequency). Use this to adjust when a scheduled or recurring task executes (e.g. changing from 'daily' to 'every 20 minutes').",
+    schema: z.object({
+      taskId: z.string().describe("The exact ID of the task to update."),
+      repeat: z.string().optional().describe("The repeat string, e.g. 'Every 20 minutes', 'Daily', 'Weekly'. Pass an empty string to clear the schedule."),
+      dueDate: z.string().optional().describe("The specific due date/time if it's a one-off."),
+      title: z.string().optional(),
+      description: z.string().optional()
+    })
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   searchGoogleDriveTool,
@@ -295,5 +352,7 @@ export const allTools = [
   updateCrmTool,
   linkedinOutreachTool,
   deleteTaskTool,
-  writeWorkspaceFileTool
+  writeWorkspaceFileTool,
+  getWorkspaceTasksTool,
+  updateWorkspaceTaskTool
 ];

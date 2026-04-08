@@ -125,11 +125,40 @@ export function getAllowedTaskCreate(body: any) {
   };
 }
 
-export function getAllowedTaskStatusUpdate(body: any) {
-  if (!isNonEmptyString(body.status) || !VALID_TASK_STATUSES.has(body.status)) {
-    return { error: "Invalid task status" };
+export function getAllowedTaskUpdate(body: any) {
+  const updates: Record<string, string> = {};
+
+  if (body.status !== undefined) {
+    if (!isNonEmptyString(body.status) || !VALID_TASK_STATUSES.has(body.status)) {
+      return { error: "Invalid task status" };
+    }
+    updates.status = body.status;
   }
-  return { status: body.status };
+
+  if (body.repeat !== undefined) {
+    updates.repeat = typeof body.repeat === "string" ? body.repeat.trim() : "";
+  }
+
+  if (body.dueDate !== undefined) {
+    updates.dueDate = typeof body.dueDate === "string" ? body.dueDate.trim() : "";
+  }
+
+  if (body.title !== undefined) {
+    if (!isNonEmptyString(body.title)) {
+      return { error: "Task title cannot be empty" };
+    }
+    updates.title = body.title.trim();
+  }
+
+  if (body.description !== undefined) {
+    updates.description = typeof body.description === "string" ? body.description.trim() : "";
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return { error: "No valid fields to update" };
+  }
+
+  return { updates };
 }
 
 export function getAllowedMessageCreate(body: any) {
