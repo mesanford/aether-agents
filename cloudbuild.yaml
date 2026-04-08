@@ -21,8 +21,10 @@ steps:
       - '--allow-unauthenticated'
       - '--add-cloudsql-instances'
       - 'marketing-agents-1bafd:us-central1:agencyos-db'
+      - '--set-env-vars'
+      - 'APP_URL=https://agencyos-110102869917.us-central1.run.app,GCS_MEDIA_BUCKET_NAME=marketing-agents,GOOGLE_CLIENT_ID=110102869917-1hmd4edba1o5btje00abmrccpcn1h64b.apps.googleusercontent.com'
       - '--set-secrets'
-      - 'DATABASE_URL=DATABASE_URL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,JWT_SECRET=JWT_SECRET:latest'
+      - 'DATABASE_URL=DATABASE_URL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,JWT_SECRET=JWT_SECRET:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest'
 
 images:
   - 'gcr.io/$PROJECT_ID/agencyos:$BUILD_ID'
