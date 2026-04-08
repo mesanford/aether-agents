@@ -101,7 +101,8 @@ export function bootstrapDatabase(db: Database.Database) {
       email TEXT UNIQUE NOT NULL,
       password TEXT,
       name TEXT,
-      google_id TEXT UNIQUE
+      google_id TEXT UNIQUE,
+      avatar TEXT
     )
   `);
   console.log("Database: users table checked/created");
@@ -114,6 +115,10 @@ export function bootstrapDatabase(db: Database.Database) {
       db.exec("ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE");
       console.log("Migration: Successfully added google_id column");
     }
+    const hasAvatar = columns.some((col) => col.name === "avatar");
+    if (!hasAvatar) {
+      db.exec("ALTER TABLE users ADD COLUMN avatar TEXT");
+    }
   } catch (err) {
     console.error("Migration failed for users table:", err);
   }
@@ -123,10 +128,25 @@ export function bootstrapDatabase(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       owner_id INTEGER NOT NULL,
+      logo TEXT,
+      description TEXT,
+      target_audience TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      is_onboarded BOOLEAN DEFAULT 0,
       FOREIGN KEY (owner_id) REFERENCES users(id)
     )
   `);
+
+  try {
+    const columns = db.prepare("PRAGMA table_info(workspaces)").all() as any[];
+    const hasIsOnboarded = columns.some((col) => col.name === "is_onboarded");
+    if (!hasIsOnboarded) {
+      console.log("Migration: is_onboarded column missing on workspaces, adding it now...");
+      db.exec("ALTER TABLE workspaces ADD COLUMN is_onboarded BOOLEAN DEFAULT 0");
+    }
+  } catch (err) {
+    console.error("Migration error for workspaces is_onboarded:", err);
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS workspace_members (
@@ -136,6 +156,18 @@ export function bootstrapDatabase(db: Database.Database) {
       PRIMARY KEY (workspace_id, user_id),
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
       FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workspace_invitations (
+      id TEXT PRIMARY KEY,
+      workspace_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      role TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
@@ -273,6 +305,65 @@ export function bootstrapDatabase(db: Database.Database) {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sales_sequences (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT DEFAULT 'Draft',
+      schedule TEXT DEFAULT 'Runs every day',
+      steps TEXT NOT NULL DEFAULT '[]',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sequence_enrollments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL,
+      lead_id INTEGER NOT NULL,
+      sequence_id INTEGER NOT NULL,
+      current_step_idx INTEGER DEFAULT 0,
+      next_execution_datetime DATETIME,
+      status TEXT DEFAULT 'Active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+      FOREIGN KEY (lead_id) REFERENCES leads(id),
+      FOREIGN KEY (sequence_id) REFERENCES sales_sequences(id)
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sequence_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL,
+      lead_id INTEGER NOT NULL,
+      sequence_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      content TEXT,
+      agent_feedback TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+      FOREIGN KEY (lead_id) REFERENCES leads(id),
+      FOREIGN KEY (sequence_id) REFERENCES sales_sequences(id)
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS stan_memory_ledger (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL,
+      learning TEXT NOT NULL,
+      confidence_score INTEGER DEFAULT 50,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+    )
+  `);
+
   try {
     const leadColumns = db.prepare("PRAGMA table_info(leads)").all() as any[];
     const hasWorkspaceId = leadColumns.some((col) => col.name === "workspace_id");
@@ -390,6 +481,9 @@ export function bootstrapDatabase(db: Database.Database) {
       buffer_profile_id TEXT,
       notion_parent_page_id TEXT,
       require_artifact_image INTEGER NOT NULL DEFAULT 0,
+      max_daily_ai_requests INTEGER NOT NULL DEFAULT 300,
+      daily_ai_requests_count INTEGER NOT NULL DEFAULT 0,
+      daily_ai_requests_date TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
@@ -407,9 +501,50 @@ export function bootstrapDatabase(db: Database.Database) {
     ensureAutomationColumn("teams_mode", "TEXT NOT NULL DEFAULT 'off'");
     ensureAutomationColumn("notion_mode", "TEXT NOT NULL DEFAULT 'off'");
     ensureAutomationColumn("notion_parent_page_id", "TEXT");
+    ensureAutomationColumn("approval_mode_linkedin", "TEXT NOT NULL DEFAULT 'auto'");
+    ensureAutomationColumn("approval_mode_buffer", "TEXT NOT NULL DEFAULT 'auto'");
+    ensureAutomationColumn("approval_mode_instagram", "TEXT NOT NULL DEFAULT 'auto'");
+    ensureAutomationColumn("approval_mode_twitter", "TEXT NOT NULL DEFAULT 'auto'");
+    ensureAutomationColumn("approval_mode_facebook", "TEXT NOT NULL DEFAULT 'auto'");
+    ensureAutomationColumn("max_daily_ai_requests", "INTEGER NOT NULL DEFAULT 300");
+    ensureAutomationColumn("daily_ai_requests_count", "INTEGER NOT NULL DEFAULT 0");
+    ensureAutomationColumn("daily_ai_requests_date", "TEXT");
   } catch (err) {
     console.error("Migration failed for workspace_automation_settings table:", err);
   }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_documents (
+      id TEXT PRIMARY KEY,
+      workspace_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      author TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS approval_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL,
+      task_id TEXT,
+      agent_id TEXT NOT NULL,
+      agent_name TEXT,
+      action_type TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at DATETIME,
+      reviewed_by_user_id INTEGER,
+      rejection_reason TEXT,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+      FOREIGN KEY (reviewed_by_user_id) REFERENCES users(id)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_approval_requests_pending ON approval_requests(workspace_id, status, requested_at DESC)");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages (

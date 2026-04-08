@@ -1,4 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Toaster, toast } from 'react-hot-toast';
+
+// Display names for the hardcoded agent registry — used when a workspace has no
+// custom agent profiles configured in the database.
+const DEFAULT_AGENT_NAMES: Record<string, string> = {
+  'executive-assistant': 'Eva (Executive Assistant)',
+  'sales-associate': 'Stan (Sales Rep)',
+  'blog-writer': 'Penny (SEO Blog Writer)',
+  'social-media-manager': 'Sonny (Social Media Manager)',
+  'receptionist': 'Rachel (Receptionist)',
+  'legal-associate': 'Linda (Legal Assistant)',
+  'team-chat': 'Team Chat',
+};
 import { motion, AnimatePresence } from 'motion/react';
 import {
   MessageSquare,
@@ -8,7 +21,8 @@ import {
   CheckSquare,
   User as UserIcon,
   ChevronLeft,
-  Menu
+  Menu,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Agent, AgentPersonality, AgentRole, AgentStatus, Message, Task, Workspace } from './types';
 import { AgentCard } from './components/AgentCard';
@@ -18,7 +32,9 @@ import { CompanyKnowledge } from './components/CompanyKnowledge';
 import { TeamManagement } from './components/TeamManagement';
 import { TaskManager } from './components/TaskManager';
 import { SettingsView } from './components/SettingsView';
+import { ApprovalQueue } from './components/ApprovalQueue';
 import { LoginView } from './components/LoginView';
+import { OnboardingWizard } from './components/OnboardingWizard';
 import { getAgentResponse, parseTaskFromResponse, parseDraftEmailFromResponse, stripAgentJson, LiveContext, ConnectedServices } from './services/geminiService';
 import { apiFetch } from './services/apiClient';
 import { buildAgentPromptContext, cn, normalizeAgentPersonality } from './utils';
@@ -28,6 +44,7 @@ export default function App() {
     analyticsPropertyId: null,
     searchConsoleSiteUrl: null,
   });
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<'account' | 'integrations'>('account');
 
   const [user, setUser] = useState<any>(() => {
     const saved = localStorage.getItem('sanford-user');
@@ -50,10 +67,13 @@ export default function App() {
   // Start loading=true if we already have a token (returning user)
   const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('sanford-token'));
 
-  const [isTyping, setIsTyping] = useState(false);
-  const [activeView, setActiveView] = useState<'chat' | 'media' | 'docs' | 'team' | 'tasks' | 'settings'>('chat');
+  const [workingAgents, setWorkingAgents] = useState<Set<string>>(new Set());
+  const [activeView, setActiveView] = useState<'chat' | 'media' | 'docs' | 'team' | 'tasks' | 'settings' | 'approvals'>('chat');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAgentList, setShowAgentList] = useState(true);
+  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+  const [showWorkspacePrompt, setShowWorkspacePrompt] = useState(false);
+  const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
 
   // ── Load workspace-specific data from backend ───────────────────────────
   useEffect(() => {
@@ -83,23 +103,9 @@ export default function App() {
 
       setTasks(tasksData || []);
 
-      // Group messages by agentId
-      const grouped: Record<string, Message[]> = {};
-      for (const m of (messagesData || [])) {
-        const key = m.agentId;
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push({
-          id: m.id,
-          senderId: m.senderId,
-          senderName: m.senderName,
-          senderAvatar: m.senderAvatar,
-          content: m.content,
-          imageUrl: m.imageUrl,
-          timestamp: m.timestamp,
-          type: m.type,
-        });
-      }
-      setMessages(grouped);
+      // Setup initial messages state
+      setMessages({});
+
 
       // Reset view when switching workspace
       setActiveView('chat');
@@ -119,8 +125,11 @@ export default function App() {
         apiFetch('/api/integrations/google/status', { token, onAuthFailure: () => handleLogout() }).catch(() => ({})),
       ]).then(([wsData, gsData]: [any, any]) => {
         setWorkspaces(wsData);
-        if (wsData.length > 0 && !activeWorkspaceId) {
-          setActiveWorkspaceId(wsData[0].id);
+        if (wsData.length > 0) {
+          const isValid = wsData.find((w: any) => w.id === activeWorkspaceId);
+          if (!isValid) {
+            setActiveWorkspaceId(wsData[0].id);
+          }
         } else if (wsData.length === 0) {
           setIsLoading(false);
         }
@@ -188,6 +197,24 @@ export default function App() {
     }
   }, [activeWorkspaceId]);
 
+  // Poll for pending approvals every 60s
+  useEffect(() => {
+    if (!token || !activeWorkspaceId) return;
+
+    const fetchApprovals = () => {
+      apiFetch(`/api/workspaces/${activeWorkspaceId}/approvals?status=pending&limit=50`, {
+        token,
+        onAuthFailure: () => handleLogout(),
+      })
+        .then((data: any) => setPendingApprovals(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    };
+
+    fetchApprovals();
+    const interval = setInterval(fetchApprovals, 60000);
+    return () => clearInterval(interval);
+  }, [token, activeWorkspaceId]);
+
   useEffect(() => {
     if (user) {
       localStorage.setItem('sanford-user', JSON.stringify(user));
@@ -216,6 +243,32 @@ export default function App() {
   };
 
   const activeAgent = agents.find(a => a.id === activeAgentId) || agents[0];
+
+  // Fetch thread history from LangGraph checkpointer whenever active channel changes
+  useEffect(() => {
+    if (!user || !activeAgentId || !token || !activeWorkspaceId) return;
+
+    const threadId = activeAgentId === 'global' ? `thread_${user.id}_global` : `thread_${user.id}_${activeAgentId}`;
+    
+    apiFetch(`/api/workspaces/${activeWorkspaceId}/chat/history?threadId=${threadId}`, {
+      token,
+      onAuthFailure: () => handleLogout()
+    }).then((data: any) => {
+      if (data && data.messages) {
+        const historyMessages: Message[] = data.messages.map((m: any, i: number) => ({
+          id: `hist_${i}`,
+          senderId: m.role === 'user' ? 'user' : m.sender,
+          senderName: m.role === 'user' ? user.name : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.name || DEFAULT_AGENT_NAMES[m.sender] || 'System'),
+          senderAvatar: m.role === 'user' ? (user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`) : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${m.sender}`),
+          content: m.content,
+          timestamp: Date.now(),
+          type: m.role === 'user' ? 'user' : 'agent'
+        }));
+        setMessages(prev => ({ ...prev, [activeAgentId]: historyMessages }));
+      }
+    }).catch(err => console.error("Failed to fetch history", err));
+  }, [activeAgentId, activeWorkspaceId, token, user, agents]);
+
 
   // ── All hooks must be declared before any early returns ───────────────────
   const updateAgentStatus = useCallback((id: string, status: AgentStatus) => {
@@ -273,6 +326,34 @@ export default function App() {
       console.error('Failed to save guidelines', err);
       setAgents(prev => prev.map(a =>
         a.id === agentId ? { ...a, guidelines: previousGuidelines } : a
+      ));
+      return false;
+    }
+  }, [activeWorkspaceId, token]);
+
+  const handleUpdateAgentName = useCallback(async (agentId: string, name: string) => {
+    let previousName = '';
+    setAgents(prev => prev.map(a =>
+      a.id === agentId
+        ? (() => {
+            previousName = a.name;
+            return { ...a, name };
+          })()
+        : a
+    ));
+
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
+        method: 'PATCH',
+        token,
+        onAuthFailure: () => handleLogout(),
+        body: JSON.stringify({ name }),
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to save agent name', err);
+      setAgents(prev => prev.map(a =>
+        a.id === agentId ? { ...a, name: previousName } : a
       ));
       return false;
     }
@@ -433,48 +514,7 @@ export default function App() {
 
   const activeWorkspace = workspaces.find((ws) => ws.id === activeWorkspaceId) || null;
 
-  const hoursSaved = Math.round(tasks.filter(t => t.status === 'done').reduce((acc, task) => {
-    const mapping: Record<string, number> = {
-      'blog-writer': 60,
-      'social-media-manager': 20,
-      'sales-associate': 10,
-      'receptionist': 10,
-      'legal-associate': 20,
-      'executive-assistant': 5,
-    };
 
-    let time = mapping[task.assigneeId] || 10;
-
-    const combinedText = (task.title + ' ' + task.description).toLowerCase();
-
-    // Special handling for lead research: 10 mins per lead
-    if (task.assigneeId === 'sales-associate' || task.assigneeId === 'receptionist') {
-      const leadMatch = combinedText.match(/(\d+)-(\d+)\s+leads/i) ||
-        combinedText.match(/(\d+)\s+leads/i);
-      if (leadMatch) {
-        const count = leadMatch[2] ? (parseInt(leadMatch[1]) + parseInt(leadMatch[2])) / 2 : parseInt(leadMatch[1]);
-        time = count * 10;
-      }
-    }
-
-    // Special handling for blog posts: 60 mins per post
-    if (task.assigneeId === 'blog-writer') {
-      const postMatch = combinedText.match(/(\d+)\s+blog posts/i) || combinedText.match(/(\d+)\s+posts/i);
-      if (postMatch) {
-        time = parseInt(postMatch[1]) * 60;
-      }
-    }
-
-    // Special handling for social media: 20 mins per post
-    if (task.assigneeId === 'social-media-manager') {
-      const postMatch = combinedText.match(/(\d+)\s+social media posts/i) || combinedText.match(/(\d+)\s+posts/i);
-      if (postMatch) {
-        time = parseInt(postMatch[1]) * 20;
-      }
-    }
-
-    return acc + time;
-  }, 0) / 60);
 
 
   const handleSendMessage = async (content: string) => {
@@ -483,7 +523,7 @@ export default function App() {
       id: Date.now().toString(),
       senderId: 'user',
       senderName: user.name,
-      senderAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
+      senderAvatar: user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
       content,
       timestamp: Date.now(),
       type: 'user'
@@ -493,197 +533,91 @@ export default function App() {
       ...prev,
       [activeAgentId]: [...(prev[activeAgentId] || []), newMessage]
     }));
-    persistMessage(newMessage, activeAgentId);
 
-    setIsTyping(true);
-    updateAgentStatus(activeAgentId, AgentStatus.THINKING);
+    const targetAgentId = activeAgentId;
 
-    if (activeAgentId.startsWith('team-chat')) {
-      // Team Chat logic: pick a relevant agent or have multiple respond
-      const eva = agents.find(a => a.id.startsWith('executive-assistant'))!;
-      const liveCtx = eva ? await fetchLiveContext(content) : undefined;
-      const { text, imageUrl } = await getAgentResponse(
-        eva.role,
-        content,
-        buildAgentPromptContext({
-          description: eva.description,
-          capabilities: eva.capabilities,
-          guidelines: eva.guidelines,
-          personality: eva.personality,
-        }),
-        false,
-        liveCtx,
-        connectedServices,
-        token,
-        activeWorkspaceId,
-        handleLogout,
-      );
+    setWorkingAgents(prev => {
+      const next = new Set(prev);
+      next.add(targetAgentId);
+      return next;
+    });
+    updateAgentStatus(targetAgentId, AgentStatus.THINKING);
 
-      // Check if Eva wants to schedule a task
-      const potentialTask = parseTaskFromResponse(text);
-      if (potentialTask) {
-        handleTaskCreation(potentialTask);
-      }
+    const threadId = targetAgentId === 'global' ? `thread_${user.id}_global` : `thread_${user.id}_${targetAgentId}`;
+    const payloadMessage = targetAgentId === 'global' ? content : `[Direct message to ${targetAgentId}] ${content}`;
+    
+    const liveCtx = await fetchLiveContext(content);
+      
+    const { text, sender } = await getAgentResponse(
+      payloadMessage,
+      threadId,
+      liveCtx || undefined,
+      connectedServices,
+      token,
+      activeWorkspaceId,
+      handleLogout
+    );
 
-      // Check if Eva wants to create an email draft
-      const potentialDraft = parseDraftEmailFromResponse(text);
-      let draftStatusMessage = "";
-      if (potentialDraft && connectedServices.gmail) {
-        try {
-          await apiFetch('/api/integrations/gmail/drafts', {
-            method: 'POST',
-            token,
-            onAuthFailure: () => handleLogout(),
-            body: JSON.stringify(potentialDraft)
-          });
-          draftStatusMessage = "\n\n*(I have successfully created a draft reply in your Gmail account.)*";
-        } catch (e) {
-          draftStatusMessage = "\n\n*(I attempted to create a draft reply, but encountered an error. Please ensure Gmail is connected.)*";
-          console.error("Failed to inject draft", e);
-        }
-      }
+    const agentResponse: Message = {
+      id: (Date.now() + 1).toString(),
+      senderId: sender || 'system',
+      senderName: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.name || DEFAULT_AGENT_NAMES[sender || ''] || 'System',
+      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
+      content: stripAgentJson(text),
+      timestamp: Date.now(),
+      type: 'agent'
+    };
 
-      const agentResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        senderId: eva.id,
-        senderName: eva.name,
-        senderAvatar: eva.avatar,
-        content: stripAgentJson(text) + draftStatusMessage,
-        imageUrl,
-        timestamp: Date.now(),
-        type: 'agent'
-      };
+    setMessages(prev => ({
+      ...prev,
+      [targetAgentId]: [...(prev[targetAgentId] || []), agentResponse]
+    }));
 
-      setMessages(prev => ({
-        ...prev,
-        [activeAgentId]: [...(prev[activeAgentId] || []), agentResponse]
-      }));
-      persistMessage(agentResponse, activeAgentId);
-
-      // Simulate another agent joining the conversation
-      setTimeout(async () => {
-        const otherAgents = agents.filter(a => !a.id.startsWith('team-chat') && !a.id.startsWith('executive-assistant'));
-        const randomAgent = otherAgents[Math.floor(Math.random() * otherAgents.length)];
-        updateAgentStatus(randomAgent.id, AgentStatus.THINKING);
-
-        const canGenerateImage = randomAgent.capabilities.includes('Image Generation');
-        const { text: secondText, imageUrl: secondImageUrl } = await getAgentResponse(
-          randomAgent.role,
-          `In a team context, respond to: ${content}`,
-          buildAgentPromptContext({
-            description: randomAgent.description,
-            capabilities: randomAgent.capabilities,
-            guidelines: randomAgent.guidelines,
-            personality: randomAgent.personality,
-          }),
-          canGenerateImage,
-          undefined,
-          undefined,
-          token,
-          activeWorkspaceId,
-          handleLogout,
-        );
-
-        // Check if random agent wants to schedule a task
-        const secondPotentialTask = parseTaskFromResponse(secondText);
-        if (secondPotentialTask) {
-          handleTaskCreation(secondPotentialTask);
-        }
-
-        const secondAgentResponse: Message = {
-          id: (Date.now() + 2).toString(),
-          senderId: randomAgent.id,
-          senderName: randomAgent.name,
-          senderAvatar: randomAgent.avatar,
-          content: stripAgentJson(secondText),
-          imageUrl: secondImageUrl,
-          timestamp: Date.now(),
-          type: 'agent'
-        };
-
-        setMessages(prev => ({
-          ...prev,
-          [activeAgentId]: [...(prev[activeAgentId] || []), secondAgentResponse]
-        }));
-        persistMessage(secondAgentResponse, activeAgentId);
-        updateAgentStatus(randomAgent.id, AgentStatus.IDLE);
-      }, 2000);
-
-    } else {
-      const canGenerateImage = activeAgent.capabilities.includes('Image Generation');
-      // Fetch live context for roles that benefit from connected data.
-      const shouldUseLiveContext = (
-        activeAgentId.startsWith('executive-assistant') ||
-        activeAgentId.startsWith('blog-writer') ||
-        activeAgentId.startsWith('social-media-manager')
-      );
-      const liveCtx = shouldUseLiveContext ? await fetchLiveContext(content) : undefined;
-      const { text, imageUrl } = await getAgentResponse(
-        activeAgent.role,
-        content,
-        buildAgentPromptContext({
-          description: activeAgent.description,
-          capabilities: activeAgent.capabilities,
-          guidelines: activeAgent.guidelines,
-          personality: activeAgent.personality,
-        }),
-        canGenerateImage,
-        liveCtx,
-        shouldUseLiveContext ? connectedServices : undefined,
-        token,
-        activeWorkspaceId,
-        handleLogout,
-      );
-
-      // Check if agent wants to schedule a task
-      const potentialTask = parseTaskFromResponse(text);
-      if (potentialTask) {
-        handleTaskCreation(potentialTask);
-      }
-
-      // Check if agent wants to create an email draft
-      const potentialDraft = parseDraftEmailFromResponse(text);
-      let draftStatusMessage = "";
-      if (potentialDraft && connectedServices.gmail) {
-        try {
-          await apiFetch('/api/integrations/gmail/drafts', {
-            method: 'POST',
-            token,
-            onAuthFailure: () => handleLogout(),
-            body: JSON.stringify(potentialDraft)
-          });
-          draftStatusMessage = "\n\n*(I have successfully created a draft reply in your Gmail account.)*";
-        } catch (e) {
-          draftStatusMessage = "\n\n*(I attempted to create a draft reply, but encountered an error. Please ensure Gmail is connected.)*";
-          console.error("Failed to inject draft", e);
-        }
-      }
-
-      const agentResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        senderId: activeAgentId,
-        senderName: activeAgent.name,
-        senderAvatar: activeAgent.avatar,
-        content: stripAgentJson(text) + draftStatusMessage,
-        imageUrl,
-        timestamp: Date.now(),
-        type: 'agent'
-      };
-
-      setMessages(prev => ({
-        ...prev,
-        [activeAgentId]: [...(prev[activeAgentId] || []), agentResponse]
-      }));
-      persistMessage(agentResponse, activeAgentId);
-    }
-
-    setIsTyping(false);
-    updateAgentStatus(activeAgentId, AgentStatus.IDLE);
+    setWorkingAgents(prev => {
+      const next = new Set(prev);
+      next.delete(targetAgentId);
+      return next;
+    });
+    updateAgentStatus(targetAgentId, AgentStatus.IDLE);
   };
 
+
+  if (activeWorkspace && !activeWorkspace.is_onboarded) {
+    return (
+      <div className="flex relative h-[100dvh] bg-white overflow-hidden text-slate-800">
+        <Toaster 
+          position="top-center" 
+          toastOptions={{
+            style: { background: '#1e293b', color: '#fff', borderRadius: '12px' },
+            success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
+          }}
+        />
+        <OnboardingWizard
+          token={token!}
+          activeWorkspaceId={activeWorkspaceId!}
+          onAuthFailure={handleLogout}
+          onComplete={() => {
+            setWorkspaces(prev => prev.map(w => w.id === activeWorkspaceId ? { ...w, is_onboarded: true } : w));
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen bg-white overflow-hidden font-sans relative">
-      {/* Mobile Header */}
+    <div className="flex relative h-[100dvh] bg-white overflow-hidden text-slate-800">
+      <Toaster 
+        position="top-center" 
+        toastOptions={{
+          style: {
+            background: '#1e293b',
+            color: '#fff',
+            borderRadius: '12px',
+          },
+          success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
+        }}
+      />
+      {/* Mobile Sidebar Overlay */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-100 z-40 flex items-center justify-between px-4">
         <button
           onClick={() => setIsMobileMenuOpen(true)}
@@ -693,7 +627,7 @@ export default function App() {
         </button>
         <div className="font-bold text-slate-900">Sanford AI</div>
         <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
-          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} alt="User" />
+          <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} alt="User" />
         </div>
       </div>
 
@@ -703,7 +637,7 @@ export default function App() {
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="w-10 h-10 flex items-center justify-center">
-          <img src="https://api.marblism.com/favicon.ico" alt="Logo" className="w-8 h-8 opacity-80" />
+          <img src={activeWorkspace?.logo || "https://api.marblism.com/favicon.ico"} alt="Logo" className="w-8 h-8 opacity-80" />
         </div>
 
         {/* Workspace Switcher */}
@@ -725,19 +659,8 @@ export default function App() {
           ))}
           <button
             onClick={() => {
-              const name = prompt('Enter workspace name:');
-              if (name && token) {
-                apiFetch('/api/workspaces', {
-                  method: 'POST',
-                  token,
-                  onAuthFailure: () => handleLogout(),
-                  body: JSON.stringify({ name })
-                })
-                  .then(newWs => {
-                    setWorkspaces(prev => [...prev, newWs]);
-                    setActiveWorkspaceId(newWs.id);
-                  });
-              }
+              setWorkspaceNameDraft('');
+              setShowWorkspacePrompt(true);
             }}
             className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 border-2 border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-all"
             title="Add Workspace"
@@ -775,20 +698,44 @@ export default function App() {
               <item.icon className="w-6 h-6" />
             </button>
           ))}
+          {/* Approvals button with badge */}
+          <button
+            onClick={() => {
+              setActiveView('approvals');
+              setIsMobileMenuOpen(false);
+              setShowAgentList(false);
+            }}
+            className={cn(
+              "p-2 rounded-lg transition-colors relative group",
+              activeView === 'approvals' ? "text-slate-900 bg-slate-50" : "text-slate-400 hover:text-slate-600"
+            )}
+            title="Approvals"
+          >
+            {activeView === 'approvals' && (
+              <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-500 rounded-r-full" />
+            )}
+            <ClipboardCheck className="w-6 h-6" />
+            {pendingApprovals.length > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                {pendingApprovals.length > 9 ? '9+' : pendingApprovals.length}
+              </span>
+            )}
+          </button>
         </nav>
 
         <div className="mt-auto flex flex-col gap-6">
           <button
             onClick={() => {
               setActiveView('settings');
-              setShowAgentList(false);
+              setSettingsDefaultTab('account');
+              setIsMobileMenuOpen(false);
             }}
             className={cn(
               "w-10 h-10 rounded-full bg-slate-100 overflow-hidden border-2 transition-all",
               activeView === 'settings' ? "border-brand-500 scale-110" : "border-slate-200 hover:border-slate-300"
             )}
           >
-            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} alt="User" />
+            <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} alt="User" />
           </button>
         </div>
       </aside>
@@ -822,6 +769,7 @@ export default function App() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
+
           {agents.map((agent) => {
             const agentMessages = messages[agent.id] || [];
             const lastAgentMessage = [...agentMessages].reverse().find(m => m.type === 'agent');
@@ -846,19 +794,7 @@ export default function App() {
           })}
         </div>
 
-        {/* Stats Widget */}
-        <div className="p-6 mt-auto hidden md:block">
-          <div className="bg-orange-50/50 rounded-3xl p-6 relative overflow-hidden">
-            <div className="relative z-10">
-              <h3 className="text-4xl font-bold text-slate-900 mb-1">{hoursSaved} <span className="text-2xl font-medium">hours</span></h3>
-              <p className="text-sm text-slate-500">saved this month</p>
-            </div>
-            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-orange-200/30 rounded-full blur-3xl" />
-            <div className="absolute top-0 right-0 p-4">
-              <ChevronLeft className="w-4 h-4 text-slate-300" />
-            </div>
-          </div>
-        </div>
+
       </aside>
 
       {/* Main Area */}
@@ -875,11 +811,16 @@ export default function App() {
               activeWorkspaceId={activeWorkspaceId}
               onAuthFailure={handleLogout}
               onSendMessage={handleSendMessage}
-              isTyping={isTyping}
+              isTyping={workingAgents.has(activeAgentId)}
               onUpdateGuidelines={handleUpdateGuidelines}
               onUpdateCapabilities={handleUpdateCapabilities}
               onUpdatePersonality={handleUpdatePersonality}
+              onUpdateName={handleUpdateAgentName}
               onBack={() => setShowAgentList(true)}
+              onManageAccounts={() => {
+                setSettingsDefaultTab('integrations');
+                setActiveView('settings');
+              }}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center px-6">
@@ -903,10 +844,35 @@ export default function App() {
               </button>
               <h2 className="font-bold text-slate-900 capitalize">{activeView}</h2>
             </div>
-            {activeView === 'media' ? (
+            {activeView === 'approvals' ? (
+              <ApprovalQueue
+                workspaceId={activeWorkspaceId!}
+                token={token}
+                approvals={pendingApprovals}
+                onApprovalChange={() => {
+                  if (activeWorkspaceId && token) {
+                    apiFetch(`/api/workspaces/${activeWorkspaceId}/approvals?status=pending&limit=50`, {
+                      token,
+                      onAuthFailure: () => handleLogout(),
+                    })
+                      .then((data: any) => setPendingApprovals(Array.isArray(data) ? data : []))
+                      .catch(() => {});
+                  }
+                }}
+                onAuthFailure={handleLogout}
+              />
+            ) : activeView === 'media' ? (
               <MediaLibrary activeWorkspaceId={activeWorkspaceId} token={token} onAuthFailure={() => handleLogout()} />
             ) : activeView === 'docs' ? (
-              <CompanyKnowledge activeWorkspaceId={activeWorkspaceId} />
+              <CompanyKnowledge 
+                activeWorkspaceId={activeWorkspaceId} 
+                workspace={activeWorkspace}
+                token={token}
+                onAuthFailure={() => handleLogout()}
+                onLogoUpdate={(logo) => {
+                  setWorkspaces(prev => prev.map(w => w.id === activeWorkspaceId ? { ...w, logo } : w));
+                }}
+              />
             ) : activeView === 'team' ? (
               <TeamManagement activeWorkspaceId={activeWorkspaceId} token={token} onAuthFailure={handleLogout} />
             ) : activeView === 'settings' ? (
@@ -914,9 +880,12 @@ export default function App() {
                 user={user}
                 token={token}
                 activeWorkspaceId={activeWorkspaceId}
+                activeWorkspaceRole={activeWorkspace?.role}
                 onLogout={handleLogout}
                 onConnectedServicesChange={setConnectedServices}
                 onGoogleDefaultsChange={setGoogleContextDefaults}
+                onUserUpdate={(updatedUser) => setUser(updatedUser)}
+                defaultTab={settingsDefaultTab}
               />
             ) : (
               <TaskManager
@@ -948,6 +917,68 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {showWorkspacePrompt && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-xl max-w-md w-full relative">
+            <button onClick={() => setShowWorkspacePrompt(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Create Workspace</h3>
+            <p className="text-slate-500 text-sm mb-6">Enter a name for your new workspace.</p>
+            <input
+              type="text"
+              autoFocus
+              value={workspaceNameDraft}
+              onChange={(e) => setWorkspaceNameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && workspaceNameDraft.trim() && token) {
+                  apiFetch('/api/workspaces', {
+                    method: 'POST',
+                    token,
+                    onAuthFailure: () => handleLogout(),
+                    body: JSON.stringify({ name: workspaceNameDraft.trim() })
+                  }).then(newWs => {
+                    setWorkspaces(prev => [...prev, newWs]);
+                    setActiveWorkspaceId(newWs.id);
+                    setShowWorkspacePrompt(false);
+                  });
+                }
+              }}
+              placeholder="e.g. Acme Corp"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
+            />
+            <div className="flex items-center gap-3 mt-8">
+              <button 
+                onClick={() => setShowWorkspacePrompt(false)} 
+                className="flex-1 px-5 py-2.5 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (workspaceNameDraft.trim() && token) {
+                    apiFetch('/api/workspaces', {
+                      method: 'POST',
+                      token,
+                      onAuthFailure: () => handleLogout(),
+                      body: JSON.stringify({ name: workspaceNameDraft.trim() })
+                    }).then(newWs => {
+                      setWorkspaces(prev => [...prev, newWs]);
+                      setActiveWorkspaceId(newWs.id);
+                      setShowWorkspacePrompt(false);
+                    });
+                  }
+                }}
+                disabled={!workspaceNameDraft.trim()}
+                className="flex-1 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

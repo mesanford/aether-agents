@@ -818,62 +818,53 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8">
-          <div className="space-y-1">
+          <div className="flex flex-col">
             {filteredTasks.map((task) => {
               const agent = agents.find(a => a.id === task.assigneeId);
-              const statusBadge = getStatusBadge(task);
               const secondaryText = task.lastError || task.outputSummary || task.description;
               return (
-                <button
+                <div
                   key={task.id}
                   onClick={() => setSelectedTaskId(task.id)}
-                  className={cn(
-                    "w-full text-left p-3 md:p-4 rounded-2xl transition-all group flex items-start gap-3 md:gap-4",
-                    selectedTaskId === task.id ? "bg-slate-50" : "hover:bg-slate-50/50"
-                  )}
+                  className="w-full text-left py-6 border-b border-slate-100 transition-all group flex items-start gap-4 relative cursor-pointer hover:bg-slate-50/50"
+                  style={{ minHeight: '110px' }}
                 >
-                  <div className="mt-1 flex-shrink-0">
-                    {getStatusIcon(task)}
+                  <div className="mt-0.5 flex-shrink-0">
+                    {task.lastError ? <AlertCircle className="w-[20px] h-[20px] text-rose-500" /> : 
+                     task.status === 'running' ? <LoaderCircle className="w-[20px] h-[20px] text-brand-500 animate-spin" /> : 
+                     task.status === 'done' ? <CheckCircle2 className="w-[20px] h-[20px] text-[#10b981]" /> : 
+                     <Circle className="w-[20px] h-[20px] text-blue-500" />}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className={cn(
-                        "text-sm font-bold text-slate-900 truncate",
-                        task.status === 'done' && "text-slate-500"
-                      )}>
-                        {task.title}
-                      </h3>
-                      <span className={cn(
-                        'px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap',
-                        statusBadge.className,
-                      )}>
-                        {statusBadge.label}
-                      </span>
-                    </div>
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className={cn(
+                      "text-[15px] font-bold text-slate-900 truncate",
+                      task.status === 'done' && "text-slate-600 font-semibold"
+                    )}>
+                      {task.title}
+                    </h3>
                     <p className={cn(
-                      'text-xs mt-1 line-clamp-2',
+                      'text-[13px] mt-1.5 truncate',
                       task.lastError ? 'text-rose-500' : 'text-slate-400'
                     )}>
                       {secondaryText}
                     </p>
-                    <div className="flex items-center gap-3 md:gap-4 mt-3">
-                      <div className="flex items-center gap-1.5 text-[10px] md:text-[11px] font-medium text-slate-400">
-                        <Calendar className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-4 mt-3">
+                      <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-slate-400">
+                        <Calendar className="w-4 h-4" />
                         {task.dueDate}
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 text-[12.5px] text-slate-500">
                         <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
-                          <img src={agent?.avatar} alt={agent?.name} />
+                          <img src={agent?.avatar} alt={agent?.name} className="w-full h-full object-cover" />
                         </div>
-                        <span className="text-[10px] md:text-[11px] font-bold text-slate-500 truncate max-w-[60px] md:max-w-none">{agent?.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[10px] md:text-[11px] font-medium text-slate-400">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {formatExecutionType(task.executionType)}
+                        <span className="font-medium truncate max-w-[100px] md:max-w-none">{agent?.name}</span>
                       </div>
                     </div>
                   </div>
-                </button>
+                  {selectedTaskId === task.id && (
+                    <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-[#d1d5db]" />
+                  )}
+                </div>
               );
             })}
           </div>

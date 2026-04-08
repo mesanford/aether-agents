@@ -12,7 +12,7 @@ export class ApiError extends Error {
 
 type ApiFetchOptions = RequestInit & {
   token?: string | null;
-  onAuthFailure?: (status: 401 | 403) => void;
+  onAuthFailure?: (status: 401) => void;
   timeoutMs?: number;
 };
 
@@ -76,8 +76,8 @@ export async function apiFetch<T = any>(url: string, options: ApiFetchOptions = 
     : await response.text();
 
   if (!response.ok) {
-    if ((response.status === 401 || response.status === 403) && onAuthFailure) {
-      onAuthFailure(response.status as 401 | 403);
+    if (response.status === 401 && onAuthFailure) {
+      onAuthFailure(401);
     }
 
     const message = typeof payload === 'object' && payload && 'error' in (payload as any)

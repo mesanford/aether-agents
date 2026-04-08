@@ -1,6 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Image as ImageIcon, Video, FileText, Upload, MoreHorizontal, Search, Plus } from 'lucide-react';
+import { Image as ImageIcon, Video, FileText, Upload, MoreHorizontal, Search, Plus, X, Trash2, Copy } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
+import { toast } from 'react-hot-toast';
 import { cn } from '../utils';
 import { apiFetch } from '../services/apiClient';
 
@@ -23,6 +25,7 @@ type MediaItem = {
 
 export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, token, onAuthFailure }) => {
   const [activeCategory, setActiveCategory] = React.useState<'all' | 'uploads' | 'generated'>('all');
+  const [selectedMedia, setSelectedMedia] = React.useState<MediaItem | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [mediaItems, setMediaItems] = React.useState<MediaItem[]>([]);
   const [uploading, setUploading] = React.useState(false);
@@ -92,7 +95,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
       await fetchMedia();
     } catch (error) {
       console.error('Failed to upload media asset', error);
-      alert('Could not upload this media file.');
+      toast.error('Could not upload this media file.');
     } finally {
       setUploading(false);
     }
@@ -113,7 +116,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
       setMediaItems((current) => current.filter((item) => item.id !== mediaId));
     } catch (error) {
       console.error('Failed to delete media asset', error);
-      alert('Could not delete this media file.');
+      toast.error('Could not delete this media file.');
     } finally {
       setDeletingId(null);
     }
@@ -240,11 +243,10 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      void handleDeleteMedia(item.id);
+                      setSelectedMedia(item);
                     }}
-                    disabled={deletingId === item.id}
-                    className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/30 transition-colors disabled:opacity-50"
-                    aria-label={`Delete ${item.name}`}
+                    className="p-1.5 bg-slate-900/40 backdrop-blur-md rounded-lg text-white hover:bg-slate-900/60 transition-colors shadow-sm"
+                    aria-label={`View details for ${item.name}`}
                   >
                     <MoreHorizontal className="w-4 h-4" />
                   </button>
@@ -261,6 +263,75 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
           ))}
         </div>
       </div>
+
+      {/* Details Modal */}
+      <AnimatePresence>
+        {selectedMedia && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" style={{ zIndex: 9999 }}>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
+              onClick={() => setSelectedMedia(null)} 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row"
+            >
+              <div className="w-full md:w-1/2 bg-slate-100 flex items-center justify-center p-6 border-b md:border-b-0 md:border-r border-slate-200">
+                <img src={selectedMedia.thumbnail} alt={selectedMedia.name} className="max-w-full max-h-[40vh] md:max-h-[60vh] object-contain drop-shadow-md rounded-xl" />
+              </div>
+              <div className="w-full md:w-1/2 flex flex-col pt-4">
+                 <div className="flex justify-between items-start px-6 mb-4">
+                   <div>
+                     <h3 className="font-bold text-lg text-slate-900 break-all pr-4">{selectedMedia.name}</h3>
+                     <p className="text-sm text-slate-500">{selectedMedia.size || 'Unknown size'} • {formatDate(selectedMedia.created_at)}</p>
+                   </div>
+                   <button onClick={() => setSelectedMedia(null)} className="p-2 -mr-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                     <X className="w-5 h-5" />
+                   </button>
+                 </div>
+                 
+                 <div className="px-6 flex-1">
+                   <div className="space-y-4 mb-6">
+                     <div>
+                       <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Asset Status</label>
+                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-bold ring-1 ring-inset ring-emerald-600/20">Active</span>
+                     </div>
+                     <div>
+                       <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Source</label>
+                       <p className="text-sm text-slate-700 font-medium capitalize">{selectedMedia.category} {selectedMedia.author ? `by ${selectedMedia.author}` : ''}</p>
+                     </div>
+                   </div>
+                 </div>
+                 
+                 <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3">
+                   <button 
+                     onClick={() => void navigator.clipboard.writeText(selectedMedia.thumbnail)}
+                     className="flex-1 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex justify-center items-center gap-2"
+                   >
+                     <Copy className="w-4 h-4" /> Copy URL
+                   </button>
+                   <button
+                     onClick={() => {
+                        void handleDeleteMedia(selectedMedia.id);
+                        setSelectedMedia(null);
+                     }}
+                     disabled={deletingId === selectedMedia.id}
+                     className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-sm font-bold hover:bg-rose-100 transition-all flex items-center justify-center"
+                   >
+                     <Trash2 className="w-4 h-4 mr-2" />
+                     {deletingId === selectedMedia.id ? 'Deleting...' : 'Delete'}
+                   </button>
+                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -762,8 +762,13 @@ export function registerIntegrationsRoutes({
         db.prepare("UPDATE google_tokens SET access_token = ?, expiry_date = ? WHERE user_id = ?")
           .run(credentials.access_token, credentials.expiry_date, userId);
         client.setCredentials(credentials);
-      } catch (e) {
-        console.error("Failed to refresh Google token:", e);
+      } catch (e: any) {
+        if (e && e.message && (e.message.includes('unauthorized_client') || e.message.includes('invalid_grant'))) {
+          console.error(`Google token revoked or invalid for user ${userId}. Clearing from database.`);
+          db.prepare("DELETE FROM google_tokens WHERE user_id = ?").run(userId);
+        } else {
+          console.error("Failed to refresh Google token:", e);
+        }
         return null;
       }
     }
@@ -1031,7 +1036,7 @@ export function registerIntegrationsRoutes({
 
       return res.json({ properties });
     } catch (err: any) {
-      console.error("Analytics properties API error:", err.message);
+      console.warn("[Analytics] Google Analytics Admin API unavailable (API may not be enabled in GCP):", err.message);
       return res.status(500).json({ error: "Failed to fetch analytics properties" });
     }
   });
@@ -1095,7 +1100,7 @@ export function registerIntegrationsRoutes({
 
       return res.json({ sites });
     } catch (err: any) {
-      console.error("Search Console sites API error:", err.message);
+      console.warn("[Search Console] Google Search Console API unavailable (API may not be enabled in GCP):", err.message);
       return res.status(500).json({ error: "Failed to fetch Search Console sites" });
     }
   });

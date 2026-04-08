@@ -113,6 +113,10 @@ export interface Task {
 export interface Workspace {
   id: number;
   name: string;
+  logo?: string;
+  description?: string;
+  target_audience?: string;
   role: 'owner' | 'admin' | 'member';
   created_at?: string;
+  is_onboarded?: boolean;
 }

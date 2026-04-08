@@ -27,9 +27,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   const handleGoogleLogin = async () => {
     try {
+      const popup = window.open('', 'google_login', 'width=500,height=600');
       const response = await fetch('/api/auth/google/url');
       const { url } = await response.json();
-      window.open(url, 'google_login', 'width=500,height=600');
+      if (popup) {
+        popup.location.href = url;
+      } else {
+        window.location.href = url; // Fallback
+      }
     } catch (err) {
       setError('Failed to initialize Google login');
     }

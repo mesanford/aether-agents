@@ -43,7 +43,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, isActive, onClick, 
           <img 
             src={agent.avatar} 
             alt={agent.name} 
-            className="w-12 h-12 rounded-lg bg-slate-100 object-cover"
+            className="w-12 aspect-[5/7] rounded-lg bg-slate-100 object-cover"
             referrerPolicy="no-referrer"
           />
         </div>

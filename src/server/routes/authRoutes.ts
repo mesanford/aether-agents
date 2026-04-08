@@ -103,7 +103,7 @@ export function registerAuthRoutes({
       const token = authHeader.split(" ")[1];
       const decoded = jwt.verify(token, jwtSecret) as any;
 
-      const user = db.prepare("SELECT id, email, name FROM users WHERE id = ?").get(decoded.userId) as any;
+      const user = db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId) as any;
       if (!user) {
         return res.status(401).json({ error: "User not found" });
       }
@@ -111,6 +111,65 @@ export function registerAuthRoutes({
       return res.json({ user });
     } catch {
       return res.status(401).json({ error: "Invalid token" });
+    }
+  });
+
+  app.patch("/api/auth/me", (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
+
+      const token = authHeader.split(" ")[1];
+      const decoded = jwt.verify(token, jwtSecret) as any;
+
+      const { name, email, avatar } = req.body;
+      const updates: string[] = [];
+      const values: any[] = [];
+
+      if (name !== undefined) { updates.push("name = ?"); values.push(name); }
+      if (email !== undefined) { updates.push("email = ?"); values.push(email); }
+      if (avatar !== undefined) { updates.push("avatar = ?"); values.push(avatar); }
+
+      if (updates.length > 0) {
+        values.push(decoded.userId);
+        db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+      }
+
+      const updatedUser = db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId);
+      return res.json({ user: updatedUser });
+    } catch (err) {
+      return res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
+  app.patch("/api/users/:id/password", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
+
+      const token = authHeader.split(" ")[1];
+      const decoded = jwt.verify(token, jwtSecret) as any;
+      if (decoded.userId.toString() !== req.params.id) {
+         return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) return res.status(400).json({ error: "Missing password fields" });
+
+      const user = db.prepare("SELECT password FROM users WHERE id = ?").get(decoded.userId) as any;
+      if (!user || typeof user.password !== "string" || user.password.length === 0) {
+        return res.status(400).json({ error: "Cannot change password for this account type" });
+      }
+
+      const isValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isValid) return res.status(400).json({ error: "Incorrect current password" });
+
+      const hashedNew = await bcrypt.hash(newPassword, 10);
+      db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashedNew, decoded.userId);
+
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ error: "Failed to update password" });
     }
   });
 

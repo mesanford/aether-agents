@@ -24,8 +24,12 @@ import { registerAuthRoutes } from "./src/server/routes/authRoutes.ts";
 import { registerAiRoutes } from "./src/server/routes/aiRoutes.ts";
 import { registerWorkspaceRoutes } from "./src/server/routes/workspaceRoutes.ts";
 import { registerIntegrationsRoutes } from "./src/server/routes/integrationsRoutes.ts";
+import { registerGoogleDriveRoutes } from "./src/server/routes/googleDriveRoutes.ts";
+import { registerApprovalRoutes } from "./src/server/routes/approvalRoutes.ts";
 import { bootstrapDatabase } from "./src/server/dbBootstrap.ts";
 import { startTaskEngine } from "./src/server/taskEngine.ts";
+import { startSequenceDaemon } from "./src/server/sequenceDaemon.js";
+import { migrateBase64ToGCS } from "./src/server/gcpStorage.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +62,9 @@ async function startServer() {
   const db = new Database(DATABASE_PATH);
 
   const { seedWorkspace } = bootstrapDatabase(db);
+  
+  // Kick off migration of any legacy SQLite base64 strings to GCS
+  await migrateBase64ToGCS(db);
 
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -192,6 +199,7 @@ async function startServer() {
 
   registerAiRoutes({
     app,
+    db: db as any,
     aiClient,
     requireAuth: requireAuth as express.RequestHandler,
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
@@ -210,6 +218,20 @@ async function startServer() {
     requireAuth: requireAuth as express.RequestHandler,
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
     requireWorkspaceRole,
+  });
+
+  registerGoogleDriveRoutes({
+    app,
+    db: db as any,
+    requireAuth: requireAuth as express.RequestHandler,
+    requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
+  });
+
+  registerApprovalRoutes({
+    app,
+    db: db as any,
+    requireAuth: requireAuth as express.RequestHandler,
+    requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
   });
 
   // Vite middleware for development

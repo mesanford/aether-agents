@@ -1,7 +1,10 @@
 import express from "express";
+import crypto from "crypto";
+import { Resend } from "resend";
 import type { AuthenticatedRequest } from "../types.ts";
 import { inferTaskExecutionType } from "../taskExecution.ts";
 import { enqueueAutomationJob } from "../taskEngine.ts";
+import { uploadBase64ToGCS, getSignedUrlForGcs, deleteGCSFile } from "../gcpStorage.ts";
 
 type DatabaseLike = {
   prepare: (sql: string) => {
@@ -258,6 +261,100 @@ export function registerWorkspaceRoutes({
     }
   });
 
+  app.patch("/api/workspaces/:id", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+    try {
+      const { name, logo, description, target_audience } = req.body;
+      if (name !== undefined) {
+        db.prepare("UPDATE workspaces SET name = ? WHERE id = ?").run(name, req.workspaceId);
+      }
+      if (logo !== undefined) {
+        db.prepare("UPDATE workspaces SET logo = ? WHERE id = ?").run(logo, req.workspaceId);
+      }
+      if (description !== undefined) {
+        db.prepare("UPDATE workspaces SET description = ? WHERE id = ?").run(description, req.workspaceId);
+      }
+      if (target_audience !== undefined) {
+        db.prepare("UPDATE workspaces SET target_audience = ? WHERE id = ?").run(target_audience, req.workspaceId);
+      }
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Failed to update workspace details" });
+    }
+  });
+
+  app.delete("/api/workspaces/:id", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner"), (req: AuthenticatedRequest, res) => {
+    try {
+      const workspaceId = req.workspaceId;
+      
+      const queries = [
+        "DELETE FROM workspace_members WHERE workspace_id = ?",
+        "DELETE FROM workspace_features WHERE workspace_id = ?",
+        "DELETE FROM workspace_integrations WHERE workspace_id = ?",
+        "DELETE FROM workspace_secrets WHERE workspace_id = ?",
+        "DELETE FROM workspace_domains WHERE workspace_id = ?",
+        "DELETE FROM workspace_files WHERE workspace_id = ?",
+        "DELETE FROM workspace_metrics WHERE workspace_id = ?",
+        "DELETE FROM workspace_billing WHERE workspace_id = ?",
+        "DELETE FROM workspace_api_keys WHERE workspace_id = ?",
+        "DELETE FROM workspace_invitations WHERE workspace_id = ?",
+        "DELETE FROM leads WHERE workspace_id = ?",
+        "DELETE FROM tasks WHERE workspace_id = ?",
+        "DELETE FROM messages WHERE workspace_id = ?",
+        "DELETE FROM media_assets WHERE workspace_id = ?",
+        "DELETE FROM agents WHERE workspace_id = ?",
+        "DELETE FROM workspace_automation_settings WHERE workspace_id = ?",
+        "DELETE FROM automation_jobs WHERE workspace_id = ?",
+        "DELETE FROM approval_requests WHERE workspace_id = ?",
+        "DELETE FROM workspaces WHERE id = ?"
+      ];
+
+      // Execute safely in sequence
+      queries.forEach(q => db.prepare(q).run(workspaceId));
+      
+      res.json({ success: true, message: "Workspace deleted successfully." });
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete workspace" });
+    }
+  });
+  const resendUrl = process.env.VITE_APP_URL || "http://localhost:3000";
+  const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+  const sendInvitationEmail = async (email: string, inviteId: string, workspaceName: string, role: string) => {
+    if (!resend) {
+      console.warn("RESEND_API_KEY is not set. Skipping invitation email.");
+      return;
+    }
+    const inviteLink = `${resendUrl}/invite?token=${inviteId}`;
+    try {
+      await resend.emails.send({
+        from: 'AgencyOS <noreply@agencyos.dev>',
+        to: email,
+        subject: `You have been invited to join ${workspaceName}`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px;">
+            <h2>Join your team on AgencyOS</h2>
+            <p>You have been invited to join the workspace <strong>${workspaceName}</strong> as a(n) ${role}.</p>
+            <p>Click the link below to accept your invitation:</p>
+            <a href="${inviteLink}" style="display: inline-block; padding: 10px 20px; background-color: #0f172a; color: #fff; text-decoration: none; border-radius: 6px;">Accept Invitation</a>
+            <p style="margin-top: 20px; font-size: 12px; color: #64748b;">If you did not expect this invitation, you can ignore this email.</p>
+          </div>
+        `
+      });
+    } catch (err) {
+      console.error("Failed to send invitation email via Resend:", err);
+    }
+  };
+
+  app.post("/api/workspaces/:id/complete-onboarding", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+    try {
+      db.prepare("UPDATE workspaces SET is_onboarded = 1 WHERE id = ?").run(req.workspaceId);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Failed to complete onboarding" });
+    }
+  });
+
   app.get("/api/workspaces/:id/members", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
     try {
       const members = db.prepare(`
@@ -449,6 +546,127 @@ export function registerWorkspaceRoutes({
     },
   );
 
+  app.get("/api/workspaces/:id/invites", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+    try {
+      const invites = db.prepare("SELECT * FROM workspace_invitations WHERE workspace_id = ? ORDER BY created_at DESC").all(req.workspaceId);
+      res.json(invites);
+    } catch {
+      res.status(500).json({ error: "Failed to fetch invites" });
+    }
+  });
+
+  app.post(
+    "/api/workspaces/:id/invites",
+    requireAuth,
+    requireWorkspaceAccess,
+    requireWorkspaceRole("owner", "admin"),
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const { email, role } = req.body as { email?: string; role?: string };
+        if (!isNonEmptyString(email)) {
+          return res.status(400).json({ error: "Email is required" });
+        }
+
+        const normalizedRole = isNonEmptyString(role) ? role.trim().toLowerCase() : "member";
+        if (!["owner", "admin", "member"].includes(normalizedRole)) {
+          return res.status(400).json({ error: "Invalid role" });
+        }
+
+        // Check if user is already a member
+        const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email.trim()) as { id: number } | undefined;
+        if (user) {
+          const existingMember = db.prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?").get(req.workspaceId, user.id);
+          if (existingMember) {
+            return res.status(400).json({ error: "User is already a member of this workspace" });
+          }
+        }
+
+        const inviteId = crypto.randomUUID();
+        db.prepare("INSERT INTO workspace_invitations (id, workspace_id, email, role, status) VALUES (?, ?, ?, ?, ?)").run(
+          inviteId,
+          req.workspaceId,
+          email.trim(),
+          normalizedRole,
+          'pending'
+        );
+
+        writeAuditLog({
+          workspaceId: req.workspaceId,
+          userId: req.userId,
+          action: "workspace.invite.created",
+          resource: "workspace_invitations",
+          details: { email, role: normalizedRole },
+        });
+
+        // Get workspace name for the email
+        const workspace = db.prepare("SELECT name FROM workspaces WHERE id = ?").get(req.workspaceId) as { name: string };
+        await sendInvitationEmail(email.trim(), inviteId, workspace?.name || "Workspace", normalizedRole);
+
+        const newInvite = db.prepare("SELECT * FROM workspace_invitations WHERE id = ?").get(inviteId);
+        res.json(newInvite);
+      } catch (err) {
+        console.error("Failed to create invite:", err);
+        res.status(500).json({ error: "Failed to create invite" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/workspaces/:id/invites/:inviteId/resend",
+    requireAuth,
+    requireWorkspaceAccess,
+    requireWorkspaceRole("owner", "admin"),
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const invite = db.prepare("SELECT * FROM workspace_invitations WHERE id = ? AND workspace_id = ?").get(req.params.inviteId, req.workspaceId) as { email: string, role: string } | undefined;
+        if (!invite) return res.status(404).json({ error: "Invite not found" });
+
+        const workspace = db.prepare("SELECT name FROM workspaces WHERE id = ?").get(req.workspaceId) as { name: string };
+        await sendInvitationEmail(invite.email, req.params.inviteId, workspace?.name || "Workspace", invite.role);
+
+        writeAuditLog({
+          workspaceId: req.workspaceId,
+          userId: req.userId,
+          action: "workspace.invite.resent",
+          resource: "workspace_invitations",
+          details: { inviteId: req.params.inviteId },
+        });
+
+        res.json({ success: true, message: "Invitation resent" });
+      } catch {
+        res.status(500).json({ error: "Failed to resend invite" });
+      }
+    }
+  );
+
+  app.delete(
+    "/api/workspaces/:id/invites/:inviteId",
+    requireAuth,
+    requireWorkspaceAccess,
+    requireWorkspaceRole("owner", "admin"),
+    (req: AuthenticatedRequest, res) => {
+      try {
+        const result = db.prepare("DELETE FROM workspace_invitations WHERE id = ? AND workspace_id = ?").run(req.params.inviteId, req.workspaceId);
+        
+        if (result.changes === 0) {
+          return res.status(404).json({ error: "Invite not found" });
+        }
+
+        writeAuditLog({
+          workspaceId: req.workspaceId,
+          userId: req.userId,
+          action: "workspace.invite.revoked",
+          resource: "workspace_invitations",
+          details: { inviteId: req.params.inviteId },
+        });
+
+        res.json({ success: true });
+      } catch {
+        res.status(500).json({ error: "Failed to revoke invite" });
+      }
+    }
+  );
+
   app.get("/api/workspaces/:id/leads", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
     const leads = db.prepare("SELECT * FROM leads WHERE workspace_id = ? ORDER BY id DESC").all(req.workspaceId);
     res.json(leads);
@@ -517,6 +735,59 @@ export function registerWorkspaceRoutes({
     return res.json({ success: true });
   });
 
+  app.get("/api/workspaces/:id/sequences", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+    try {
+      const sequences = db.prepare("SELECT * FROM sales_sequences WHERE workspace_id = ? ORDER BY id DESC").all(req.workspaceId);
+      res.json(sequences);
+    } catch {
+      res.status(500).json({ error: "Failed to fetch sequences" });
+    }
+  });
+
+  app.post("/api/workspaces/:id/sequences", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+    const { title, status, schedule, steps } = req.body;
+    if (!title || typeof title !== "string") {
+      return res.status(400).json({ error: "Title is required" });
+    }
+    
+    try {
+      const stepsJson = Array.isArray(steps) ? JSON.stringify(steps) : '[]';
+      const result = db.prepare(`
+        INSERT INTO sales_sequences (workspace_id, title, status, schedule, steps)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(req.workspaceId, title, status || 'Draft', schedule || 'Runs every day', stepsJson);
+      
+      res.json({ id: result.lastInsertRowid });
+    } catch {
+      res.status(500).json({ error: "Failed to create sequence" });
+    }
+  });
+
+  app.patch("/api/workspaces/:id/sequences/:seqId", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+    try {
+      const { title, status, schedule, steps } = req.body;
+      const seqId = req.params.seqId;
+
+      const updates: string[] = [];
+      const values: any[] = [];
+
+      if (title !== undefined) { updates.push("title = ?"); values.push(title); }
+      if (status !== undefined) { updates.push("status = ?"); values.push(status); }
+      if (schedule !== undefined) { updates.push("schedule = ?"); values.push(schedule); }
+      if (steps !== undefined) { updates.push("steps = ?"); values.push(typeof steps === 'string' ? steps : JSON.stringify(steps)); }
+
+      if (updates.length > 0) {
+        updates.push("updated_at = CURRENT_TIMESTAMP");
+        values.push(seqId, req.workspaceId);
+        db.prepare(`UPDATE sales_sequences SET ${updates.join(", ")} WHERE id = ? AND workspace_id = ?`).run(...values);
+      }
+
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ error: "Failed to update sequence" });
+    }
+  });
+
   app.get("/api/workspaces/:id/agents", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
     try {
       const rows = db.prepare("SELECT * FROM agents WHERE workspace_id = ?").all(req.workspaceId) as any[];
@@ -583,6 +854,7 @@ export function registerWorkspaceRoutes({
       }
 
       if (updates.status !== undefined) db.prepare("UPDATE agents SET status = ? WHERE id = ? AND workspace_id = ?").run(updates.status, agentId, req.workspaceId);
+      if (updates.name !== undefined) db.prepare("UPDATE agents SET name = ? WHERE id = ? AND workspace_id = ?").run(updates.name, agentId, req.workspaceId);
       if (updates.guidelines !== undefined) db.prepare("UPDATE agents SET guidelines = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.guidelines), agentId, req.workspaceId);
       if (updates.description !== undefined) db.prepare("UPDATE agents SET description = ? WHERE id = ? AND workspace_id = ?").run(updates.description, agentId, req.workspaceId);
       if (updates.capabilities !== undefined) db.prepare("UPDATE agents SET capabilities = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.capabilities), agentId, req.workspaceId);
@@ -654,6 +926,19 @@ export function registerWorkspaceRoutes({
       res.status(500).json({ error: "Failed to fetch tasks" });
     }
   });
+
+  app.delete("/api/workspaces/:id/tasks/:taskId", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+    try {
+      const result = db.prepare("DELETE FROM tasks WHERE id = ? AND workspace_id = ?").run(req.params.taskId, req.workspaceId);
+      if (result.changes === 0) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json({ success: true, message: "Task deleted" });
+    } catch {
+      res.status(500).json({ error: "Failed to delete task" });
+    }
+  });
+
 
   app.post("/api/workspaces/:id/tasks", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
     try {
@@ -1042,6 +1327,15 @@ export function registerWorkspaceRoutes({
     }
   });
 
+  app.delete("/api/workspaces/:id/agents/:agentId/messages", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+    try {
+      db.prepare("DELETE FROM messages WHERE workspace_id = ? AND agent_id = ?").run(req.workspaceId, req.params.agentId);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Failed to clear agent message history" });
+    }
+  });
+
   app.post("/api/workspaces/:id/messages", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
     try {
       const { value, error } = getAllowedMessageCreate(req.body);
@@ -1057,23 +1351,29 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.get("/api/workspaces/:id/media", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/media", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const media = db
         .prepare("SELECT id, name, type, category, thumbnail, size, author, created_at FROM media_assets WHERE workspace_id = ? ORDER BY created_at DESC, id DESC")
-        .all(req.workspaceId);
-      return res.json(media);
+        .all(req.workspaceId) as any[];
+      
+      const mappedMedia = await Promise.all(media.map(async (m) => ({
+        ...m,
+        thumbnail: await getSignedUrlForGcs(m.thumbnail)
+      })));
+        
+      return res.json(mappedMedia);
     } catch {
       return res.status(500).json({ error: "Failed to fetch media assets" });
     }
   });
 
-  app.post("/api/workspaces/:id/media", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.post("/api/workspaces/:id/media", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
       const type = typeof req.body?.type === "string" ? req.body.type.trim().toLowerCase() : "image";
       const category = typeof req.body?.category === "string" ? req.body.category.trim().toLowerCase() : "uploads";
-      const thumbnail = typeof req.body?.thumbnail === "string" ? req.body.thumbnail.trim() : "";
+      let thumbnail = typeof req.body?.thumbnail === "string" ? req.body.thumbnail.trim() : "";
       const size = typeof req.body?.size === "string" ? req.body.size.trim() : null;
       const author = typeof req.body?.author === "string" ? req.body.author.trim() : null;
 
@@ -1093,13 +1393,21 @@ export function registerWorkspaceRoutes({
         return res.status(400).json({ error: "Unsupported media category" });
       }
 
+      if (thumbnail.startsWith("data:image/")) {
+        thumbnail = await uploadBase64ToGCS(thumbnail, req.workspaceId);
+      }
+
       const result = db
         .prepare("INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .run(req.workspaceId, name, type, category, thumbnail, size, author);
 
-      const created = db
+      const created: any = db
         .prepare("SELECT id, name, type, category, thumbnail, size, author, created_at FROM media_assets WHERE id = ? AND workspace_id = ?")
         .get(result.lastInsertRowid, req.workspaceId);
+
+      if (created) {
+        created.thumbnail = await getSignedUrlForGcs(created.thumbnail);
+      }
 
       writeAuditLog({
         workspaceId: req.workspaceId,
@@ -1110,7 +1418,8 @@ export function registerWorkspaceRoutes({
       });
 
       return res.json(created);
-    } catch {
+    } catch (err) {
+      console.error(err);
       return res.status(500).json({ error: "Failed to create media asset" });
     }
   });
@@ -1127,13 +1436,19 @@ export function registerWorkspaceRoutes({
           return res.status(400).json({ error: "Invalid media id" });
         }
 
+        const targetAsset = db.prepare("SELECT thumbnail FROM media_assets WHERE id = ? AND workspace_id = ?").get(mediaId, req.workspaceId) as any;
+        if (!targetAsset) {
+          return res.status(404).json({ error: "Media asset not found" });
+        }
+
         db.prepare("UPDATE tasks SET selected_media_asset_id = NULL WHERE workspace_id = ? AND selected_media_asset_id = ?").run(
           req.workspaceId,
           mediaId,
         );
         const result = db.prepare("DELETE FROM media_assets WHERE id = ? AND workspace_id = ?").run(mediaId, req.workspaceId);
-        if (!result.changes) {
-          return res.status(404).json({ error: "Media asset not found" });
+
+        if (targetAsset.thumbnail && targetAsset.thumbnail.startsWith('gcs://')) {
+          void deleteGCSFile(targetAsset.thumbnail);
         }
 
         writeAuditLog({
@@ -1145,7 +1460,8 @@ export function registerWorkspaceRoutes({
         });
 
         return res.json({ success: true });
-      } catch {
+      } catch (err) {
+        console.error(err);
         return res.status(500).json({ error: "Failed to delete media asset" });
       }
     },
@@ -1153,7 +1469,9 @@ export function registerWorkspaceRoutes({
 
   app.get("/api/workspaces/:id/automation-settings", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
     try {
-      const row = db.prepare("SELECT linkedin_mode, buffer_mode, teams_mode, notion_mode, buffer_profile_id, notion_parent_page_id, require_artifact_image FROM workspace_automation_settings WHERE workspace_id = ?").get(req.workspaceId) as
+      const row = db.prepare(`SELECT linkedin_mode, buffer_mode, teams_mode, notion_mode, buffer_profile_id, notion_parent_page_id, require_artifact_image,
+        approval_mode_linkedin, approval_mode_buffer
+        FROM workspace_automation_settings WHERE workspace_id = ?`).get(req.workspaceId) as
         | {
             linkedin_mode: string;
             buffer_mode: string;
@@ -1162,6 +1480,8 @@ export function registerWorkspaceRoutes({
             buffer_profile_id: string | null;
             notion_parent_page_id: string | null;
             require_artifact_image: number;
+            approval_mode_linkedin: string | null;
+            approval_mode_buffer: string | null;
           }
         | undefined;
 
@@ -1173,6 +1493,8 @@ export function registerWorkspaceRoutes({
         bufferProfileId: row?.buffer_profile_id || null,
         notionParentPageId: row?.notion_parent_page_id || null,
         requireArtifactImage: Boolean(row?.require_artifact_image),
+        approvalModeLinkedin: row?.approval_mode_linkedin === "approval" ? "approval" : "auto",
+        approvalModeBuffer: row?.approval_mode_buffer === "approval" ? "approval" : "auto",
       });
     } catch {
       return res.status(500).json({ error: "Failed to fetch automation settings" });
@@ -1197,6 +1519,8 @@ export function registerWorkspaceRoutes({
           ? req.body.notionParentPageId.trim()
           : null;
         const requireArtifactImage = Boolean(req.body?.requireArtifactImage);
+        const approvalModeLinkedin = req.body?.approvalModeLinkedin === "approval" ? "approval" : "auto";
+        const approvalModeBuffer = req.body?.approvalModeBuffer === "approval" ? "approval" : "auto";
 
         if (!["off", "publish"].includes(linkedinMode)) {
           return res.status(400).json({ error: "linkedinMode must be off or publish" });
@@ -1215,8 +1539,8 @@ export function registerWorkspaceRoutes({
         }
 
         db.prepare(`
-          INSERT INTO workspace_automation_settings (workspace_id, linkedin_mode, buffer_mode, teams_mode, notion_mode, buffer_profile_id, notion_parent_page_id, require_artifact_image, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          INSERT INTO workspace_automation_settings (workspace_id, linkedin_mode, buffer_mode, teams_mode, notion_mode, buffer_profile_id, notion_parent_page_id, require_artifact_image, approval_mode_linkedin, approval_mode_buffer, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
             linkedin_mode = excluded.linkedin_mode,
             buffer_mode = excluded.buffer_mode,
@@ -1225,15 +1549,17 @@ export function registerWorkspaceRoutes({
             buffer_profile_id = excluded.buffer_profile_id,
             notion_parent_page_id = excluded.notion_parent_page_id,
             require_artifact_image = excluded.require_artifact_image,
+            approval_mode_linkedin = excluded.approval_mode_linkedin,
+            approval_mode_buffer = excluded.approval_mode_buffer,
             updated_at = CURRENT_TIMESTAMP
-        `).run(req.workspaceId, linkedinMode, bufferMode, teamsMode, notionMode, bufferProfileId, notionParentPageId, requireArtifactImage ? 1 : 0);
+        `).run(req.workspaceId, linkedinMode, bufferMode, teamsMode, notionMode, bufferProfileId, notionParentPageId, requireArtifactImage ? 1 : 0, approvalModeLinkedin, approvalModeBuffer);
 
         writeAuditLog({
           workspaceId: req.workspaceId,
           userId: req.userId,
           action: "workspace.automation.updated",
           resource: "workspace_automation_settings",
-          details: { linkedinMode, bufferMode, teamsMode, notionMode, bufferProfileId, notionParentPageId, requireArtifactImage },
+          details: { linkedinMode, bufferMode, teamsMode, notionMode, bufferProfileId, notionParentPageId, requireArtifactImage, approvalModeLinkedin, approvalModeBuffer },
         });
 
         return res.json({
@@ -1244,6 +1570,8 @@ export function registerWorkspaceRoutes({
           bufferProfileId,
           notionParentPageId,
           requireArtifactImage,
+          approvalModeLinkedin,
+          approvalModeBuffer,
         });
       } catch {
         return res.status(500).json({ error: "Failed to update automation settings" });
@@ -1472,4 +1800,58 @@ export function registerWorkspaceRoutes({
       return res.status(500).json({ error: "Failed to fetch integrations health" });
     }
   });
+
+  // =========================================================================
+  // KNOWLEDGE DOCUMENTS API
+  // =========================================================================
+
+  app.get("/api/workspaces/:id/knowledge", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+    try {
+      const rows = db.prepare("SELECT id, title, content, author, created_at, updated_at FROM knowledge_documents WHERE workspace_id = ? ORDER BY updated_at DESC").all(req.workspaceId);
+      res.json(rows);
+    } catch {
+      res.status(500).json({ error: "Failed to fetch knowledge documents" });
+    }
+  });
+
+  app.post("/api/workspaces/:id/knowledge", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+    try {
+      const { title, content, author } = req.body;
+      if (!title || !content) return res.status(400).json({ error: "Title and content are required" });
+      const docId = `doc-${Date.now()}`;
+      db.prepare("INSERT INTO knowledge_documents (id, workspace_id, title, content, author) VALUES (?, ?, ?, ?, ?)").run(docId, req.workspaceId, title, content, author || "System");
+      res.status(201).json({ id: docId, title, content, author });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to create knowledge document" });
+    }
+  });
+
+  app.patch("/api/workspaces/:id/knowledge/:docId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+    try {
+      const { title, content } = req.body;
+      const updates: string[] = [];
+      const values: any[] = [];
+      if (title) { updates.push("title = ?"); values.push(title); }
+      if (content) { updates.push("content = ?"); values.push(content); }
+      if (updates.length > 0) {
+        updates.push("updated_at = CURRENT_TIMESTAMP");
+        values.push(req.params.docId, req.workspaceId);
+        db.prepare(`UPDATE knowledge_documents SET ${updates.join(", ")} WHERE id = ? AND workspace_id = ?`).run(...values);
+      }
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Failed to update document" });
+    }
+  });
+
+  app.delete("/api/workspaces/:id/knowledge/:docId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+    try {
+      db.prepare("DELETE FROM knowledge_documents WHERE id = ? AND workspace_id = ?").run(req.params.docId, req.workspaceId);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Failed to delete document" });
+    }
+  });
+
 }

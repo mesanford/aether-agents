@@ -14,6 +14,7 @@ import {
   fetchBufferProfiles,
   isImageUrl,
 } from "./socialPublishing.ts";
+import { checkAndIncrementDailyAIRequestLimit, DailyLimitExceededError } from "./ai/rateLimiterUtility.ts";
 
 type TaskEngineOptions = {
   db: Database.Database;
@@ -48,6 +49,11 @@ type AutomationSettings = {
   buffer_profile_id: string | null;
   notion_parent_page_id: string | null;
   require_artifact_image: number;
+  approval_mode_linkedin: string;
+  approval_mode_buffer: string;
+  approval_mode_instagram: string;
+  approval_mode_twitter: string;
+  approval_mode_facebook: string;
 };
 
 type AutomationJob = {
@@ -368,11 +374,11 @@ function isLikelySocialTask(task: { title?: string; description?: string; execut
   const roleText = String(agentRole || "").toLowerCase();
   const bodyText = `${task.title || ""} ${task.description || ""}`.toLowerCase();
   return (
-    roleText.includes("social")
+    task.execution_type === "social_post"
+    || roleText.includes("social")
     || bodyText.includes("social")
     || bodyText.includes("linkedin")
     || bodyText.includes("buffer")
-    || task.execution_type === "draft"
   );
 }
 
@@ -397,9 +403,36 @@ function buildSocialPayload(task: { title: string; description?: string; output_
   };
 }
 
+function enqueueApprovalRequest(
+  db: Database.Database,
+  params: {
+    workspaceId: number;
+    taskId: string | null;
+    agentId: string;
+    agentName: string | null;
+    actionType: string;
+    payload: Record<string, unknown>;
+  },
+) {
+  db.prepare(`
+    INSERT INTO approval_requests (workspace_id, task_id, agent_id, agent_name, action_type, payload, status)
+    VALUES (?, ?, ?, ?, ?, ?, 'pending')
+  `).run(
+    params.workspaceId,
+    params.taskId,
+    params.agentId,
+    params.agentName,
+    params.actionType,
+    JSON.stringify(params.payload),
+  );
+}
+
 async function maybeDispatchSocialAutomation(db: Database.Database, task: any, artifact: TaskArtifact) {
   const settings = db
-    .prepare("SELECT linkedin_mode, buffer_mode, buffer_profile_id, require_artifact_image FROM workspace_automation_settings WHERE workspace_id = ?")
+    .prepare(`SELECT linkedin_mode, buffer_mode, buffer_profile_id, require_artifact_image,
+              approval_mode_linkedin, approval_mode_buffer, approval_mode_instagram,
+              approval_mode_twitter, approval_mode_facebook
+              FROM workspace_automation_settings WHERE workspace_id = ?`)
     .get(task.workspace_id) as AutomationSettings | undefined;
 
   if (!settings || (settings.linkedin_mode !== "publish" && settings.buffer_mode !== "queue")) {
@@ -446,6 +479,9 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
     return;
   }
 
+  const approvalModeLinkedIn = settings.approval_mode_linkedin || "auto";
+  const approvalModeBuffer = settings.approval_mode_buffer || "auto";
+
   if (settings.linkedin_mode === "publish") {
     const linkedin = db
       .prepare("SELECT access_token, author_urn FROM linkedin_connections WHERE workspace_id = ?")
@@ -455,6 +491,25 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
         ...baseDetails,
         channel: "linkedin",
         reason: "connection_missing",
+      });
+    } else if (approvalModeLinkedIn === "approval") {
+      enqueueApprovalRequest(db, {
+        workspaceId: task.workspace_id,
+        taskId: String(task.id),
+        agentId: String(task.assignee_id),
+        agentName: task.assignee_name || null,
+        actionType: "linkedin_post",
+        payload: {
+          text: payload.text,
+          link: payload.link,
+          imageUrl: payload.imageUrl,
+          title: payload.title,
+          description: payload.description,
+        },
+      });
+      writeAutomationAuditLog(db, task.workspace_id, "task.automation.linkedin.approval_queued", {
+        ...baseDetails,
+        channel: "linkedin",
       });
     } else {
       try {
@@ -490,6 +545,29 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
         ...baseDetails,
         channel: "buffer",
         reason: "connection_missing",
+      });
+      return;
+    }
+
+    if (approvalModeBuffer === "approval") {
+      enqueueApprovalRequest(db, {
+        workspaceId: task.workspace_id,
+        taskId: String(task.id),
+        agentId: String(task.assignee_id),
+        agentName: task.assignee_name || null,
+        actionType: "buffer_post",
+        payload: {
+          text: payload.text,
+          link: payload.link,
+          imageUrl: payload.imageUrl,
+          title: payload.title,
+          description: payload.description,
+          profileId: settings.buffer_profile_id || null,
+        },
+      });
+      writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.approval_queued", {
+        ...baseDetails,
+        channel: "buffer",
       });
       return;
     }
@@ -737,6 +815,7 @@ export async function executePendingTasks({
           }
 
           try {
+            checkAndIncrementDailyAIRequestLimit(db, workspaceId);
             executionResult = await buildAiTaskExecutionResult({
               taskTitle: task.title,
               taskDescription: task.description,
@@ -750,6 +829,10 @@ export async function executePendingTasks({
               connectedServices,
             });
           } catch (aiErr: any) {
+            if (aiErr instanceof DailyLimitExceededError) {
+              console.warn(`[Task Engine] Runaway limitation hit for workspace ${workspaceId}. Task ${task.id} aborted.`);
+              throw aiErr;
+            }
             console.warn(
               `[Task Engine] Gemini call failed for task ${task.id}, falling back to template: ${aiErr.message}`,
             );

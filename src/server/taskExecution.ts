@@ -391,7 +391,7 @@ export async function buildAiTaskExecutionResult({
     .join("\n");
 
   const response = await aiClient.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: "gemini-3.1-flash-lite-preview",
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {
       responseMimeType: "application/json",

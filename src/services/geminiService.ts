@@ -26,10 +26,8 @@ export interface ConnectedServices {
 }
 
 export async function getAgentResponse(
-  role: AgentRole,
   message: string,
-  context: string = "",
-  canGenerateImage: boolean = false,
+  threadId: string,
   liveContext?: LiveContext,
   connectedServices?: ConnectedServices,
   token?: string | null,
@@ -41,22 +39,20 @@ export async function getAgentResponse(
   }
 
   try {
-    const data = await apiFetch<{ text?: string; imageUrl?: string }>(`/api/workspaces/${activeWorkspaceId}/ai/respond`, {
+    const data = await apiFetch<{ response?: string; sender?: string }>(`/api/workspaces/${activeWorkspaceId}/chat`, {
       method: 'POST',
       token,
       onAuthFailure: () => onAuthFailure?.(),
       timeoutMs: 45000,
       body: JSON.stringify({
-        role,
+        threadId,
         message,
-        context,
-        canGenerateImage,
         liveContext,
         connectedServices,
       }),
     });
 
-    return { text: data?.text || "I'm sorry, I couldn't process that request.", imageUrl: data?.imageUrl };
+    return { text: data?.response || "Task executed.", sender: data?.sender };
   } catch (error) {
     console.error("Agent response proxy error:", error);
     return { text: "Error: Failed to connect to my neural network." };

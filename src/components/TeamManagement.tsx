@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { UserPlus, MoreVertical, Trash2, Mail, Shield, ShieldCheck } from 'lucide-react';
+import { UserPlus, MoreVertical, Trash2, Mail, Shield, ShieldCheck, Send, Loader2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { cn } from '../utils';
 import { apiFetch } from '../services/apiClient';
 
@@ -12,6 +13,14 @@ interface TeamMember {
   avatar?: string;
 }
 
+interface Invite {
+  id: string;
+  email: string;
+  role: 'owner' | 'admin' | 'member';
+  status: 'pending' | 'accepted';
+  created_at: string;
+}
+
 interface TeamManagementProps {
   activeWorkspaceId: number | null;
   token: string | null;
@@ -20,51 +29,101 @@ interface TeamManagementProps {
 
 export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceId, token, onAuthFailure }) => {
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchTeamData = async () => {
+    if (!activeWorkspaceId || !token) return;
+    setIsLoading(true);
+    try {
+      const [membersData, invitesData] = await Promise.all([
+        apiFetch(`/api/workspaces/${activeWorkspaceId}/members`, { token, onAuthFailure }),
+        apiFetch(`/api/workspaces/${activeWorkspaceId}/invites`, { token, onAuthFailure })
+      ]);
+      setMembers(membersData.map((m: any) => ({
+        ...m,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.email}`
+      })));
+      setInvites(invitesData);
+    } catch (err) {
+      console.error('Failed to fetch team data', err);
+      toast.error('Failed to load team data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (activeWorkspaceId && token) {
-      setIsLoading(true);
-      apiFetch(`/api/workspaces/${activeWorkspaceId}/members`, {
-        token,
-        onAuthFailure: () => onAuthFailure?.(),
-      })
-      .then(data => {
-        setMembers(data.map((m: any) => ({
-          ...m,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.email}`
-        })));
-      })
-      .catch(err => console.error('Failed to fetch members', err))
-      .finally(() => setIsLoading(false));
-    }
+    fetchTeamData();
   }, [activeWorkspaceId, token]);
 
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
 
-  const handleInvite = (e: React.FormEvent) => {
+  const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail) return;
+    if (!inviteEmail || !token || !activeWorkspaceId) return;
 
-    // For now, we just simulate adding a member since we don't have a real invite system
-    // In a real app, this would send an email or add a pending invite
-    const newMember: TeamMember = {
-      id: Date.now(),
-      name: inviteEmail.split('@')[0],
-      email: inviteEmail,
-      role: 'member',
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${inviteEmail}`
-    };
-
-    setMembers([...members, newMember]);
-    setInviteEmail('');
-    setIsInviteModalOpen(false);
+    setIsSubmitting(true);
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/invites`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ email: inviteEmail, role: 'member' }),
+        onAuthFailure
+      });
+      toast.success('Invitation sent successfully!');
+      setInviteEmail('');
+      setIsInviteModalOpen(false);
+      fetchTeamData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send invite');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const removeMember = (id: number) => {
+  const removeMember = async (id: number) => {
     if (members.find(m => m.id === id)?.role === 'owner') return;
-    setMembers(members.filter(m => m.id !== id));
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/members/${id}`, {
+        method: 'DELETE',
+        token,
+        onAuthFailure
+      });
+      toast.success('Member removed');
+      fetchTeamData();
+    } catch (err) {
+      toast.error('Failed to remove member');
+    }
+  };
+
+  const revokeInvite = async (inviteId: string) => {
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/invites/${inviteId}`, {
+        method: 'DELETE',
+        token,
+        onAuthFailure
+      });
+      toast.success('Invitation revoked');
+      fetchTeamData();
+    } catch (err) {
+      toast.error('Failed to revoke invitation');
+    }
+  };
+
+  const resendInvite = async (inviteId: string) => {
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/invites/${inviteId}/resend`, {
+        method: 'POST',
+        token,
+        onAuthFailure
+      });
+      toast.success('Invitation resent');
+    } catch (err) {
+      toast.error('Failed to resend invitation');
+    }
   };
 
   return (
@@ -146,6 +205,50 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                   </td>
                 </tr>
               ))}
+              {invites.filter(i => i.status === 'pending').map((invite) => (
+                <tr key={invite.id} className="group hover:bg-slate-50/50 transition-colors bg-slate-50/20">
+                  <td className="px-6 md:px-8 py-4 md:py-5">
+                    <div className="flex items-center gap-3 md:gap-4 opacity-60">
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200 border-dashed flex-shrink-0 flex items-center justify-center text-slate-400">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-500 truncate capitalize">{invite.email.split('@')[0]}</p>
+                        <p className="text-xs text-slate-400 font-medium truncate">{invite.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 md:px-8 py-4 md:py-5">
+                    <div className="flex items-center gap-2 opacity-60">
+                      <Shield className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm font-medium text-slate-500 capitalize">{invite.role}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 md:px-8 py-4 md:py-5">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                      Pending
+                    </span>
+                  </td>
+                  <td className="px-6 md:px-8 py-4 md:py-5 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button 
+                        onClick={() => resendInvite(invite.id)}
+                        title="Resend Invite"
+                        className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => revokeInvite(invite.id)}
+                        title="Revoke Invite"
+                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -200,9 +303,10 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 px-4 py-3 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20"
+                    disabled={isSubmitting || !inviteEmail}
+                    className="flex-1 px-4 py-3 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                   >
-                    Send Invite
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send Invite'}
                   </button>
                 </div>
               </form>

@@ -776,10 +776,11 @@ test("registerIntegrationsRoutes rotates provider webhook secrets", async () => 
   await invokeHandlers(getRoute("POST", "/api/workspaces/:id/integrations/webhooks/secrets/:provider/rotate"), req, res);
 
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.success, true);
-  assert.equal(res.body.provider, "hubspot");
-  assert.equal(typeof res.body.secret, "string");
-  assert.ok(String(res.body.secret).length >= 32);
+  const body = res.body as any;
+  assert.equal(body.success, true);
+  assert.equal(body.provider, "hubspot");
+  assert.equal(typeof body.secret, "string");
+  assert.ok(String(body.secret).length >= 32);
   assert.ok(runs.some((entry) => entry.sql.includes("UPDATE workspace_webhook_secrets SET is_active = 0")));
   assert.ok(runs.some((entry) => entry.sql.includes("INSERT INTO workspace_webhook_secrets")));
 });

@@ -21,6 +21,13 @@ export function getAllowedAgentUpdate(body: any) {
     updates.status = body.status;
   }
 
+  if (body.name !== undefined) {
+    if (!isNonEmptyString(body.name) || body.name.length > 50) {
+      return { error: "Invalid agent name" };
+    }
+    updates.name = body.name.trim();
+  }
+
   if (body.description !== undefined) {
     if (typeof body.description !== "string") {
       return { error: "Invalid agent description" };

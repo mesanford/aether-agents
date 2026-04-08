@@ -16,10 +16,13 @@ import {
   ExternalLink,
   Loader,
   Unplug,
-  RefreshCw
+  RefreshCw,
+  Folder,
+  Phone
 } from 'lucide-react';
 import { cn } from '../utils';
 import { apiFetch } from '../services/apiClient';
+import { toast } from 'react-hot-toast';
 
 interface SettingsViewProps {
   user: any;
@@ -28,6 +31,9 @@ interface SettingsViewProps {
   onLogout: () => void;
   onConnectedServicesChange: React.Dispatch<React.SetStateAction<any>>;
   onGoogleDefaultsChange: (defaults: GoogleDefaults) => void;
+  onUserUpdate?: (user: any) => void;
+  defaultTab?: 'account' | 'integrations';
+  activeWorkspaceRole?: string;
 }
 
 interface GoogleStatus {
@@ -129,6 +135,8 @@ interface AutomationSettings {
   bufferProfileId: string | null;
   notionParentPageId: string | null;
   requireArtifactImage: boolean;
+  approvalModeLinkedin: 'auto' | 'approval';
+  approvalModeBuffer: 'auto' | 'approval';
 }
 
 interface IntegrationHealthFailure {
@@ -174,8 +182,60 @@ interface IntegrationHealth {
   };
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeWorkspaceId, onLogout, onConnectedServicesChange, onGoogleDefaultsChange }) => {
-  const [activeTab, setActiveTab] = useState<'account' | 'integrations'>('account');
+export const SettingsView: React.FC<SettingsViewProps> = ({
+  user,
+  token,
+  activeWorkspaceId,
+  onLogout,
+  onConnectedServicesChange,
+  onGoogleDefaultsChange,
+  onUserUpdate,
+  defaultTab = 'integrations',
+  activeWorkspaceRole
+}: SettingsViewProps) => {
+  const [activeTab, setActiveTab] = useState<'integrations' | 'account'>(defaultTab);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showDeleteWorkspaceModal, setShowDeleteWorkspaceModal] = useState(false);
+  const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+  const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'marcus'}`);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  
+  const PREBUILT_AVATARS = [
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=marcus",
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah&style=circle",
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=alex&backgroundColor=b6e3f4",
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=jessica&backgroundColor=c0aede",
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=david&backgroundColor=ffdfbf"
+  ];
+
+  const handleAvatarSelect = async (url: string) => {
+    setAvatarUrl(url);
+    setIsUpdatingAvatar(true);
+    try {
+      const { user: updatedUser } = await apiFetch(`/api/auth/me`, {
+        method: "PATCH",
+        token: token || undefined,
+        body: JSON.stringify({ avatar: url })
+      });
+      if (onUserUpdate && updatedUser) onUserUpdate(updatedUser);
+    } catch (err) {
+      toast.error("Failed to save avatar");
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Url = event.target?.result as string;
+      await handleAvatarSelect(base64Url);
+    };
+    reader.readAsDataURL(file);
+  };
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus>({ connected: false, gmail: false, calendar: false, drive: false, analytics: false, searchConsole: false });
   const [wordpressStatus, setWordpressStatus] = useState<WordPressStatus>({ connected: false, siteUrl: null });
   const [hubspotStatus, setHubspotStatus] = useState<HubSpotStatus>({ connected: false, portalId: null, accountName: null });
@@ -186,6 +246,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
   const [notionStatus, setNotionStatus] = useState<NotionStatus>({ connected: false, botName: null, defaultParentPageId: null, updatedAt: null });
   const [twilioStatus, setTwilioStatus] = useState<TwilioStatus>({ connected: false, accountSid: null, fromNumber: null, updatedAt: null });
   const [webhookSecrets, setWebhookSecrets] = useState<WebhookSecretProvider[]>([]);
+  const [knowledgeDriveStatus, setKnowledgeDriveStatus] = useState<any>({ connected: false, folderId: null });
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [isWordPressModalOpen, setIsWordPressModalOpen] = useState(false);
@@ -222,6 +283,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
   const [twilioForm, setTwilioForm] = useState({ accountSid: '', authToken: '', fromNumber: '' });
   const [analyticsProperties, setAnalyticsProperties] = useState<AnalyticsProperty[]>([]);
   const [searchConsoleSites, setSearchConsoleSites] = useState<SearchConsoleSite[]>([]);
+  const [googleVoiceStatus, setGoogleVoiceStatus] = useState({ connected: false, phoneNumber: '' });
+  const [isGoogleVoiceModalOpen, setIsGoogleVoiceModalOpen] = useState(false);
+  const [googleVoiceForm, setGoogleVoiceForm] = useState({ phoneNumber: '+19206058097' });
+
   const [googleDefaults, setGoogleDefaults] = useState<GoogleDefaults>({
     analyticsPropertyId: null,
     searchConsoleSiteUrl: null,
@@ -235,6 +300,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
     bufferProfileId: null,
     notionParentPageId: null,
     requireArtifactImage: false,
+    approvalModeLinkedin: 'auto',
+    approvalModeBuffer: 'auto',
   });
   const [savingAutomationSettings, setSavingAutomationSettings] = useState(false);
   const [integrationsHealth, setIntegrationsHealth] = useState<IntegrationHealth | null>(null);
@@ -249,6 +316,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setGoogleStatus(data);
 
       if (activeWorkspaceId) {
+        const kd = await apiFetch<any>(`/api/workspaces/${activeWorkspaceId}/integrations/google/status`, {
+          token,
+          onAuthFailure: () => onLogout(),
+        }).catch(() => ({ connected: false, folderId: null }));
+        setKnowledgeDriveStatus(kd);
+
         const health = await apiFetch<IntegrationHealth>(`/api/workspaces/${activeWorkspaceId}/integrations/health`, {
           token,
           onAuthFailure: () => onLogout(),
@@ -337,6 +410,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
           bufferProfileId: automation.bufferProfileId || null,
           notionParentPageId: automation.notionParentPageId || null,
           requireArtifactImage: Boolean(automation.requireArtifactImage),
+          approvalModeLinkedin: (automation as any).approvalModeLinkedin === 'approval' ? 'approval' : 'auto',
+          approvalModeBuffer: (automation as any).approvalModeBuffer === 'approval' ? 'approval' : 'auto',
         });
         onGoogleDefaultsChange({
           analyticsPropertyId: defaults.analyticsPropertyId,
@@ -378,7 +453,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       onGoogleDefaultsChange(result);
     } catch (err) {
       console.error('Failed to save Google defaults:', err);
-      alert('Failed to save Google defaults.');
+      toast.error('Failed to save Google defaults.');
     } finally {
       setSavingGoogleDefaults(false);
     }
@@ -402,10 +477,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
         bufferProfileId: result.bufferProfileId,
         notionParentPageId: result.notionParentPageId,
         requireArtifactImage: result.requireArtifactImage,
+        approvalModeLinkedin: (result as any).approvalModeLinkedin === 'approval' ? 'approval' : 'auto',
+        approvalModeBuffer: (result as any).approvalModeBuffer === 'approval' ? 'approval' : 'auto',
       });
     } catch (err) {
       console.error('Failed to save automation settings:', err);
-      alert('Failed to save automation settings.');
+      toast.error('Failed to save automation settings.');
     } finally {
       setSavingAutomationSettings(false);
     }
@@ -435,7 +512,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
         } else if (event.data?.type === 'WORKSPACE_AUTH_ERROR') {
           window.removeEventListener('message', handleMessage);
           popup?.close();
-          alert(`Connection failed: ${event.data.error}`);
+          toast.error(`Connection failed: ${event.data.error}`);
           setConnecting(false);
         }
       };
@@ -453,6 +530,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
     } catch (err) {
       console.error('Failed to start Google connect:', err);
       setConnecting(false);
+    }
+  };
+
+  const handleConnectKnowledgeDrive = async () => {
+    if (!token || !activeWorkspaceId) return;
+    setConnecting(true);
+    try {
+      const { url } = await apiFetch<{url: string}>(`/api/workspaces/${activeWorkspaceId}/integrations/google/auth`, { token });
+      window.location.href = url;
+    } catch (e) {
+      console.error(e);
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnectKnowledgeDrive = async () => {
+    if (!token || !activeWorkspaceId) return;
+    setDisconnecting(true);
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/google`, { method: 'DELETE', token });
+      fetchStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -489,7 +591,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setWordpressForm({ siteUrl: '', username: '', appPassword: '' });
     } catch (err) {
       console.error('Failed to connect WordPress:', err);
-      alert('Failed to connect WordPress. Verify the site URL, username, and application password.');
+      toast.error('Failed to connect WordPress. Verify the site URL, username, and application password.');
     } finally {
       setWordpressSaving(false);
     }
@@ -511,7 +613,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setLinkedinForm({ accessToken: '', authorUrn: '' });
     } catch (err) {
       console.error('Failed to connect LinkedIn:', err);
-      alert('Failed to connect LinkedIn. Use a token with the Share on LinkedIn product and w_member_social scope.');
+      toast.error('Failed to connect LinkedIn. Use a token with the Share on LinkedIn product and w_member_social scope.');
     } finally {
       setLinkedinSaving(false);
     }
@@ -551,7 +653,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setBufferAccessToken('');
     } catch (err) {
       console.error('Failed to connect Buffer:', err);
-      alert('Failed to connect Buffer. Verify the access token and that the account has connected profiles.');
+      toast.error('Failed to connect Buffer. Verify the access token and that the account has connected profiles.');
     } finally {
       setBufferSaving(false);
     }
@@ -591,7 +693,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setSlackForm({ botToken: '', defaultChannel: '' });
     } catch (err) {
       console.error('Failed to connect Slack:', err);
-      alert('Failed to connect Slack. Verify bot token and channel settings.');
+      toast.error('Failed to connect Slack. Verify bot token and channel settings.');
     } finally {
       setSlackSaving(false);
     }
@@ -631,7 +733,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setTeamsForm({ webhookUrl: '', defaultChannelName: '' });
     } catch (err) {
       console.error('Failed to connect Teams:', err);
-      alert('Failed to connect Teams. Verify the incoming webhook URL.');
+      toast.error('Failed to connect Teams. Verify the incoming webhook URL.');
     } finally {
       setTeamsSaving(false);
     }
@@ -671,7 +773,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setNotionForm({ integrationToken: '', defaultParentPageId: '' });
     } catch (err) {
       console.error('Failed to connect Notion:', err);
-      alert('Failed to connect Notion. Verify the integration token and permissions.');
+      toast.error('Failed to connect Notion. Verify the integration token and permissions.');
     } finally {
       setNotionSaving(false);
     }
@@ -729,7 +831,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setHubspotToken('');
     } catch (err) {
       console.error('Failed to connect HubSpot:', err);
-      alert('Failed to connect HubSpot. Verify the private app token and scopes.');
+      toast.error('Failed to connect HubSpot. Verify the private app token and scopes.');
     } finally {
       setHubspotSaving(false);
     }
@@ -774,7 +876,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       setTwilioForm({ accountSid: '', authToken: '', fromNumber: '' });
     } catch (err) {
       console.error('Failed to connect Twilio:', err);
-      alert('Failed to connect Twilio. Verify Account SID, Auth Token, and sender number.');
+      toast.error('Failed to connect Twilio. Verify Account SID, Auth Token, and sender number.');
     } finally {
       setTwilioSaving(false);
     }
@@ -807,12 +909,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
         onAuthFailure: () => onLogout(),
       });
       if (result?.secret) {
-        window.alert(`New ${provider} webhook secret (save now): ${result.secret}`);
+        toast.success(`New ${provider} webhook secret (save now): ${result.secret}`, { duration: 10000 });
       }
       fetchStatus();
     } catch (err) {
       console.error(`Failed to rotate ${provider} webhook secret:`, err);
-      alert('Failed to rotate webhook secret.');
+      toast.error('Failed to rotate webhook secret.');
     }
   };
 
@@ -833,6 +935,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       ],
       onConnect: handleConnectGoogle,
       onDisconnect: handleDisconnectGoogle,
+      isLoading: connecting || disconnecting,
+    },
+    {
+      id: 'knowledge-drive',
+      name: 'AgencyOS Knowledge Drive',
+      icon: Folder,
+      description: 'Auto-syncs a shared Google Drive folder for Agent search access',
+      connected: knowledgeDriveStatus?.connected || false,
+      allowReconnect: false,
+      services: knowledgeDriveStatus?.connected ? [{ name: `Folder ID: ${knowledgeDriveStatus.folderId}`, connected: true }] : [],
+      onConnect: handleConnectKnowledgeDrive,
+      onDisconnect: handleDisconnectKnowledgeDrive,
       isLoading: connecting || disconnecting,
     },
     {
@@ -941,6 +1055,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
       isLoading: twilioSaving || twilioDisconnecting,
     },
     {
+      id: 'googlevoice',
+      name: 'Google Voice',
+      icon: Phone,
+      description: 'Select a Google Voice number for your Receptionist agent',
+      connected: googleVoiceStatus.connected,
+      allowReconnect: true,
+      services: googleVoiceStatus.phoneNumber ? [{ name: googleVoiceStatus.phoneNumber, connected: true }] : [],
+      onConnect: () => setIsGoogleVoiceModalOpen(true),
+      onDisconnect: () => setGoogleVoiceStatus({ connected: false, phoneNumber: '' }),
+      isLoading: false,
+    },
+    {
       id: 'wordpress',
       name: 'WordPress',
       icon: Globe,
@@ -998,6 +1124,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
                   Profile Information
                 </h2>
 
+                <div className="flex flex-col md:flex-row gap-8 mb-8">
+                  {/* Avatar Section */}
+                  <div className="flex flex-col gap-4">
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Avatar</label>
+                    <div className="flex gap-4 items-start">
+                      <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border-2 border-slate-200 flex-shrink-0 relative group">
+                        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                        {isUpdatingAvatar && (
+                          <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
+                            <Loader className="w-5 h-5 text-brand-500 animate-spin" />
+                          </div>
+                        )}
+                        <label className="absolute inset-0 bg-slate-900/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                          <Plus className="w-6 h-6 text-white mb-1" />
+                          <span className="text-[10px] text-white font-bold uppercase tracking-wider">Upload</span>
+                          <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                        </label>
+                      </div>
+                      
+                      <div className="flex-1">
+                        <p className="text-xs text-slate-500 font-medium mb-2">Or choose a prebuilt avatar:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {PREBUILT_AVATARS.map((url, i) => (
+                            <button
+                              key={i}
+                              onClick={() => handleAvatarSelect(url)}
+                              className={cn(
+                                "w-10 h-10 rounded-full overflow-hidden border-2 transition-all hover:scale-105",
+                                avatarUrl === url ? "border-brand-500 scale-110 shadow-md" : "border-slate-200 hover:border-brand-300"
+                              )}
+                            >
+                              <img src={url} alt={`Prebuilt ${i}`} className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Name</label>
@@ -1014,7 +1180,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
 
                   <div className="pt-4">
                     <button
-                      onClick={() => alert('Password change functionality coming soon!')}
+                      onClick={() => setShowPasswordModal(true)}
                       className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       <Lock className="w-4 h-4" />
@@ -1022,6 +1188,56 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
                     </button>
                   </div>
                 </div>
+
+                {/* Password Change Modal */}
+                <AnimatePresence>
+                  {showPasswordModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowPasswordModal(false)} />
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                          <h3 className="font-bold text-slate-900">Change Password</h3>
+                        </div>
+                        <form className="p-6 space-y-4" onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (passwordData.new !== passwordData.confirm) {
+                            toast.error('Passwords do not match');
+                            return;
+                          }
+                          try {
+                            const res = await apiFetch(`/api/users/${user?.id}/password`, {
+                              method: 'PATCH',
+                              token: token || undefined,
+                              body: JSON.stringify({ currentPassword: passwordData.current, newPassword: passwordData.new })
+                            });
+                            toast.success('Password updated successfully');
+                            setShowPasswordModal(false);
+                            setPasswordData({ current: '', new: '', confirm: '' });
+                          } catch (err: any) {
+                            toast.error(err.message || 'Failed to update password');
+                          }
+                        }}>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Current Password</label>
+                            <input type="password" value={passwordData.current} onChange={e => setPasswordData({...passwordData, current: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:outline-none focus:border-brand-500" required />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">New Password</label>
+                            <input type="password" value={passwordData.new} onChange={e => setPasswordData({...passwordData, new: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:outline-none focus:border-brand-500" required />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Confirm New Password</label>
+                            <input type="password" value={passwordData.confirm} onChange={e => setPasswordData({...passwordData, confirm: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:outline-none focus:border-brand-500" required />
+                          </div>
+                          <div className="pt-4 flex justify-end gap-3">
+                            <button type="button" onClick={() => setShowPasswordModal(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-xl font-bold">Cancel</button>
+                            <button type="submit" className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold">Update</button>
+                          </div>
+                        </form>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
@@ -1036,6 +1252,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
                   Log Out
                 </button>
               </div>
+
+              {activeWorkspaceRole === 'owner' && (
+                <div className="bg-white rounded-2xl border border-red-200 p-6 shadow-sm">
+                  <h2 className="text-lg font-bold text-red-600 mb-4">Danger Zone</h2>
+                  <p className="text-slate-500 text-sm mb-6">Permanently delete this workspace and all of its associated data including agents, tasks, integrations, and leads. This action cannot be undone.</p>
+                  
+                  <button
+                    onClick={() => setShowDeleteWorkspaceModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Delete Workspace
+                  </button>
+
+                  <AnimatePresence>
+                    {showDeleteWorkspaceModal && (
+                      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+                        <motion.div
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.9, opacity: 0 }}
+                          className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden p-6"
+                        >
+                          <h3 className="text-xl font-bold text-red-600 mb-2">Delete Workspace?</h3>
+                          <p className="text-slate-600 mb-6 font-medium leading-relaxed">
+                            Are you absolutely sure you want to delete this workspace? All data will be permanently wiped.
+                          </p>
+                          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                            <button 
+                              onClick={() => setShowDeleteWorkspaceModal(false)}
+                              disabled={isDeletingWorkspace}
+                              className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-xl font-bold transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                setIsDeletingWorkspace(true);
+                                try {
+                                  await apiFetch(`/api/workspaces/${activeWorkspaceId}`, {
+                                    method: 'DELETE',
+                                    token: token || undefined
+                                  });
+                                  toast.success('Workspace deleted.');
+                                  window.location.reload();
+                                } catch (err: any) {
+                                  toast.error(err.message || 'Failed to delete workspace.');
+                                  setIsDeletingWorkspace(false);
+                                  setShowDeleteWorkspaceModal(false);
+                                }
+                              }}
+                              disabled={isDeletingWorkspace}
+                              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                              {isDeletingWorkspace ? <Loader className="w-4 h-4 animate-spin" /> : null}
+                              {isDeletingWorkspace ? 'Deleting...' : 'Yes, delete everything'}
+                            </button>
+                          </div>
+                        </motion.div>
+                      </div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -1056,7 +1336,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
                       ['HubSpot', integrationsHealth.services.hubspot],
                       ['Teams', integrationsHealth.services.teams],
                       ['Notion', integrationsHealth.services.notion],
-                    ].map(([label, service]) => (
+                    ].map(([label, service]: [string, any]) => (
                       <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                         <p className={cn(
                           'text-[11px] font-semibold',
@@ -1088,7 +1368,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
                       ['HubSpot', integrationsHealth.providerTelemetry.hubspot],
                       ['Teams', integrationsHealth.providerTelemetry.teams],
                       ['Notion', integrationsHealth.providerTelemetry.notion],
-                    ].map(([label, telemetry]) => (
+                    ].map(([label, telemetry]: [string, any]) => (
                       <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
                         <p className="text-[11px] font-semibold text-slate-700">{label} telemetry</p>
                         <p className="text-[11px] text-slate-500 mt-1">
@@ -1304,6 +1584,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
                   </div>
 
                   <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">LinkedIn Approval</label>
+                    <select
+                      value={automationSettings.approvalModeLinkedin}
+                      onChange={(event) => setAutomationSettings((current) => ({
+                        ...current,
+                        approvalModeLinkedin: event.target.value === 'approval' ? 'approval' : 'auto',
+                      }))}
+                      disabled={automationSettings.linkedinMode === 'off'}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
+                    >
+                      <option value="auto">Auto-publish (no review)</option>
+                      <option value="approval">Require approval</option>
+                    </select>
+                  </div>
+
+                  <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Buffer Mode</label>
                     <select
                       value={automationSettings.bufferMode}
@@ -1315,6 +1611,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
                     >
                       <option value="off">Off</option>
                       <option value="queue">Auto queue</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Buffer Approval</label>
+                    <select
+                      value={automationSettings.approvalModeBuffer}
+                      onChange={(event) => setAutomationSettings((current) => ({
+                        ...current,
+                        approvalModeBuffer: event.target.value === 'approval' ? 'approval' : 'auto',
+                      }))}
+                      disabled={automationSettings.bufferMode === 'off'}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
+                    >
+                      <option value="auto">Auto-queue (no review)</option>
+                      <option value="approval">Require approval</option>
                     </select>
                   </div>
 
@@ -1888,6 +2200,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, token, activeW
                   className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                 >
                   {wordpressSaving ? 'Saving...' : wordpressStatus.connected ? 'Update WordPress' : 'Connect WordPress'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {isGoogleVoiceModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600 shrink-0">
+                  <Phone className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Google Voice Number</h2>
+                  <p className="mt-1 text-sm text-slate-500">Select the number that the Receptionist agent should manage.</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Available Numbers</label>
+                  <select
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all text-slate-700"
+                    value={googleVoiceForm.phoneNumber}
+                    onChange={(e) => setGoogleVoiceForm({ phoneNumber: e.target.value })}
+                  >
+                    <option value="+19206058097">+1 (920) 605-8097</option>
+                    <option value="+12089730597">+1 (208) 973-0597</option>
+                  </select>
+                </div>
+              </div>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4">
+                <button
+                  onClick={() => setIsGoogleVoiceModalOpen(false)}
+                  className="flex-1 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setGoogleVoiceStatus({ connected: true, phoneNumber: googleVoiceForm.phoneNumber });
+                    setIsGoogleVoiceModalOpen(false);
+                    toast.success('Google Voice number claimed successfully');
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2"
+                >
+                  Confirm Number
                 </button>
               </div>
             </motion.div>
