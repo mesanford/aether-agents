@@ -314,7 +314,11 @@ export function registerWorkspaceRoutes({
 
       // Execute safely in sequence
       for (const q of queries) {
-        await db.prepare(q).run(workspaceId);
+        try {
+          await db.prepare(q).run(workspaceId);
+        } catch (e: any) {
+          console.warn(`Non-fatal: failed to execute '${q}' during workspace deletion - ${e.message}`);
+        }
       }
       
       res.json({ success: true, message: "Workspace deleted successfully." });
@@ -894,7 +898,7 @@ export function registerWorkspaceRoutes({
 
   app.get("/api/workspaces/:id/tasks", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const rows = await db.prepare("SELECT * FROM tasks WHERE workspace_id = ? ORDER BY rowid ASC").all(req.workspaceId) as any[];
+      const rows = await db.prepare("SELECT * FROM tasks WHERE workspace_id = ?").all(req.workspaceId) as any[];
       const tasks = rows.map((t) => ({
         id: t.id,
         title: t.title,

@@ -134,17 +134,26 @@ export async function bootstrapDatabase(db: PostgresShim) {
       target_audience TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       is_onboarded BOOLEAN DEFAULT false,
+      google_access_token TEXT,
+      google_refresh_token TEXT,
+      google_folder_id TEXT,
+      google_token_expiry BIGINT,
       FOREIGN KEY (owner_id) REFERENCES users(id)
     )
   `);
 
   try {
     if (!(await hasColumn("workspaces", "is_onboarded"))) {
-      console.log("Migration: is_onboarded column missing on workspaces, adding it now...");
       await db.exec("ALTER TABLE workspaces ADD COLUMN is_onboarded BOOLEAN DEFAULT false");
     }
+    if (!(await hasColumn("workspaces", "google_access_token"))) {
+      await db.exec("ALTER TABLE workspaces ADD COLUMN google_access_token TEXT");
+      await db.exec("ALTER TABLE workspaces ADD COLUMN google_refresh_token TEXT");
+      await db.exec("ALTER TABLE workspaces ADD COLUMN google_folder_id TEXT");
+      await db.exec("ALTER TABLE workspaces ADD COLUMN google_token_expiry BIGINT");
+    }
   } catch (err) {
-    console.error("Migration error for workspaces is_onboarded:", err);
+    console.error("Migration error for workspaces:", err);
   }
 
   await db.exec(`
