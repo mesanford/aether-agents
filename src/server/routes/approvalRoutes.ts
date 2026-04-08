@@ -6,13 +6,9 @@ import {
   fetchBufferProfiles,
 } from "../socialPublishing.ts";
 
-type DatabaseLike = {
-  prepare: (sql: string) => {
-    all: (...args: unknown[]) => any[];
-    get: (...args: unknown[]) => any;
-    run: (...args: unknown[]) => { changes?: number; lastInsertRowid?: number | bigint };
-  };
-};
+import type { PostgresShim } from "../db.ts";
+
+type DatabaseLike = PostgresShim;
 
 type RegisterApprovalRoutesArgs = {
   app: express.Application;
@@ -32,14 +28,14 @@ type ApprovalPayload = {
   accessToken?: string;
 };
 
-function writeApprovalAuditLog(
+async function writeApprovalAuditLog(
   db: DatabaseLike,
   workspaceId: number,
   action: string,
   details: Record<string, unknown>,
 ) {
   try {
-    db.prepare(
+    await db.prepare(
       "INSERT INTO audit_logs (workspace_id, user_id, action, resource, details) VALUES (?, ?, ?, ?, ?)",
     ).run(workspaceId, null, action, "approvals", JSON.stringify(details));
   } catch {
@@ -63,9 +59,7 @@ async function dispatchApprovedAction(
   if (!payload.text) throw new Error("Payload missing required text field");
 
   if (actionType === "linkedin_post") {
-    const linkedin = db
-      .prepare("SELECT access_token, author_urn FROM linkedin_connections WHERE workspace_id = ?")
-      .get(workspaceId) as { access_token: string; author_urn: string } | undefined;
+    const linkedin = await db.prepare("SELECT access_token, author_urn FROM linkedin_connections WHERE workspace_id = ?").get(workspaceId) as { access_token: string; author_urn: string } | undefined;
     if (!linkedin) throw new Error("LinkedIn not connected");
     await createLinkedInPost(linkedin.access_token, linkedin.author_urn, payload.text, {
       url: payload.link || undefined,
@@ -74,14 +68,10 @@ async function dispatchApprovedAction(
       description: payload.description,
     });
   } else if (actionType === "buffer_post") {
-    const buffer = db
-      .prepare("SELECT access_token FROM buffer_connections WHERE workspace_id = ?")
-      .get(workspaceId) as { access_token: string } | undefined;
+    const buffer = await db.prepare("SELECT access_token FROM buffer_connections WHERE workspace_id = ?").get(workspaceId) as { access_token: string } | undefined;
     if (!buffer) throw new Error("Buffer not connected");
 
-    const settings = db
-      .prepare("SELECT buffer_profile_id FROM workspace_automation_settings WHERE workspace_id = ?")
-      .get(workspaceId) as { buffer_profile_id: string | null } | undefined;
+    const settings = await db.prepare("SELECT buffer_profile_id FROM workspace_automation_settings WHERE workspace_id = ?").get(workspaceId) as { buffer_profile_id: string | null } | undefined;
 
     let profileId = payload.profileId || settings?.buffer_profile_id || null;
     if (!profileId) {
@@ -98,9 +88,7 @@ async function dispatchApprovedAction(
       description: payload.description,
     });
   } else if (actionType === "instagram_post") {
-    const ig = db
-      .prepare("SELECT access_token, ig_user_id FROM instagram_connections WHERE workspace_id = ?")
-      .get(workspaceId) as { access_token: string; ig_user_id: string } | undefined;
+    const ig = await db.prepare("SELECT access_token, ig_user_id FROM instagram_connections WHERE workspace_id = ?").get(workspaceId) as { access_token: string; ig_user_id: string } | undefined;
     if (!ig) throw new Error("Instagram not connected");
 
     // Two-step publish: create container then publish
@@ -136,9 +124,7 @@ async function dispatchApprovedAction(
       throw new Error(err || `Instagram publish failed with status ${publishRes.status}`);
     }
   } else if (actionType === "twitter_post") {
-    const tw = db
-      .prepare("SELECT access_token FROM twitter_connections WHERE workspace_id = ?")
-      .get(workspaceId) as { access_token: string } | undefined;
+    const tw = await db.prepare("SELECT access_token FROM twitter_connections WHERE workspace_id = ?").get(workspaceId) as { access_token: string } | undefined;
     if (!tw) throw new Error("X/Twitter not connected");
 
     const tweetRes = await fetch("https://api.twitter.com/2/tweets", {
@@ -154,9 +140,7 @@ async function dispatchApprovedAction(
       throw new Error(err || `Twitter post failed with status ${tweetRes.status}`);
     }
   } else if (actionType === "facebook_post") {
-    const fb = db
-      .prepare("SELECT page_access_token, page_id FROM facebook_connections WHERE workspace_id = ?")
-      .get(workspaceId) as { page_access_token: string; page_id: string } | undefined;
+    const fb = await db.prepare("SELECT page_access_token, page_id FROM facebook_connections WHERE workspace_id = ?").get(workspaceId) as { page_access_token: string; page_id: string } | undefined;
     if (!fb) throw new Error("Facebook not connected");
 
     const endpoint = payload.imageUrl
@@ -195,7 +179,7 @@ export function registerApprovalRoutes({
     "/api/workspaces/:workspaceId/approvals",
     requireAuth,
     requireWorkspaceAccess,
-    (req: express.Request, res: express.Response) => {
+    async (req: express.Request, res: express.Response) => {
       const workspaceId = Number((req as AuthenticatedRequest).workspaceId);
       const status = (req.query.status as string) || "pending";
       const limit = Math.min(Number(req.query.limit) || 50, 100);
@@ -207,27 +191,23 @@ export function registerApprovalRoutes({
 
       let rows: any[];
       if (status === "all") {
-        rows = db
-          .prepare(`
+        rows = await db.prepare(`
             SELECT id, workspace_id, task_id, agent_id, agent_name, action_type, payload,
                    status, requested_at, reviewed_at, reviewed_by_user_id, rejection_reason
             FROM approval_requests
             WHERE workspace_id = ?
             ORDER BY requested_at DESC
             LIMIT ?
-          `)
-          .all(workspaceId, limit);
+          `).all(workspaceId, limit);
       } else {
-        rows = db
-          .prepare(`
+        rows = await db.prepare(`
             SELECT id, workspace_id, task_id, agent_id, agent_name, action_type, payload,
                    status, requested_at, reviewed_at, reviewed_by_user_id, rejection_reason
             FROM approval_requests
             WHERE workspace_id = ? AND status = ?
             ORDER BY requested_at DESC
             LIMIT ?
-          `)
-          .all(workspaceId, status, limit);
+          `).all(workspaceId, status, limit);
       }
 
       const parsed = rows.map((row) => {
@@ -250,9 +230,8 @@ export function registerApprovalRoutes({
       const userId = (req as AuthenticatedRequest).userId;
       const approvalId = Number(req.params.approvalId);
 
-      const approval = db
-        .prepare("SELECT * FROM approval_requests WHERE id = ? AND workspace_id = ?")
-        .get(approvalId, workspaceId) as any;
+      const approval = await db
+        .prepare("SELECT * FROM approval_requests WHERE id = ? AND workspace_id = ?").get(approvalId, workspaceId) as any;
 
       if (!approval) return res.status(404).json({ error: "Approval request not found" });
       if (approval.status !== "pending") {
@@ -262,7 +241,7 @@ export function registerApprovalRoutes({
       try {
         await dispatchApprovedAction(db, workspaceId, approval.action_type, approval.payload);
 
-        db.prepare(`
+        await db.prepare(`
           UPDATE approval_requests
           SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP, reviewed_by_user_id = ?
           WHERE id = ?
@@ -292,22 +271,20 @@ export function registerApprovalRoutes({
     "/api/workspaces/:workspaceId/approvals/:approvalId/reject",
     requireAuth,
     requireWorkspaceAccess,
-    (req: express.Request, res: express.Response) => {
+    async (req: express.Request, res: express.Response) => {
       const workspaceId = Number((req as AuthenticatedRequest).workspaceId);
       const userId = (req as AuthenticatedRequest).userId;
       const approvalId = Number(req.params.approvalId);
       const { reason } = req.body as { reason?: string };
 
-      const approval = db
-        .prepare("SELECT id, status, action_type, agent_id FROM approval_requests WHERE id = ? AND workspace_id = ?")
-        .get(approvalId, workspaceId) as any;
+      const approval = await db.prepare("SELECT id, status, action_type, agent_id FROM approval_requests WHERE id = ? AND workspace_id = ?").get(approvalId, workspaceId) as any;
 
       if (!approval) return res.status(404).json({ error: "Approval request not found" });
       if (approval.status !== "pending") {
         return res.status(409).json({ error: `Already ${approval.status}` });
       }
 
-      db.prepare(`
+      await db.prepare(`
         UPDATE approval_requests
         SET status = 'rejected', reviewed_at = CURRENT_TIMESTAMP, reviewed_by_user_id = ?,
             rejection_reason = ?

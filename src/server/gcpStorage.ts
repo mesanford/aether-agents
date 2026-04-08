@@ -1,5 +1,5 @@
 import { Storage } from '@google-cloud/storage';
-import type Database from "better-sqlite3";
+import type { PostgresShim } from "./db.ts";
 
 // Determine if we are running with valid Google Cloud credentials in the environment
 const bucketName = process.env.GCS_MEDIA_BUCKET_NAME || 'agencyos-media-bucket';
@@ -84,8 +84,8 @@ export async function deleteGCSFile(gcsPath: string): Promise<void> {
  * Searches the SQLite database for any media_assets currently stored as raw base64.
  * Uploads them to GCS and mutates the DB row to point to the new GCS reference.
  */
-export async function migrateBase64ToGCS(db: Database.Database): Promise<void> {
-  const rows = db.prepare("SELECT id, workspace_id, thumbnail FROM media_assets WHERE thumbnail LIKE 'data:image/%'").all() as any[];
+export async function migrateBase64ToGCS(db: PostgresShim): Promise<void> {
+  const rows = await db.prepare("SELECT id, workspace_id, thumbnail FROM media_assets WHERE thumbnail LIKE 'data:image/%'").all() as any[];
   
   if (rows.length === 0) return;
   console.log(`[Migration] Found ${rows.length} base64 media assets requiring GCS migration...`);
@@ -95,7 +95,7 @@ export async function migrateBase64ToGCS(db: Database.Database): Promise<void> {
        console.log(`[Migration] Uploading asset ${row.id}...`);
        const gcsPath = await uploadBase64ToGCS(row.thumbnail, row.workspace_id);
        
-       db.prepare("UPDATE media_assets SET thumbnail = ? WHERE id = ?").run(gcsPath, row.id);
+       await db.prepare("UPDATE media_assets SET thumbnail = ? WHERE id = ?").run(gcsPath, row.id);
        
        console.log(`[Migration] Converted asset ${row.id} to GCS successfully.`);
     } catch (err: any) {

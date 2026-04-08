@@ -6,7 +6,7 @@ config({ path: ".env.local", override: true });
 
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
+import db from "./src/server/db.ts";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
@@ -59,9 +59,7 @@ async function startServer() {
 
   app.use(express.json({ limit: "256kb" }));
 
-  const db = new Database(DATABASE_PATH);
-
-  const { seedWorkspace } = bootstrapDatabase(db);
+  const { seedWorkspace } = await bootstrapDatabase(db);
   
   // Kick off migration of any legacy SQLite base64 strings to GCS
   await migrateBase64ToGCS(db);
@@ -75,15 +73,15 @@ async function startServer() {
     requireWorkspaceAccess,
     requireWorkspaceRole,
     createRateLimiter,
-  } = createSecurityTools(db as any, JWT_SECRET);
-  const writeAuditLog = createAuditLogger(db as any);
+  } = createSecurityTools(db, JWT_SECRET);
+  const writeAuditLog = createAuditLogger(db);
 
   const authRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 40, keyPrefix: "auth" });
   const aiRateLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 30, keyPrefix: "ai" });
 
   registerAuthRoutes({
     app,
-    db: db as any,
+    db,
     jwtSecret: JWT_SECRET,
     googleClientId: GOOGLE_CLIENT_ID,
     googleClientSecret: GOOGLE_CLIENT_SECRET,
@@ -184,7 +182,7 @@ async function startServer() {
 
   registerWorkspaceRoutes({
     app,
-    db: db as any,
+    db,
     requireAuth: requireAuth as express.RequestHandler,
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
     requireWorkspaceRole,
@@ -199,7 +197,7 @@ async function startServer() {
 
   registerAiRoutes({
     app,
-    db: db as any,
+    db,
     aiClient,
     requireAuth: requireAuth as express.RequestHandler,
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
@@ -211,7 +209,7 @@ async function startServer() {
 
   registerIntegrationsRoutes({
     app,
-    db: db as any,
+    db,
     googleClientId: GOOGLE_CLIENT_ID,
     googleClientSecret: GOOGLE_CLIENT_SECRET,
     getUserIdFromRequest,
@@ -222,14 +220,14 @@ async function startServer() {
 
   registerGoogleDriveRoutes({
     app,
-    db: db as any,
+    db,
     requireAuth: requireAuth as express.RequestHandler,
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
   });
 
   registerApprovalRoutes({
     app,
-    db: db as any,
+    db,
     requireAuth: requireAuth as express.RequestHandler,
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
   });

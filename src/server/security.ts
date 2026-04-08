@@ -2,11 +2,9 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import type { AuthenticatedRequest } from "./types.ts";
 
-type DatabaseLike = {
-  prepare: (sql: string) => {
-    get: (...args: unknown[]) => unknown;
-  };
-};
+import type { PostgresShim } from "./db.ts";
+
+type DatabaseLike = PostgresShim;
 
 type RateLimiterConfig = {
   windowMs: number;
@@ -36,25 +34,29 @@ export function createSecurityTools(db: DatabaseLike, jwtSecret: string) {
     next();
   }
 
-  function requireWorkspaceAccess(req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) {
-    const rawWorkspaceId = req.params.workspaceId || req.params.id;
-    const workspaceId = Number.parseInt(rawWorkspaceId, 10);
+  async function requireWorkspaceAccess(req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) {
+    try {
+      const rawWorkspaceId = req.params.workspaceId || req.params.id;
+      const workspaceId = Number.parseInt(rawWorkspaceId, 10);
 
-    if (!Number.isInteger(workspaceId)) {
-      return res.status(400).json({ error: "Invalid workspace id" });
+      if (!Number.isInteger(workspaceId)) {
+        return res.status(400).json({ error: "Invalid workspace id" });
+      }
+
+      const membership = await db.prepare(
+        "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?"
+      ).get(workspaceId, req.userId) as { role: string } | undefined;
+
+      if (!membership) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      req.workspaceId = workspaceId;
+      req.workspaceRole = membership.role;
+      next();
+    } catch (err) {
+      next(err);
     }
-
-    const membership = db.prepare(
-      "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?"
-    ).get(workspaceId, req.userId) as { role: string } | undefined;
-
-    if (!membership) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
-    req.workspaceId = workspaceId;
-    req.workspaceRole = membership.role;
-    next();
   }
 
   function requireWorkspaceRole(...allowedRoles: string[]) {

@@ -2,22 +2,16 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
-
-type DatabaseLike = {
-  prepare: (sql: string) => {
-    get: (...args: unknown[]) => any;
-    run: (...args: unknown[]) => { lastInsertRowid?: number | bigint };
-  };
-};
+import type { PostgresShim } from "../db.ts";
 
 type RegisterAuthRoutesArgs = {
   app: express.Application;
-  db: DatabaseLike;
+  db: PostgresShim;
   jwtSecret: string;
   googleClientId?: string;
   googleClientSecret?: string;
   authRateLimiter: express.RequestHandler;
-  seedWorkspace: (workspaceId: number | bigint) => void;
+  seedWorkspace: (workspaceId: number | bigint) => Promise<void>;
 };
 
 export function registerAuthRoutes({
@@ -38,22 +32,23 @@ export function registerAuthRoutes({
         return res.status(400).json({ error: "Email and password are required" });
       }
 
-      const existingUser = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+      const existingUser = await db.prepare("SELECT * FROM users WHERE email = ?").get(email);
       if (existingUser) {
         return res.status(400).json({ error: "Email already in use" });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const userName = name || email.split("@")[0];
-      const result = db.prepare("INSERT INTO users (email, password, name) VALUES (?, ?, ?)").run(email, hashedPassword, userName);
+      const result = await db.prepare("INSERT INTO users (email, password, name) VALUES (?, ?, ?) RETURNING id").get(email, hashedPassword, userName) as any;
 
-      const userId = result.lastInsertRowid;
+      if (!result) throw new Error("Failed to create user");
+      const userId = result.id;
 
-      const wsResult = db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?)").run(`${userName}'s Workspace`, userId);
-      const workspaceId = wsResult.lastInsertRowid;
+      const wsResult = await db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?) RETURNING id").get(`${userName}'s Workspace`, userId) as any;
+      const workspaceId = wsResult.id;
 
-      db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, userId, "owner");
-      seedWorkspace(workspaceId as number | bigint);
+      await db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, userId, "owner");
+      await seedWorkspace(workspaceId);
 
       const token = jwt.sign({ userId }, jwtSecret, { expiresIn: "7d" });
 
@@ -71,7 +66,7 @@ export function registerAuthRoutes({
         return res.status(400).json({ error: "Email and password are required" });
       }
 
-      const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
+      const user = await db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
       if (!user) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
@@ -93,7 +88,7 @@ export function registerAuthRoutes({
     }
   });
 
-  app.get("/api/auth/me", (req, res) => {
+  app.get("/api/auth/me", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -103,7 +98,7 @@ export function registerAuthRoutes({
       const token = authHeader.split(" ")[1];
       const decoded = jwt.verify(token, jwtSecret) as any;
 
-      const user = db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId) as any;
+      const user = await db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId) as any;
       if (!user) {
         return res.status(401).json({ error: "User not found" });
       }
@@ -114,7 +109,7 @@ export function registerAuthRoutes({
     }
   });
 
-  app.patch("/api/auth/me", (req, res) => {
+  app.patch("/api/auth/me", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
@@ -132,10 +127,10 @@ export function registerAuthRoutes({
 
       if (updates.length > 0) {
         values.push(decoded.userId);
-        db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+        await db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...values);
       }
 
-      const updatedUser = db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId);
+      const updatedUser = await db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId);
       return res.json({ user: updatedUser });
     } catch (err) {
       return res.status(500).json({ error: "Failed to update profile" });
@@ -156,7 +151,7 @@ export function registerAuthRoutes({
       const { currentPassword, newPassword } = req.body;
       if (!currentPassword || !newPassword) return res.status(400).json({ error: "Missing password fields" });
 
-      const user = db.prepare("SELECT password FROM users WHERE id = ?").get(decoded.userId) as any;
+      const user = await db.prepare("SELECT password FROM users WHERE id = ?").get(decoded.userId) as any;
       if (!user || typeof user.password !== "string" || user.password.length === 0) {
         return res.status(400).json({ error: "Cannot change password for this account type" });
       }
@@ -165,7 +160,7 @@ export function registerAuthRoutes({
       if (!isValid) return res.status(400).json({ error: "Incorrect current password" });
 
       const hashedNew = await bcrypt.hash(newPassword, 10);
-      db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashedNew, decoded.userId);
+      await db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashedNew, decoded.userId);
 
       return res.json({ success: true });
     } catch (err) {
@@ -208,12 +203,12 @@ export function registerAuthRoutes({
       const { tokens } = await authClient.getToken({ code: code as string, redirect_uri: redirectUri });
 
       if (isWorkspaceConnect && workspaceUserId) {
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO google_tokens (user_id, access_token, refresh_token, expiry_date, scopes)
           VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(user_id) DO UPDATE SET
             access_token = excluded.access_token,
-            refresh_token = COALESCE(excluded.refresh_token, refresh_token),
+            refresh_token = COALESCE(excluded.refresh_token, google_tokens.refresh_token),
             expiry_date = excluded.expiry_date,
             scopes = excluded.scopes
         `).run(workspaceUserId, tokens.access_token, tokens.refresh_token || null, tokens.expiry_date || null, tokens.scope || "");
@@ -229,17 +224,17 @@ export function registerAuthRoutes({
       if (!payload || !payload.email) throw new Error("Invalid Google payload");
 
       const { email, name, sub: googleId } = payload;
-      let user = db.prepare("SELECT * FROM users WHERE google_id = ? OR email = ?").get(googleId, email) as any;
+      let user = await db.prepare("SELECT * FROM users WHERE google_id = ? OR email = ?").get(googleId, email) as any;
 
       if (!user) {
-        const result = db.prepare("INSERT INTO users (email, name, google_id) VALUES (?, ?, ?)").run(email, name, googleId);
-        user = { id: result.lastInsertRowid, email, name };
-        const wsResult = db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?)").run(`${name || email.split("@")[0]}'s Workspace`, user.id);
-        const workspaceId = wsResult.lastInsertRowid;
-        db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, user.id, "owner");
-        seedWorkspace(workspaceId as number | bigint);
+        const result = await db.prepare("INSERT INTO users (email, name, google_id) VALUES (?, ?, ?) RETURNING id").get(email, name, googleId) as any;
+        user = { id: result.id, email, name };
+        const wsResult = await db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?) RETURNING id").get(`${name || email.split("@")[0]}'s Workspace`, user.id) as any;
+        const workspaceId = wsResult.id;
+        await db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, user.id, "owner");
+        await seedWorkspace(workspaceId);
       } else if (!user.google_id) {
-        db.prepare("UPDATE users SET google_id = ?, name = COALESCE(name, ?) WHERE id = ?").run(googleId, name, user.id);
+        await db.prepare("UPDATE users SET google_id = ?, name = COALESCE(name, ?) WHERE id = ?").run(googleId, name, user.id);
       }
 
       const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: "7d" });

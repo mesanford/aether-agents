@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { PostgresShim } from "../db.ts";
 
 export class DailyLimitExceededError extends Error {
   constructor(message: string) {
@@ -14,16 +14,15 @@ export class DailyLimitExceededError extends Error {
  * If the current day string (YYYY-MM-DD) differs from daily_ai_requests_date,
  * the counter resets to 0. Otherwise it increments by 1.
  */
-export function checkAndIncrementDailyAIRequestLimit(db: Database.Database, workspaceId: number | string): void {
+export async function checkAndIncrementDailyAIRequestLimit(db: PostgresShim, workspaceId: number | string): Promise<void> {
   const selectQuery = db.prepare(`
     SELECT max_daily_ai_requests, daily_ai_requests_count, daily_ai_requests_date 
     FROM workspace_automation_settings 
     WHERE workspace_id = ?
   `);
   
-  const record = selectQuery.get(workspaceId) as any;
+  const record = (await selectQuery.get(workspaceId)) as any;
   
-  // If no automation settings exist, something went wrong with DB init. We allow it to pass but log it.
   if (!record) {
     console.warn(`[CIRCUIT BREAKER] Automation setting row missing for workspace ${workspaceId}. Bypassing limit.`);
     return;
@@ -36,7 +35,6 @@ export function checkAndIncrementDailyAIRequestLimit(db: Database.Database, work
   let currentDate = typeof record.daily_ai_requests_date === 'string' ? record.daily_ai_requests_date : '';
   
   if (currentDate !== todayString) {
-    // New day; reset limit
     currentCount = 0;
     currentDate = todayString;
   }
@@ -46,12 +44,11 @@ export function checkAndIncrementDailyAIRequestLimit(db: Database.Database, work
     throw new DailyLimitExceededError(`Workspace ${workspaceId} has exceeded the daily limit of ${maxLimit} autonomous AI invocations.`);
   }
   
-  // Increment safely
   const updateQuery = db.prepare(`
     UPDATE workspace_automation_settings 
     SET daily_ai_requests_count = ?, daily_ai_requests_date = ?
     WHERE workspace_id = ?
   `);
   
-  updateQuery.run(currentCount + 1, currentDate, workspaceId);
+  await updateQuery.run(currentCount + 1, currentDate, workspaceId);
 }

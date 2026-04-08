@@ -1,12 +1,11 @@
 import cron from 'node-cron';
-import Database from "better-sqlite3";
+import type { PostgresShim } from "./db.ts";
 import { workflow } from './ai/graph.ts';
 import { HumanMessage } from '@langchain/core/messages';
 import { checkAndIncrementDailyAIRequestLimit, DailyLimitExceededError } from './ai/rateLimiterUtility.ts';
 
-
 // Background Job that runs every 15 minutes
-export function startSequenceDaemon(db: Database.Database) {
+export function startSequenceDaemon(db: PostgresShim) {
   console.log('[DAEMON] Sales Sequence Engine initialized. Running on */15 schedule.');
   
   cron.schedule('*/15 * * * *', async () => {
@@ -14,7 +13,7 @@ export function startSequenceDaemon(db: Database.Database) {
     
     try {
       const now = new Date().toISOString();
-      const pendingEnrollments = db.prepare(`
+      const pendingEnrollments = await db.prepare(`
         SELECT e.*, s.steps, s.title, l.name as lead_name, l.email as lead_email, l.company as lead_company, l.notes as lead_notes 
         FROM sequence_enrollments e
         JOIN sales_sequences s ON e.sequence_id = s.id
@@ -30,20 +29,20 @@ export function startSequenceDaemon(db: Database.Database) {
       console.log(`[DAEMON] Found ${pendingEnrollments.length} pending lead sequence(s) to process.`);
 
       for (const enrollment of pendingEnrollments) {
-        const steps = JSON.parse(enrollment.steps);
+        const steps = JSON.parse(enrollment.steps || "[]");
         if (enrollment.current_step_idx >= steps.length) {
-          db.prepare("UPDATE sequence_enrollments SET status = 'Completed' WHERE id = ?").run(enrollment.id);
+          await db.prepare("UPDATE sequence_enrollments SET status = 'Completed' WHERE id = ?").run(enrollment.id);
           continue;
         }
 
         const currentStep = steps[enrollment.current_step_idx];
         
         // Fetch recent lead events and Stan's memory ledger
-        const history = db.prepare("SELECT event_type, content, agent_feedback FROM sequence_events WHERE sequence_id = ? AND lead_id = ? ORDER BY created_at ASC").all(enrollment.sequence_id, enrollment.lead_id) as any[];
-        const ledger = db.prepare("SELECT learning FROM stan_memory_ledger WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 5").all(enrollment.workspace_id) as any[];
+        const history = await db.prepare("SELECT event_type, content, agent_feedback FROM sequence_events WHERE sequence_id = ? AND lead_id = ? ORDER BY created_at ASC").all(enrollment.sequence_id, enrollment.lead_id) as any[];
+        const ledger = await db.prepare("SELECT learning FROM stan_memory_ledger WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 5").all(enrollment.workspace_id) as any[];
 
-        const ledgerContext = ledger.map(l => l.learning).join('. ');
-        const historyContext = history.map(h => `[${h.event_type}]: ${h.agent_feedback || h.content}`).join('\n');
+        const ledgerContext = ledger.map((l: any) => l.learning).join('. ');
+        const historyContext = history.map((h: any) => `[${h.event_type}]: ${h.agent_feedback || h.content}`).join('\n');
 
         // Compile the prompt for Stan
         const runPrompt = `
@@ -74,20 +73,20 @@ Your Mission:
 `;
 
         try {
-          const profiles = db.prepare("SELECT id, name, role, guidelines, personality, capabilities, description FROM agents WHERE workspace_id = ?").all(enrollment.workspace_id) as any[];
-          const agentProfiles = profiles.reduce((acc, a) => {
+          const profiles = await db.prepare("SELECT id, name, role, guidelines, personality, capabilities, description FROM agents WHERE workspace_id = ?").all(enrollment.workspace_id) as any[];
+          const agentProfiles = profiles.reduce((acc: any, a: any) => {
             acc[a.id] = `Role: ${a.role}\nDescription: ${a.description}\nPersonality: ${a.personality}\nGuidelines: ${a.guidelines}\nCapabilities: ${a.capabilities}`;
             return acc;
           }, {} as Record<string, string>);
           
           try {
-            checkAndIncrementDailyAIRequestLimit(db, enrollment.workspace_id);
+            await checkAndIncrementDailyAIRequestLimit(db, enrollment.workspace_id);
           } catch (limitErr) {
             if (limitErr instanceof DailyLimitExceededError) {
               console.warn(`[DAEMON] Runaway AI limit hit for workspace ${enrollment.workspace_id}. Pausing sequence ${enrollment.id}.`);
-              db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
+              await db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
               
-              db.prepare("INSERT INTO sequence_events (workspace_id, lead_id, sequence_id, event_type, content, agent_feedback) VALUES (?, ?, ?, ?, ?, ?)").run(
+              await db.prepare("INSERT INTO sequence_events (workspace_id, lead_id, sequence_id, event_type, content, agent_feedback) VALUES (?, ?, ?, ?, ?, ?)").run(
                 enrollment.workspace_id, enrollment.lead_id, enrollment.sequence_id, 'Error', 'Execution paused', 'Daily AI Request Limit Exceeded. Sequence paused permanently until manually resumed.'
               );
               continue;
@@ -113,25 +112,25 @@ Your Mission:
 
           const isHalted = agentReply.toLowerCase().includes('halted') || agentReply.toLowerCase().includes('stopped');
           
-          db.prepare("INSERT INTO sequence_events (workspace_id, lead_id, sequence_id, event_type, content, agent_feedback) VALUES (?, ?, ?, ?, ?, ?)").run(
+          await db.prepare("INSERT INTO sequence_events (workspace_id, lead_id, sequence_id, event_type, content, agent_feedback) VALUES (?, ?, ?, ?, ?, ?)").run(
             enrollment.workspace_id, enrollment.lead_id, enrollment.sequence_id, 'Action Executed', runPrompt, agentReply
           );
 
           if (isHalted) {
-            db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
+            await db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
           } else {
             // Advance cursor to next step and set the delay for next_execution_datetime (Default 1 day for now)
             const nextDate = new Date();
             nextDate.setDate(nextDate.getDate() + 1);
             
-            db.prepare("UPDATE sequence_enrollments SET current_step_idx = current_step_idx + 1, next_execution_datetime = ? WHERE id = ?").run(
+            await db.prepare("UPDATE sequence_enrollments SET current_step_idx = current_step_idx + 1, next_execution_datetime = ? WHERE id = ?").run(
               nextDate.toISOString(), enrollment.id
             );
           }
 
         } catch (execError) {
           console.error(`[DAEMON] Failed to execute run for sequence ${enrollment.id}: `, execError);
-          db.prepare("UPDATE sequence_enrollments SET status = 'Error' WHERE id = ?").run(enrollment.id);
+          await db.prepare("UPDATE sequence_enrollments SET status = 'Error' WHERE id = ?").run(enrollment.id);
         }
       }
 

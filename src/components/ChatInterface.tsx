@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Agent, AgentPersonality, Message, GuidelineSection, GuidelineItem, Lead } from '../types';
-import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash } from 'lucide-react';
+import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import toast from 'react-hot-toast';
@@ -1298,7 +1298,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [editingStep, setEditingStep] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [blogViewTab, setBlogViewTab] = useState<'list'|'calendar'>('list');
-  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set());
   const [sequenceViewTab, setSequenceViewTab] = useState<'editor' | 'progress'>('progress');
 
   useEffect(() => {
@@ -1328,7 +1328,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       lead.email.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const toggleLeadSelection = (id: string, e: React.MouseEvent) => {
+    const toggleLeadSelection = (id: number, e: React.MouseEvent) => {
       e.stopPropagation();
       const newSelected = new Set(selectedLeadIds);
       if (newSelected.has(id)) newSelected.delete(id);

@@ -10,13 +10,9 @@ import {
 } from "../socialPublishing.ts";
 import { enqueueAutomationJob } from "../taskEngine.ts";
 
-type DatabaseLike = {
-  prepare: (sql: string) => {
-    get: (...args: unknown[]) => any;
-    all?: (...args: unknown[]) => any[];
-    run: (...args: unknown[]) => unknown;
-  };
-};
+import type { PostgresShim } from "../db.ts";
+
+type DatabaseLike = PostgresShim;
 
 type RegisterIntegrationsRoutesArgs = {
   app: express.Application;
@@ -46,14 +42,14 @@ export function registerIntegrationsRoutes({
     return WEBHOOK_PROVIDERS.includes(value as WebhookProvider);
   }
 
-  function writeIntegrationAuditLog(
+  async function writeIntegrationAuditLog(
     workspaceId: number,
     userId: number | null,
     action: string,
     resource: string,
     details: Record<string, unknown>,
   ) {
-    db.prepare(
+    await db.prepare(
       "INSERT INTO audit_logs (workspace_id, user_id, action, resource, details) VALUES (?, ?, ?, ?, ?)",
     ).run(workspaceId, userId, action, resource, JSON.stringify(details));
   }
@@ -742,7 +738,7 @@ export function registerIntegrationsRoutes({
   }
 
   async function getWorkspaceClient(userId: number): Promise<OAuth2Client | null> {
-    const row = db.prepare("SELECT * FROM google_tokens WHERE user_id = ?").get(userId) as any;
+    const row = await db.prepare("SELECT * FROM google_tokens WHERE user_id = ?").get(userId) as any;
     if (!row) return null;
 
     const client = new OAuth2Client(googleClientId, googleClientSecret);
@@ -759,13 +755,12 @@ export function registerIntegrationsRoutes({
           10000,
           "Google token refresh",
         );
-        db.prepare("UPDATE google_tokens SET access_token = ?, expiry_date = ? WHERE user_id = ?")
-          .run(credentials.access_token, credentials.expiry_date, userId);
+        await db.prepare("UPDATE google_tokens SET access_token = ?, expiry_date = ? WHERE user_id = ?").run(credentials.access_token, credentials.expiry_date, userId);
         client.setCredentials(credentials);
       } catch (e: any) {
         if (e && e.message && (e.message.includes('unauthorized_client') || e.message.includes('invalid_grant'))) {
           console.error(`Google token revoked or invalid for user ${userId}. Clearing from database.`);
-          db.prepare("DELETE FROM google_tokens WHERE user_id = ?").run(userId);
+          await db.prepare("DELETE FROM google_tokens WHERE user_id = ?").run(userId);
         } else {
           console.error("Failed to refresh Google token:", e);
         }
@@ -776,7 +771,7 @@ export function registerIntegrationsRoutes({
     return client;
   }
 
-  app.get("/api/integrations/google/connect", (req, res) => {
+  app.get("/api/integrations/google/connect", async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -805,11 +800,11 @@ export function registerIntegrationsRoutes({
     return res.json({ url });
   });
 
-  app.get("/api/integrations/google/status", (req, res) => {
+  app.get("/api/integrations/google/status", async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const row = db.prepare("SELECT scopes, expiry_date FROM google_tokens WHERE user_id = ?").get(userId) as any;
+    const row = await db.prepare("SELECT scopes, expiry_date FROM google_tokens WHERE user_id = ?").get(userId) as any;
     if (!row) return res.json({ connected: false, scopes: [] });
 
     const scopes = (row.scopes || "").split(" ").filter(Boolean);
@@ -825,10 +820,10 @@ export function registerIntegrationsRoutes({
     });
   });
 
-  app.delete("/api/integrations/google", (req, res) => {
+  app.delete("/api/integrations/google", async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    db.prepare("DELETE FROM google_tokens WHERE user_id = ?").run(userId);
+    await db.prepare("DELETE FROM google_tokens WHERE user_id = ?").run(userId);
     return res.json({ success: true });
   });
 
@@ -1149,8 +1144,8 @@ export function registerIntegrationsRoutes({
     }
   });
 
-  app.get("/api/workspaces/:id/integrations/google/defaults", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const row = db.prepare("SELECT analytics_property_id, search_console_site_url FROM workspace_google_defaults WHERE workspace_id = ?").get(req.workspaceId) as any;
+  app.get("/api/workspaces/:id/integrations/google/defaults", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const row = await db.prepare("SELECT analytics_property_id, search_console_site_url FROM workspace_google_defaults WHERE workspace_id = ?").get(req.workspaceId) as any;
     return res.json({
       analyticsPropertyId: row?.analytics_property_id ?? null,
       searchConsoleSiteUrl: row?.search_console_site_url ?? null,
@@ -1161,8 +1156,7 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/google/defaults",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
       const {
         analyticsPropertyId = null,
         searchConsoleSiteUrl = null,
@@ -1171,7 +1165,7 @@ export function registerIntegrationsRoutes({
         searchConsoleSiteUrl?: string | null;
       };
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO workspace_google_defaults (workspace_id, analytics_property_id, search_console_site_url, updated_at)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(workspace_id) DO UPDATE SET
@@ -1192,8 +1186,8 @@ export function registerIntegrationsRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/integrations/webhooks/secrets", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const rows = (db.prepare(`
+  app.get("/api/workspaces/:id/integrations/webhooks/secrets", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const rows = (await db.prepare(`
       SELECT provider, secret, rotated_at
       FROM workspace_webhook_secrets
       WHERE workspace_id = ? AND is_active = 1
@@ -1217,8 +1211,7 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/webhooks/secrets/:provider/rotate",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
       const provider = String(req.params.provider || "").toLowerCase();
       if (!isWebhookProvider(provider)) {
         return res.status(400).json({ error: "Unsupported webhook provider" });
@@ -1229,7 +1222,7 @@ export function registerIntegrationsRoutes({
         "UPDATE workspace_webhook_secrets SET is_active = 0 WHERE workspace_id = ? AND provider = ? AND is_active = 1",
       ).run(req.workspaceId, provider);
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO workspace_webhook_secrets (workspace_id, provider, secret, created_by_user_id, is_active, rotated_at)
         VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
       `).run(req.workspaceId, provider, secret, req.userId || null);
@@ -1246,7 +1239,7 @@ export function registerIntegrationsRoutes({
     },
   );
 
-  app.post("/api/webhooks/:provider/:workspaceId", (req: any, res) => {
+  app.post("/api/webhooks/:provider/:workspaceId", async (req: any, res) => {
     try {
       const provider = String(req.params.provider || "").toLowerCase();
       const workspaceId = Number.parseInt(String(req.params.workspaceId || ""), 10);
@@ -1263,7 +1256,7 @@ export function registerIntegrationsRoutes({
         return res.status(401).json({ error: "Missing webhook secret" });
       }
 
-      const activeSecretRow = db.prepare(
+      const activeSecretRow = await db.prepare(
         "SELECT secret FROM workspace_webhook_secrets WHERE workspace_id = ? AND provider = ? AND is_active = 1",
       ).get(workspaceId, provider) as { secret: string } | undefined;
 
@@ -1298,8 +1291,8 @@ export function registerIntegrationsRoutes({
     }
   });
 
-  app.get("/api/workspaces/:id/integrations/linkedin/status", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const row = db.prepare("SELECT author_urn, account_name FROM linkedin_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+  app.get("/api/workspaces/:id/integrations/linkedin/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const row = await db.prepare("SELECT author_urn, account_name FROM linkedin_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
     return res.json({
       connected: Boolean(row),
       authorUrn: row?.author_urn ?? null,
@@ -1325,7 +1318,7 @@ export function registerIntegrationsRoutes({
 
         const verified = await verifyLinkedInToken(accessToken.trim(), authorUrn);
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO linkedin_connections (workspace_id, access_token, author_urn, account_name, updated_at)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -1347,8 +1340,8 @@ export function registerIntegrationsRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/integrations/twilio/status", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const row = db.prepare("SELECT account_sid, from_number, updated_at FROM twilio_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+  app.get("/api/workspaces/:id/integrations/twilio/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const row = await db.prepare("SELECT account_sid, from_number, updated_at FROM twilio_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
     return res.json({
       connected: Boolean(row),
       accountSid: row?.account_sid || null,
@@ -1357,8 +1350,8 @@ export function registerIntegrationsRoutes({
     });
   });
 
-  app.get("/api/workspaces/:id/integrations/slack/status", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const row = db.prepare("SELECT default_channel, team_id, team_name, bot_user_id, updated_at FROM slack_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+  app.get("/api/workspaces/:id/integrations/slack/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const row = await db.prepare("SELECT default_channel, team_id, team_name, bot_user_id, updated_at FROM slack_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
     return res.json({
       connected: Boolean(row),
       defaultChannel: row?.default_channel || null,
@@ -1387,7 +1380,7 @@ export function registerIntegrationsRoutes({
 
         const verified = await verifySlackToken(botToken.trim());
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO slack_connections (workspace_id, bot_token, default_channel, team_id, team_name, bot_user_id, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -1430,9 +1423,8 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/slack",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
-      db.prepare("DELETE FROM slack_connections WHERE workspace_id = ?").run(req.workspaceId);
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
+      await db.prepare("DELETE FROM slack_connections WHERE workspace_id = ?").run(req.workspaceId);
       writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.slack.disconnected", "slack_connections", {});
       return res.json({ success: true });
     },
@@ -1444,9 +1436,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     async (req: any, res) => {
       try {
-        const row = db
-          .prepare("SELECT bot_token, default_channel FROM slack_connections WHERE workspace_id = ?")
-          .get(req.workspaceId) as any;
+        const row = await db.prepare("SELECT bot_token, default_channel FROM slack_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
         if (!row) {
           return res.status(403).json({ error: "Slack not connected" });
         }
@@ -1473,10 +1463,8 @@ export function registerIntegrationsRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/integrations/teams/status", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const row = db
-      .prepare("SELECT default_channel_name, updated_at FROM teams_connections WHERE workspace_id = ?")
-      .get(req.workspaceId) as any;
+  app.get("/api/workspaces/:id/integrations/teams/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const row = await db.prepare("SELECT default_channel_name, updated_at FROM teams_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
 
     return res.json({
       connected: Boolean(row),
@@ -1503,7 +1491,7 @@ export function registerIntegrationsRoutes({
 
         const normalizedWebhookUrl = normalizeTeamsWebhookUrl(webhookUrl);
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO teams_connections (workspace_id, webhook_url, default_channel_name, updated_at)
           VALUES (?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -1535,9 +1523,8 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/teams",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
-      db.prepare("DELETE FROM teams_connections WHERE workspace_id = ?").run(req.workspaceId);
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
+      await db.prepare("DELETE FROM teams_connections WHERE workspace_id = ?").run(req.workspaceId);
       writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.teams.disconnected", "teams_connections", {});
       return res.json({ success: true });
     },
@@ -1549,9 +1536,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     async (req: any, res) => {
       try {
-        const row = db
-          .prepare("SELECT webhook_url, default_channel_name FROM teams_connections WHERE workspace_id = ?")
-          .get(req.workspaceId) as any;
+        const row = await db.prepare("SELECT webhook_url, default_channel_name FROM teams_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
         if (!row) {
           return res.status(403).json({ error: "Teams not connected" });
         }
@@ -1574,10 +1559,8 @@ export function registerIntegrationsRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/integrations/notion/status", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const row = db
-      .prepare("SELECT bot_name, default_parent_page_id, updated_at FROM notion_connections WHERE workspace_id = ?")
-      .get(req.workspaceId) as any;
+  app.get("/api/workspaces/:id/integrations/notion/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const row = await db.prepare("SELECT bot_name, default_parent_page_id, updated_at FROM notion_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
 
     return res.json({
       connected: Boolean(row),
@@ -1605,7 +1588,7 @@ export function registerIntegrationsRoutes({
 
         const verified = await verifyNotionToken(integrationToken.trim());
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO notion_connections (workspace_id, integration_token, bot_name, default_parent_page_id, updated_at)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -1641,9 +1624,8 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/notion",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
-      db.prepare("DELETE FROM notion_connections WHERE workspace_id = ?").run(req.workspaceId);
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
+      await db.prepare("DELETE FROM notion_connections WHERE workspace_id = ?").run(req.workspaceId);
       writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.notion.disconnected", "notion_connections", {});
       return res.json({ success: true });
     },
@@ -1655,9 +1637,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     async (req: any, res) => {
       try {
-        const row = db
-          .prepare("SELECT integration_token, default_parent_page_id FROM notion_connections WHERE workspace_id = ?")
-          .get(req.workspaceId) as any;
+        const row = await db.prepare("SELECT integration_token, default_parent_page_id FROM notion_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
         if (!row) {
           return res.status(403).json({ error: "Notion not connected" });
         }
@@ -1719,7 +1699,7 @@ export function registerIntegrationsRoutes({
 
         const verified = await verifyTwilioCredentials(accountSid.trim(), authToken.trim());
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO twilio_connections (workspace_id, account_sid, auth_token, from_number, updated_at)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -1753,9 +1733,8 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/twilio",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
-      db.prepare("DELETE FROM twilio_connections WHERE workspace_id = ?").run(req.workspaceId);
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
+      await db.prepare("DELETE FROM twilio_connections WHERE workspace_id = ?").run(req.workspaceId);
       writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.twilio.disconnected", "twilio_connections", {});
       return res.json({ success: true });
     },
@@ -1767,7 +1746,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     async (req: any, res) => {
       try {
-        const row = db.prepare("SELECT account_sid, auth_token, from_number FROM twilio_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+        const row = await db.prepare("SELECT account_sid, auth_token, from_number FROM twilio_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
         if (!row) {
           return res.status(403).json({ error: "Twilio not connected" });
         }
@@ -1794,9 +1773,8 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/linkedin",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
-      db.prepare("DELETE FROM linkedin_connections WHERE workspace_id = ?").run(req.workspaceId);
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
+      await db.prepare("DELETE FROM linkedin_connections WHERE workspace_id = ?").run(req.workspaceId);
       return res.json({ success: true });
     },
   );
@@ -1807,7 +1785,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     async (req: any, res) => {
       try {
-        const row = db.prepare("SELECT access_token, author_urn FROM linkedin_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+        const row = await db.prepare("SELECT access_token, author_urn FROM linkedin_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
         if (!row) {
           return res.status(403).json({ error: "LinkedIn not connected" });
         }
@@ -1848,7 +1826,7 @@ export function registerIntegrationsRoutes({
 
   app.get("/api/workspaces/:id/integrations/buffer/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
     try {
-      const row = db.prepare("SELECT access_token FROM buffer_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+      const row = await db.prepare("SELECT access_token FROM buffer_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
       if (!row) {
         return res.json({ connected: false, profiles: [] });
       }
@@ -1876,7 +1854,7 @@ export function registerIntegrationsRoutes({
 
         const profiles = await fetchBufferProfiles(accessToken.trim());
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO buffer_connections (workspace_id, access_token, updated_at)
           VALUES (?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -1896,9 +1874,8 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/buffer",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
-      db.prepare("DELETE FROM buffer_connections WHERE workspace_id = ?").run(req.workspaceId);
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
+      await db.prepare("DELETE FROM buffer_connections WHERE workspace_id = ?").run(req.workspaceId);
       return res.json({ success: true });
     },
   );
@@ -1909,7 +1886,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     async (req: any, res) => {
       try {
-        const row = db.prepare("SELECT access_token FROM buffer_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+        const row = await db.prepare("SELECT access_token FROM buffer_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
         if (!row) {
           return res.status(403).json({ error: "Buffer not connected" });
         }
@@ -1962,8 +1939,8 @@ export function registerIntegrationsRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/integrations/wordpress/status", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const row = db.prepare("SELECT site_url FROM wordpress_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+  app.get("/api/workspaces/:id/integrations/wordpress/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const row = await db.prepare("SELECT site_url FROM wordpress_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
     return res.json({
       connected: Boolean(row),
       siteUrl: row?.site_url || null,
@@ -1990,7 +1967,7 @@ export function registerIntegrationsRoutes({
         const normalizedSiteUrl = normalizeWordPressSiteUrl(siteUrl);
         const verified = await verifyWordPressCredentials(normalizedSiteUrl, username.trim(), appPassword.trim());
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO wordpress_connections (workspace_id, site_url, username, app_password, updated_at)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -2016,9 +1993,8 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/wordpress",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
-      db.prepare("DELETE FROM wordpress_connections WHERE workspace_id = ?").run(req.workspaceId);
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
+      await db.prepare("DELETE FROM wordpress_connections WHERE workspace_id = ?").run(req.workspaceId);
       return res.json({ success: true });
     },
   );
@@ -2029,7 +2005,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     async (req: any, res) => {
       try {
-        const row = db.prepare("SELECT site_url, username, app_password FROM wordpress_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+        const row = await db.prepare("SELECT site_url, username, app_password FROM wordpress_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
         if (!row) {
           return res.status(403).json({ error: "WordPress not connected" });
         }
@@ -2074,8 +2050,8 @@ export function registerIntegrationsRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/integrations/hubspot/status", requireAuth, requireWorkspaceAccess, (req: any, res) => {
-    const row = db.prepare("SELECT portal_id, account_name FROM hubspot_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+  app.get("/api/workspaces/:id/integrations/hubspot/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
+    const row = await db.prepare("SELECT portal_id, account_name FROM hubspot_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
     return res.json({
       connected: Boolean(row),
       portalId: row?.portal_id ?? null,
@@ -2097,7 +2073,7 @@ export function registerIntegrationsRoutes({
 
         const verified = await verifyHubSpotToken(accessToken.trim());
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO hubspot_connections (workspace_id, access_token, portal_id, account_name, updated_at)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -2123,9 +2099,8 @@ export function registerIntegrationsRoutes({
     "/api/workspaces/:id/integrations/hubspot",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: any, res) => {
-      db.prepare("DELETE FROM hubspot_connections WHERE workspace_id = ?").run(req.workspaceId);
+    requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
+      await db.prepare("DELETE FROM hubspot_connections WHERE workspace_id = ?").run(req.workspaceId);
       return res.json({ success: true });
     },
   );
@@ -2136,7 +2111,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     async (req: any, res) => {
       try {
-        const row = db.prepare("SELECT access_token FROM hubspot_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
+        const row = await db.prepare("SELECT access_token FROM hubspot_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
         if (!row) {
           return res.status(403).json({ error: "HubSpot not connected" });
         }
@@ -2152,7 +2127,7 @@ export function registerIntegrationsRoutes({
           return res.status(400).json({ error: "leadId is required" });
         }
 
-        const lead = db.prepare("SELECT id, name, email, role, company, location FROM leads WHERE id = ? AND workspace_id = ?").get(leadId, req.workspaceId) as any;
+        const lead = await db.prepare("SELECT id, name, email, role, company, location FROM leads WHERE id = ? AND workspace_id = ?").get(leadId, req.workspaceId) as any;
         if (!lead) {
           return res.status(404).json({ error: "Lead not found" });
         }

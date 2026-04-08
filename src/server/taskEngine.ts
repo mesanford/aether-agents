@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { PostgresShim } from "./db.ts";
 import type { GoogleGenAI } from "@google/genai";
 import { createHash } from "node:crypto";
 import {
@@ -17,7 +17,7 @@ import {
 import { checkAndIncrementDailyAIRequestLimit, DailyLimitExceededError } from "./ai/rateLimiterUtility.ts";
 
 type TaskEngineOptions = {
-  db: Database.Database;
+  db: PostgresShim;
   pollIntervalMs?: number;
   aiClient?: GoogleGenAI | null;
   googleClientId?: string;
@@ -25,7 +25,7 @@ type TaskEngineOptions = {
 };
 
 type ExecutePendingTasksOptions = {
-  db: Database.Database;
+  db: PostgresShim;
   now?: string;
   createMessageId?: (workspaceId: number) => string;
   aiClient?: GoogleGenAI | null;
@@ -77,14 +77,14 @@ type NotionConnection = {
   default_parent_page_id: string | null;
 };
 
-function writeAutomationAuditLog(
-  db: Database.Database,
+async function writeAutomationAuditLog(
+  db: PostgresShim,
   workspaceId: number,
   action: string,
   details: Record<string, unknown>,
 ) {
   try {
-    db.prepare(
+    await db.prepare(
       "INSERT INTO audit_logs (workspace_id, user_id, action, resource, details) VALUES (?, ?, ?, ?, ?)",
     ).run(workspaceId, null, action, "tasks", JSON.stringify(details));
   } catch {
@@ -182,8 +182,8 @@ async function createNotionPageFromAutomation(
   }
 }
 
-export function enqueueAutomationJob(
-  db: Database.Database,
+export async function enqueueAutomationJob(
+  db: PostgresShim,
   params: {
     workspaceId: number;
     source: string;
@@ -204,9 +204,10 @@ export function enqueueAutomationJob(
     maxAttempts = 5,
   } = params;
 
-  const result = db.prepare(`
-    INSERT OR IGNORE INTO automation_jobs (workspace_id, source, channel, action, status, payload, dedupe_key, attempts, max_attempts, next_run_at, updated_at)
+  const result = await db.prepare(`
+    INSERT INTO automation_jobs (workspace_id, source, channel, action, status, payload, dedupe_key, attempts, max_attempts, next_run_at, updated_at)
     VALUES (?, ?, ?, ?, 'queued', ?, ?, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT DO NOTHING
   `).run(
     workspaceId,
     source,
@@ -241,18 +242,18 @@ function buildChannelAutomationDedupeKey(
   return createHash("sha256").update(signature).digest("hex");
 }
 
-export async function processAutomationJobs(db: Database.Database, limit = 10) {
-  const jobs = db.prepare(`
+export async function processAutomationJobs(db: PostgresShim, limit = 10) {
+  const jobs = await db.prepare(`
     SELECT id, workspace_id, source, channel, action, payload, attempts, max_attempts
     FROM automation_jobs
     WHERE status IN ('queued', 'retrying')
-      AND datetime(next_run_at) <= datetime('now')
+      AND next_run_at <= CURRENT_TIMESTAMP
     ORDER BY id ASC
     LIMIT ?
   `).all(limit) as AutomationJob[];
 
   for (const job of jobs) {
-    db.prepare("UPDATE automation_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status IN ('queued', 'retrying')")
+    await db.prepare("UPDATE automation_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status IN ('queued', 'retrying')")
       .run(job.id);
 
     try {
@@ -268,7 +269,7 @@ export async function processAutomationJobs(db: Database.Database, limit = 10) {
         }
         await dispatchTaskAutomationForTaskId(db, job.workspace_id, taskId);
       } else if (job.action === "teams.message.send") {
-        const teams = db
+        const teams = await db
           .prepare("SELECT webhook_url, default_channel_name FROM teams_connections WHERE workspace_id = ?")
           .get(job.workspace_id) as TeamsConnection | undefined;
         if (!teams?.webhook_url) {
@@ -283,7 +284,7 @@ export async function processAutomationJobs(db: Database.Database, limit = 10) {
 
         await sendTeamsWebhookMessage(teams.webhook_url, text.trim(), title.trim());
       } else if (job.action === "notion.page.create") {
-        const notion = db
+        const notion = await db
           .prepare("SELECT integration_token, default_parent_page_id FROM notion_connections WHERE workspace_id = ?")
           .get(job.workspace_id) as NotionConnection | undefined;
         if (!notion?.integration_token) {
@@ -318,10 +319,10 @@ export async function processAutomationJobs(db: Database.Database, limit = 10) {
         throw new Error(`Unsupported job action: ${job.action}`);
       }
 
-      db.prepare("UPDATE automation_jobs SET status = 'succeeded', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      await db.prepare("UPDATE automation_jobs SET status = 'succeeded', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .run(job.id);
 
-      writeAutomationAuditLog(db, job.workspace_id, "task.automation.job.succeeded", {
+      await writeAutomationAuditLog(db, job.workspace_id, "task.automation.job.succeeded", {
         jobId: job.id,
         source: job.source,
         channel: job.channel,
@@ -335,13 +336,13 @@ export async function processAutomationJobs(db: Database.Database, limit = 10) {
       const errorMessage = err?.message || "unknown_error";
 
       if (finalFailure) {
-        db.prepare(`
+        await db.prepare(`
           UPDATE automation_jobs
           SET status = 'dead_lettered', attempts = ?, last_error = ?, dead_lettered_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `).run(nextAttempts, errorMessage, job.id);
 
-        writeAutomationAuditLog(db, job.workspace_id, "task.automation.job.dead_lettered", {
+        await writeAutomationAuditLog(db, job.workspace_id, "task.automation.job.dead_lettered", {
           jobId: job.id,
           source: job.source,
           channel: job.channel,
@@ -350,13 +351,13 @@ export async function processAutomationJobs(db: Database.Database, limit = 10) {
           error: errorMessage,
         });
       } else {
-        db.prepare(`
+        await db.prepare(`
           UPDATE automation_jobs
-          SET status = 'retrying', attempts = ?, last_error = ?, next_run_at = datetime('now', '+' || ? || ' seconds'), updated_at = CURRENT_TIMESTAMP
+          SET status = 'retrying', attempts = ?, last_error = ?, next_run_at = CURRENT_TIMESTAMP + (? || ' seconds')::interval, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `).run(nextAttempts, errorMessage, String(delaySeconds), job.id);
 
-        writeAutomationAuditLog(db, job.workspace_id, "task.automation.job.retrying", {
+        await writeAutomationAuditLog(db, job.workspace_id, "task.automation.job.retrying", {
           jobId: job.id,
           source: job.source,
           channel: job.channel,
@@ -403,8 +404,8 @@ function buildSocialPayload(task: { title: string; description?: string; output_
   };
 }
 
-function enqueueApprovalRequest(
-  db: Database.Database,
+async function enqueueApprovalRequest(
+  db: PostgresShim,
   params: {
     workspaceId: number;
     taskId: string | null;
@@ -414,7 +415,7 @@ function enqueueApprovalRequest(
     payload: Record<string, unknown>;
   },
 ) {
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO approval_requests (workspace_id, task_id, agent_id, agent_name, action_type, payload, status)
     VALUES (?, ?, ?, ?, ?, ?, 'pending')
   `).run(
@@ -427,8 +428,8 @@ function enqueueApprovalRequest(
   );
 }
 
-async function maybeDispatchSocialAutomation(db: Database.Database, task: any, artifact: TaskArtifact) {
-  const settings = db
+async function maybeDispatchSocialAutomation(db: PostgresShim, task: any, artifact: TaskArtifact) {
+  const settings = await db
     .prepare(`SELECT linkedin_mode, buffer_mode, buffer_profile_id, require_artifact_image,
               approval_mode_linkedin, approval_mode_buffer, approval_mode_instagram,
               approval_mode_twitter, approval_mode_facebook
@@ -446,10 +447,10 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
     requireArtifactImage: Boolean(settings.require_artifact_image),
     assigneeRole: task.assignee_role || null,
   };
-  writeAutomationAuditLog(db, task.workspace_id, "task.automation.attempted", baseDetails);
+  await writeAutomationAuditLog(db, task.workspace_id, "task.automation.attempted", baseDetails);
 
   if (!isLikelySocialTask(task, task.assignee_role)) {
-    writeAutomationAuditLog(db, task.workspace_id, "task.automation.skipped", {
+    await writeAutomationAuditLog(db, task.workspace_id, "task.automation.skipped", {
       ...baseDetails,
       reason: "not_social_task",
     });
@@ -457,7 +458,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
   }
 
   const selectedMedia = typeof task.selected_media_asset_id === "number"
-    ? db
+    ? await db
         .prepare("SELECT thumbnail FROM media_assets WHERE id = ? AND workspace_id = ?")
         .get(task.selected_media_asset_id, task.workspace_id) as { thumbnail?: string } | undefined
     : undefined;
@@ -483,17 +484,17 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
   const approvalModeBuffer = settings.approval_mode_buffer || "auto";
 
   if (settings.linkedin_mode === "publish") {
-    const linkedin = db
+    const linkedin = await db
       .prepare("SELECT access_token, author_urn FROM linkedin_connections WHERE workspace_id = ?")
       .get(task.workspace_id) as { access_token: string; author_urn: string } | undefined;
     if (!linkedin) {
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.skipped", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.skipped", {
         ...baseDetails,
         channel: "linkedin",
         reason: "connection_missing",
       });
     } else if (approvalModeLinkedIn === "approval") {
-      enqueueApprovalRequest(db, {
+      await enqueueApprovalRequest(db, {
         workspaceId: task.workspace_id,
         taskId: String(task.id),
         agentId: String(task.assignee_id),
@@ -507,7 +508,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
           description: payload.description,
         },
       });
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.linkedin.approval_queued", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.linkedin.approval_queued", {
         ...baseDetails,
         channel: "linkedin",
       });
@@ -519,14 +520,14 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
           title: payload.title,
           description: payload.description,
         });
-        writeAutomationAuditLog(db, task.workspace_id, "task.automation.linkedin.succeeded", {
+        await writeAutomationAuditLog(db, task.workspace_id, "task.automation.linkedin.succeeded", {
           ...baseDetails,
           channel: "linkedin",
           hasImage: Boolean(payload.imageUrl),
           hasLink: Boolean(payload.link),
         });
       } catch (err: any) {
-        writeAutomationAuditLog(db, task.workspace_id, "task.automation.linkedin.failed", {
+        await writeAutomationAuditLog(db, task.workspace_id, "task.automation.linkedin.failed", {
           ...baseDetails,
           channel: "linkedin",
           error: err?.message || "unknown_error",
@@ -536,12 +537,12 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
   }
 
   if (settings.buffer_mode === "queue") {
-    const buffer = db
+    const buffer = await db
       .prepare("SELECT access_token FROM buffer_connections WHERE workspace_id = ?")
       .get(task.workspace_id) as { access_token: string } | undefined;
 
     if (!buffer) {
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.skipped", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.skipped", {
         ...baseDetails,
         channel: "buffer",
         reason: "connection_missing",
@@ -550,7 +551,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
     }
 
     if (approvalModeBuffer === "approval") {
-      enqueueApprovalRequest(db, {
+      await enqueueApprovalRequest(db, {
         workspaceId: task.workspace_id,
         taskId: String(task.id),
         agentId: String(task.assignee_id),
@@ -565,7 +566,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
           profileId: settings.buffer_profile_id || null,
         },
       });
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.approval_queued", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.approval_queued", {
         ...baseDetails,
         channel: "buffer",
       });
@@ -580,7 +581,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
         profileId = defaultProfile?.id || null;
 
         if (profileId) {
-          writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.profile_auto_selected", {
+          await writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.profile_auto_selected", {
             ...baseDetails,
             channel: "buffer",
             profileId,
@@ -588,7 +589,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
           });
         }
       } catch (err: any) {
-        writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.failed", {
+        await writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.failed", {
           ...baseDetails,
           channel: "buffer",
           error: err?.message || "buffer_profile_lookup_failed",
@@ -598,7 +599,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
     }
 
     if (!profileId) {
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.skipped", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.skipped", {
         ...baseDetails,
         channel: "buffer",
         reason: "buffer_profile_missing",
@@ -611,7 +612,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
         link: payload.link || undefined,
         imageUrl: payload.imageUrl || undefined,
       });
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.succeeded", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.succeeded", {
         ...baseDetails,
         channel: "buffer",
         profileId,
@@ -619,7 +620,7 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
         hasLink: Boolean(payload.link),
       });
     } catch (err: any) {
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.failed", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.buffer.failed", {
         ...baseDetails,
         channel: "buffer",
         profileId,
@@ -629,8 +630,8 @@ async function maybeDispatchSocialAutomation(db: Database.Database, task: any, a
   }
 }
 
-function maybeEnqueueWorkspaceChannelAutomation(db: Database.Database, task: any, artifact: TaskArtifact) {
-  const settings = db
+async function maybeEnqueueWorkspaceChannelAutomation(db: PostgresShim, task: any, artifact: TaskArtifact) {
+  const settings = await db
     .prepare("SELECT teams_mode, notion_mode, notion_parent_page_id FROM workspace_automation_settings WHERE workspace_id = ?")
     .get(task.workspace_id) as Pick<AutomationSettings, "teams_mode" | "notion_mode" | "notion_parent_page_id"> | undefined;
 
@@ -641,13 +642,13 @@ function maybeEnqueueWorkspaceChannelAutomation(db: Database.Database, task: any
   const channelText = buildTaskChannelText(task, artifact);
 
   const teams = settings.teams_mode === "send"
-    ? db
+    ? await db
         .prepare("SELECT default_channel_name FROM teams_connections WHERE workspace_id = ?")
         .get(task.workspace_id) as { default_channel_name: string | null } | undefined
     : undefined;
   if (teams && settings.teams_mode === "send") {
     const dedupeKey = buildChannelAutomationDedupeKey("teams", String(task.id), artifact, task.output_summary || null);
-    const queued = enqueueAutomationJob(db, {
+    const queued = await enqueueAutomationJob(db, {
       workspaceId: task.workspace_id,
       source: "task-engine",
       action: "teams.message.send",
@@ -661,7 +662,7 @@ function maybeEnqueueWorkspaceChannelAutomation(db: Database.Database, task: any
       },
     });
     if (!queued.queued) {
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.job.deduped", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.job.deduped", {
         taskId: task.id,
         channel: "teams",
         action: "teams.message.send",
@@ -671,13 +672,13 @@ function maybeEnqueueWorkspaceChannelAutomation(db: Database.Database, task: any
   }
 
   const notion = settings.notion_mode === "create"
-    ? db
+    ? await db
         .prepare("SELECT default_parent_page_id FROM notion_connections WHERE workspace_id = ?")
         .get(task.workspace_id) as { default_parent_page_id: string | null } | undefined
     : undefined;
   if (notion && settings.notion_mode === "create") {
     const dedupeKey = buildChannelAutomationDedupeKey("notion", String(task.id), artifact, task.output_summary || null);
-    const queued = enqueueAutomationJob(db, {
+    const queued = await enqueueAutomationJob(db, {
       workspaceId: task.workspace_id,
       source: "task-engine",
       action: "notion.page.create",
@@ -691,7 +692,7 @@ function maybeEnqueueWorkspaceChannelAutomation(db: Database.Database, task: any
       },
     });
     if (!queued.queued) {
-      writeAutomationAuditLog(db, task.workspace_id, "task.automation.job.deduped", {
+      await writeAutomationAuditLog(db, task.workspace_id, "task.automation.job.deduped", {
         taskId: task.id,
         channel: "notion",
         action: "notion.page.create",
@@ -702,11 +703,11 @@ function maybeEnqueueWorkspaceChannelAutomation(db: Database.Database, task: any
 }
 
 export async function dispatchTaskAutomationForTaskId(
-  db: Database.Database,
+  db: PostgresShim,
   workspaceId: number,
   taskId: string,
 ) {
-  const task = db
+  const task = await db
     .prepare(`
       SELECT t.*, a.role as assignee_role
       FROM tasks t
@@ -748,7 +749,7 @@ export async function executePendingTasks({
   const runTimestamp = Date.now();
 
   // Query all todo items and filter in Node since some due_date values are natural language.
-  const todoTasks = db
+  const todoTasks = await db
     .prepare(`
       SELECT t.*, a.role as assignee_role
       FROM tasks t
@@ -766,14 +767,14 @@ export async function executePendingTasks({
     if (task.due_date <= now) {
       console.log(`[Task Engine] Executing task: ${task.title}`);
 
-      db.prepare("UPDATE tasks SET status = 'running', started_at = ?, last_run_at = ?, completed_at = NULL, last_error = NULL WHERE id = ?")
+      await db.prepare("UPDATE tasks SET status = 'running', started_at = ?, last_run_at = ?, completed_at = NULL, last_error = NULL WHERE id = ?")
         .run(runTimestamp, runTimestamp, task.id);
 
       try {
         const workspaceId = task.workspace_id;
         const agentId = task.assignee_id;
 
-        const agentRow = db.prepare("SELECT * FROM agents WHERE id = ?").get(agentId) as any;
+        const agentRow = await db.prepare("SELECT * FROM agents WHERE id = ?").get(agentId) as any;
         if (!agentRow) throw new Error("Agent not found");
 
         const agent = {
@@ -815,7 +816,7 @@ export async function executePendingTasks({
           }
 
           try {
-            checkAndIncrementDailyAIRequestLimit(db, workspaceId);
+            await checkAndIncrementDailyAIRequestLimit(db, workspaceId);
             executionResult = await buildAiTaskExecutionResult({
               taskTitle: task.title,
               taskDescription: task.description,
@@ -854,7 +855,7 @@ export async function executePendingTasks({
           });
         }
 
-        db.prepare("UPDATE tasks SET status = 'done', execution_type = ?, artifact_type = ?, artifact_payload = ?, completed_at = ?, output_summary = ?, last_error = NULL WHERE id = ?")
+        await db.prepare("UPDATE tasks SET status = 'done', execution_type = ?, artifact_type = ?, artifact_payload = ?, completed_at = ?, output_summary = ?, last_error = NULL WHERE id = ?")
           .run(
             executionResult.executionType,
             executionResult.artifact.type,
@@ -875,7 +876,7 @@ export async function executePendingTasks({
           );
         }
 
-        db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        await db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
           .run(
             createMessageId(workspaceId),
             workspaceId,
@@ -889,7 +890,7 @@ export async function executePendingTasks({
           );
 
         try {
-          maybeEnqueueWorkspaceChannelAutomation(db, {
+          await maybeEnqueueWorkspaceChannelAutomation(db, {
             ...task,
             output_summary: executionResult.outputSummary,
           }, executionResult.artifact as TaskArtifact);
@@ -900,7 +901,7 @@ export async function executePendingTasks({
         }
       } catch (err: any) {
         console.error(`[Task Engine] Failed to execute task ${task.id}: ${err.message}`);
-        db.prepare("UPDATE tasks SET status = 'todo', artifact_type = NULL, artifact_payload = NULL, output_summary = NULL, completed_at = NULL, last_error = ? WHERE id = ?")
+        await db.prepare("UPDATE tasks SET status = 'todo', artifact_type = NULL, artifact_payload = NULL, output_summary = NULL, completed_at = NULL, last_error = ? WHERE id = ?")
           .run(err.message, task.id);
       }
     }

@@ -6,13 +6,9 @@ import { inferTaskExecutionType } from "../taskExecution.ts";
 import { enqueueAutomationJob } from "../taskEngine.ts";
 import { uploadBase64ToGCS, getSignedUrlForGcs, deleteGCSFile } from "../gcpStorage.ts";
 
-type DatabaseLike = {
-  prepare: (sql: string) => {
-    all: (...args: unknown[]) => any[];
-    get: (...args: unknown[]) => any;
-    run: (...args: unknown[]) => { changes?: number; lastInsertRowid?: number | bigint };
-  };
-};
+import type { PostgresShim } from "../db.ts";
+
+type DatabaseLike = PostgresShim;
 
 type RegisterWorkspaceRoutesArgs = {
   app: express.Application;
@@ -26,7 +22,7 @@ type RegisterWorkspaceRoutesArgs = {
   getAllowedMessageCreate: (body: any) => { value?: { agentId: string; senderId: string; senderName: string; senderAvatar: string; content: string; imageUrl: string | null; timestamp: number; type: string }; error?: string };
   isNonEmptyString: (value: unknown) => value is string;
   writeAuditLog: (params: { workspaceId?: number; userId?: number; action: string; resource: string; details?: Record<string, unknown> }) => void;
-  seedWorkspace: (workspaceId: number | bigint) => void;
+  seedWorkspace: (workspaceId: number | bigint) => Promise<void>;
 };
 
 export function registerWorkspaceRoutes({
@@ -229,9 +225,9 @@ export function registerWorkspaceRoutes({
     return false;
   };
 
-  app.get("/api/workspaces", requireAuth, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const workspaces = db.prepare(`
+      const workspaces = await db.prepare(`
         SELECT w.*, wm.role 
         FROM workspaces w 
         JOIN workspace_members wm ON w.id = wm.workspace_id 
@@ -244,15 +240,15 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.post("/api/workspaces", requireAuth, (req: AuthenticatedRequest, res) => {
+  app.post("/api/workspaces", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "Workspace name is required" });
 
-      const result = db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?)").run(name, req.userId);
+      const result = await db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?)").run(name, req.userId);
       const workspaceId = result.lastInsertRowid;
 
-      db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, req.userId, "owner");
+      await db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, req.userId, "owner");
       seedWorkspace(workspaceId as number | bigint);
 
       res.json({ id: workspaceId, name, role: "owner" });
@@ -261,20 +257,20 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.patch("/api/workspaces/:id", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.patch("/api/workspaces/:id", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const { name, logo, description, target_audience } = req.body;
       if (name !== undefined) {
-        db.prepare("UPDATE workspaces SET name = ? WHERE id = ?").run(name, req.workspaceId);
+        await db.prepare("UPDATE workspaces SET name = ? WHERE id = ?").run(name, req.workspaceId);
       }
       if (logo !== undefined) {
-        db.prepare("UPDATE workspaces SET logo = ? WHERE id = ?").run(logo, req.workspaceId);
+        await db.prepare("UPDATE workspaces SET logo = ? WHERE id = ?").run(logo, req.workspaceId);
       }
       if (description !== undefined) {
-        db.prepare("UPDATE workspaces SET description = ? WHERE id = ?").run(description, req.workspaceId);
+        await db.prepare("UPDATE workspaces SET description = ? WHERE id = ?").run(description, req.workspaceId);
       }
       if (target_audience !== undefined) {
-        db.prepare("UPDATE workspaces SET target_audience = ? WHERE id = ?").run(target_audience, req.workspaceId);
+        await db.prepare("UPDATE workspaces SET target_audience = ? WHERE id = ?").run(target_audience, req.workspaceId);
       }
       res.json({ success: true });
     } catch {
@@ -282,7 +278,7 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.delete("/api/workspaces/:id", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner"), (req: AuthenticatedRequest, res) => {
+  app.delete("/api/workspaces/:id", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner"), async (req: AuthenticatedRequest, res) => {
     try {
       const workspaceId = req.workspaceId;
       
@@ -309,7 +305,9 @@ export function registerWorkspaceRoutes({
       ];
 
       // Execute safely in sequence
-      queries.forEach(q => db.prepare(q).run(workspaceId));
+      for (const q of queries) {
+        await db.prepare(q).run(workspaceId);
+      }
       
       res.json({ success: true, message: "Workspace deleted successfully." });
     } catch (err: any) {
@@ -346,18 +344,18 @@ export function registerWorkspaceRoutes({
     }
   };
 
-  app.post("/api/workspaces/:id/complete-onboarding", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.post("/api/workspaces/:id/complete-onboarding", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      db.prepare("UPDATE workspaces SET is_onboarded = 1 WHERE id = ?").run(req.workspaceId);
+      await db.prepare("UPDATE workspaces SET is_onboarded = 1 WHERE id = ?").run(req.workspaceId);
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: "Failed to complete onboarding" });
     }
   });
 
-  app.get("/api/workspaces/:id/members", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/members", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const members = db.prepare(`
+      const members = await db.prepare(`
         SELECT u.id, u.email, u.name, wm.role 
         FROM users u 
         JOIN workspace_members wm ON u.id = wm.user_id 
@@ -373,8 +371,7 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:id/members",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
         const { email, role } = req.body as { email?: string; role?: string };
         if (!isNonEmptyString(email)) {
@@ -390,7 +387,7 @@ export function registerWorkspaceRoutes({
           return res.status(400).json({ error: "Use role update flow for ownership transfer" });
         }
 
-        const user = db.prepare("SELECT id, email, name FROM users WHERE email = ?").get(email.trim()) as
+        const user = await db.prepare("SELECT id, email, name FROM users WHERE email = ?").get(email.trim()) as
           | { id: number; email: string; name: string | null }
           | undefined;
 
@@ -398,12 +395,10 @@ export function registerWorkspaceRoutes({
           return res.status(404).json({ error: "User not found" });
         }
 
-        const existing = db
-          .prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
-          .get(req.workspaceId, user.id) as { role: string } | undefined;
+        const existing = await db.prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?").get(req.workspaceId, user.id) as { role: string } | undefined;
 
         if (existing) {
-          db.prepare("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?").run(
+          await db.prepare("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?").run(
             normalizedRole,
             req.workspaceId,
             user.id,
@@ -418,7 +413,7 @@ export function registerWorkspaceRoutes({
           return res.json({ id: user.id, email: user.email, name: user.name, role: normalizedRole });
         }
 
-        db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(
+        await db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(
           req.workspaceId,
           user.id,
           normalizedRole,
@@ -443,8 +438,7 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:workspaceId/members/:memberUserId",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
         const memberUserId = Number.parseInt(req.params.memberUserId, 10);
         if (!Number.isInteger(memberUserId)) {
@@ -460,9 +454,7 @@ export function registerWorkspaceRoutes({
           return res.status(403).json({ error: "Only owners can promote to owner" });
         }
 
-        const target = db
-          .prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
-          .get(req.workspaceId, memberUserId) as { role: string } | undefined;
+        const target = await db.prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?").get(req.workspaceId, memberUserId) as { role: string } | undefined;
 
         if (!target) {
           return res.status(404).json({ error: "Member not found" });
@@ -473,15 +465,13 @@ export function registerWorkspaceRoutes({
         }
 
         if (target.role === "owner" && role !== "owner") {
-          const ownerCountRow = db
-            .prepare("SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND role = 'owner'")
-            .get(req.workspaceId) as { count: number };
+          const ownerCountRow = await db.prepare("SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND role = 'owner'").get(req.workspaceId) as { count: number };
           if (ownerCountRow.count <= 1) {
             return res.status(400).json({ error: "Workspace must retain at least one owner" });
           }
         }
 
-        db.prepare("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?").run(
+        await db.prepare("UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?").run(
           role,
           req.workspaceId,
           memberUserId,
@@ -506,32 +496,27 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:workspaceId/members/:memberUserId",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
         const memberUserId = Number.parseInt(req.params.memberUserId, 10);
         if (!Number.isInteger(memberUserId)) {
           return res.status(400).json({ error: "Invalid member user id" });
         }
 
-        const target = db
-          .prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
-          .get(req.workspaceId, memberUserId) as { role: string } | undefined;
+        const target = await db.prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?").get(req.workspaceId, memberUserId) as { role: string } | undefined;
 
         if (!target) {
           return res.status(404).json({ error: "Member not found" });
         }
 
         if (target.role === "owner") {
-          const ownerCountRow = db
-            .prepare("SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND role = 'owner'")
-            .get(req.workspaceId) as { count: number };
+          const ownerCountRow = await db.prepare("SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND role = 'owner'").get(req.workspaceId) as { count: number };
           if (ownerCountRow.count <= 1) {
             return res.status(400).json({ error: "Workspace must retain at least one owner" });
           }
         }
 
-        db.prepare("DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?").run(req.workspaceId, memberUserId);
+        await db.prepare("DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?").run(req.workspaceId, memberUserId);
         writeAuditLog({
           workspaceId: req.workspaceId,
           userId: req.userId,
@@ -546,9 +531,9 @@ export function registerWorkspaceRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/invites", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/invites", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const invites = db.prepare("SELECT * FROM workspace_invitations WHERE workspace_id = ? ORDER BY created_at DESC").all(req.workspaceId);
+      const invites = await db.prepare("SELECT * FROM workspace_invitations WHERE workspace_id = ? ORDER BY created_at DESC").all(req.workspaceId);
       res.json(invites);
     } catch {
       res.status(500).json({ error: "Failed to fetch invites" });
@@ -573,16 +558,16 @@ export function registerWorkspaceRoutes({
         }
 
         // Check if user is already a member
-        const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email.trim()) as { id: number } | undefined;
+        const user = await db.prepare("SELECT id FROM users WHERE email = ?").get(email.trim()) as { id: number } | undefined;
         if (user) {
-          const existingMember = db.prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?").get(req.workspaceId, user.id);
+          const existingMember = await db.prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?").get(req.workspaceId, user.id);
           if (existingMember) {
             return res.status(400).json({ error: "User is already a member of this workspace" });
           }
         }
 
         const inviteId = crypto.randomUUID();
-        db.prepare("INSERT INTO workspace_invitations (id, workspace_id, email, role, status) VALUES (?, ?, ?, ?, ?)").run(
+        await db.prepare("INSERT INTO workspace_invitations (id, workspace_id, email, role, status) VALUES (?, ?, ?, ?, ?)").run(
           inviteId,
           req.workspaceId,
           email.trim(),
@@ -599,10 +584,10 @@ export function registerWorkspaceRoutes({
         });
 
         // Get workspace name for the email
-        const workspace = db.prepare("SELECT name FROM workspaces WHERE id = ?").get(req.workspaceId) as { name: string };
+        const workspace = await db.prepare("SELECT name FROM workspaces WHERE id = ?").get(req.workspaceId) as { name: string };
         await sendInvitationEmail(email.trim(), inviteId, workspace?.name || "Workspace", normalizedRole);
 
-        const newInvite = db.prepare("SELECT * FROM workspace_invitations WHERE id = ?").get(inviteId);
+        const newInvite = await db.prepare("SELECT * FROM workspace_invitations WHERE id = ?").get(inviteId);
         res.json(newInvite);
       } catch (err) {
         console.error("Failed to create invite:", err);
@@ -618,10 +603,10 @@ export function registerWorkspaceRoutes({
     requireWorkspaceRole("owner", "admin"),
     async (req: AuthenticatedRequest, res) => {
       try {
-        const invite = db.prepare("SELECT * FROM workspace_invitations WHERE id = ? AND workspace_id = ?").get(req.params.inviteId, req.workspaceId) as { email: string, role: string } | undefined;
+        const invite = await db.prepare("SELECT * FROM workspace_invitations WHERE id = ? AND workspace_id = ?").get(req.params.inviteId, req.workspaceId) as { email: string, role: string } | undefined;
         if (!invite) return res.status(404).json({ error: "Invite not found" });
 
-        const workspace = db.prepare("SELECT name FROM workspaces WHERE id = ?").get(req.workspaceId) as { name: string };
+        const workspace = await db.prepare("SELECT name FROM workspaces WHERE id = ?").get(req.workspaceId) as { name: string };
         await sendInvitationEmail(invite.email, req.params.inviteId, workspace?.name || "Workspace", invite.role);
 
         writeAuditLog({
@@ -643,10 +628,9 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:id/invites/:inviteId",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
-        const result = db.prepare("DELETE FROM workspace_invitations WHERE id = ? AND workspace_id = ?").run(req.params.inviteId, req.workspaceId);
+        const result = await db.prepare("DELETE FROM workspace_invitations WHERE id = ? AND workspace_id = ?").run(req.params.inviteId, req.workspaceId);
         
         if (result.changes === 0) {
           return res.status(404).json({ error: "Invite not found" });
@@ -667,19 +651,19 @@ export function registerWorkspaceRoutes({
     }
   );
 
-  app.get("/api/workspaces/:id/leads", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
-    const leads = db.prepare("SELECT * FROM leads WHERE workspace_id = ? ORDER BY id DESC").all(req.workspaceId);
+  app.get("/api/workspaces/:id/leads", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
+    const leads = await db.prepare("SELECT * FROM leads WHERE workspace_id = ? ORDER BY id DESC").all(req.workspaceId);
     res.json(leads);
   });
 
-  app.post("/api/workspaces/:id/leads", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.post("/api/workspaces/:id/leads", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     const { name, role, company, location, email, status, sequence, linkedin_url, avatar } = req.body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ error: "Lead name is required" });
     }
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO leads (name, role, company, location, email, status, sequence, linkedin_url, avatar, workspace_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(name.trim(), role, company, location, email, status || "New Lead", sequence || "None", linkedin_url, avatar, req.workspaceId);
@@ -693,7 +677,7 @@ export function registerWorkspaceRoutes({
     return res.json({ id: result.lastInsertRowid });
   });
 
-  app.patch("/api/workspaces/:workspaceId/leads/:id", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.patch("/api/workspaces/:workspaceId/leads/:id", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     const { id } = req.params;
     const allowedFields = new Set([
       "name",
@@ -718,7 +702,7 @@ export function registerWorkspaceRoutes({
 
     const setClause = keys.map((k) => `${k} = ?`).join(", ");
     const values = Object.values(updates);
-    const result = db.prepare(`UPDATE leads SET ${setClause} WHERE id = ? AND workspace_id = ?`).run(...values, id, req.workspaceId);
+    const result = await db.prepare(`UPDATE leads SET ${setClause} WHERE id = ? AND workspace_id = ?`).run(...values, id, req.workspaceId);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: "Lead not found" });
@@ -735,16 +719,16 @@ export function registerWorkspaceRoutes({
     return res.json({ success: true });
   });
 
-  app.get("/api/workspaces/:id/sequences", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/sequences", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const sequences = db.prepare("SELECT * FROM sales_sequences WHERE workspace_id = ? ORDER BY id DESC").all(req.workspaceId);
+      const sequences = await db.prepare("SELECT * FROM sales_sequences WHERE workspace_id = ? ORDER BY id DESC").all(req.workspaceId);
       res.json(sequences);
     } catch {
       res.status(500).json({ error: "Failed to fetch sequences" });
     }
   });
 
-  app.post("/api/workspaces/:id/sequences", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.post("/api/workspaces/:id/sequences", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     const { title, status, schedule, steps } = req.body;
     if (!title || typeof title !== "string") {
       return res.status(400).json({ error: "Title is required" });
@@ -752,7 +736,7 @@ export function registerWorkspaceRoutes({
     
     try {
       const stepsJson = Array.isArray(steps) ? JSON.stringify(steps) : '[]';
-      const result = db.prepare(`
+      const result = await db.prepare(`
         INSERT INTO sales_sequences (workspace_id, title, status, schedule, steps)
         VALUES (?, ?, ?, ?, ?)
       `).run(req.workspaceId, title, status || 'Draft', schedule || 'Runs every day', stepsJson);
@@ -763,7 +747,7 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.patch("/api/workspaces/:id/sequences/:seqId", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.patch("/api/workspaces/:id/sequences/:seqId", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const { title, status, schedule, steps } = req.body;
       const seqId = req.params.seqId;
@@ -779,7 +763,7 @@ export function registerWorkspaceRoutes({
       if (updates.length > 0) {
         updates.push("updated_at = CURRENT_TIMESTAMP");
         values.push(seqId, req.workspaceId);
-        db.prepare(`UPDATE sales_sequences SET ${updates.join(", ")} WHERE id = ? AND workspace_id = ?`).run(...values);
+        await db.prepare(`UPDATE sales_sequences SET ${updates.join(", ")} WHERE id = ? AND workspace_id = ?`).run(...values);
       }
 
       return res.json({ success: true });
@@ -788,9 +772,9 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.get("/api/workspaces/:id/agents", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/agents", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const rows = db.prepare("SELECT * FROM agents WHERE workspace_id = ?").all(req.workspaceId) as any[];
+      const rows = await db.prepare("SELECT * FROM agents WHERE workspace_id = ?").all(req.workspaceId) as any[];
       const agents = rows.map((a) => ({
         id: a.id,
         name: a.name,
@@ -809,7 +793,7 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.patch("/api/workspaces/:workspaceId/agents/:agentId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.patch("/api/workspaces/:workspaceId/agents/:agentId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { agentId } = req.params;
       const { updates, error } = getAllowedAgentUpdate(req.body);
@@ -821,7 +805,7 @@ export function registerWorkspaceRoutes({
         return res.status(400).json({ error: "No updates provided" });
       }
 
-      const existingAgent = db.prepare("SELECT description, guidelines, capabilities, personality, role FROM agents WHERE id = ? AND workspace_id = ?").get(agentId, req.workspaceId) as {
+      const existingAgent = await db.prepare("SELECT description, guidelines, capabilities, personality, role FROM agents WHERE id = ? AND workspace_id = ?").get(agentId, req.workspaceId) as {
         description?: string | null;
         guidelines?: string | null;
         capabilities?: string | null;
@@ -831,7 +815,7 @@ export function registerWorkspaceRoutes({
 
       if (updates.personality !== undefined) {
         const nextPersonalityFingerprint = personalityFingerprint(updates.personality as Record<string, unknown>, existingAgent?.role || undefined);
-        const siblingAgents = db.prepare("SELECT id, personality, role FROM agents WHERE workspace_id = ? AND id != ?").all(req.workspaceId, agentId) as Array<{
+        const siblingAgents = await db.prepare("SELECT id, personality, role FROM agents WHERE workspace_id = ? AND id != ?").all(req.workspaceId, agentId) as Array<{
           id: string;
           personality?: string | null;
           role?: string | null;
@@ -853,12 +837,12 @@ export function registerWorkspaceRoutes({
         }
       }
 
-      if (updates.status !== undefined) db.prepare("UPDATE agents SET status = ? WHERE id = ? AND workspace_id = ?").run(updates.status, agentId, req.workspaceId);
-      if (updates.name !== undefined) db.prepare("UPDATE agents SET name = ? WHERE id = ? AND workspace_id = ?").run(updates.name, agentId, req.workspaceId);
-      if (updates.guidelines !== undefined) db.prepare("UPDATE agents SET guidelines = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.guidelines), agentId, req.workspaceId);
-      if (updates.description !== undefined) db.prepare("UPDATE agents SET description = ? WHERE id = ? AND workspace_id = ?").run(updates.description, agentId, req.workspaceId);
-      if (updates.capabilities !== undefined) db.prepare("UPDATE agents SET capabilities = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.capabilities), agentId, req.workspaceId);
-      if (updates.personality !== undefined) db.prepare("UPDATE agents SET personality = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.personality), agentId, req.workspaceId);
+      if (updates.status !== undefined) await db.prepare("UPDATE agents SET status = ? WHERE id = ? AND workspace_id = ?").run(updates.status, agentId, req.workspaceId);
+      if (updates.name !== undefined) await db.prepare("UPDATE agents SET name = ? WHERE id = ? AND workspace_id = ?").run(updates.name, agentId, req.workspaceId);
+      if (updates.guidelines !== undefined) await db.prepare("UPDATE agents SET guidelines = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.guidelines), agentId, req.workspaceId);
+      if (updates.description !== undefined) await db.prepare("UPDATE agents SET description = ? WHERE id = ? AND workspace_id = ?").run(updates.description, agentId, req.workspaceId);
+      if (updates.capabilities !== undefined) await db.prepare("UPDATE agents SET capabilities = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.capabilities), agentId, req.workspaceId);
+      if (updates.personality !== undefined) await db.prepare("UPDATE agents SET personality = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.personality), agentId, req.workspaceId);
       writeAuditLog({
         workspaceId: req.workspaceId,
         userId: req.userId,
@@ -900,9 +884,9 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.get("/api/workspaces/:id/tasks", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/tasks", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const rows = db.prepare("SELECT * FROM tasks WHERE workspace_id = ? ORDER BY rowid ASC").all(req.workspaceId) as any[];
+      const rows = await db.prepare("SELECT * FROM tasks WHERE workspace_id = ? ORDER BY rowid ASC").all(req.workspaceId) as any[];
       const tasks = rows.map((t) => ({
         id: t.id,
         title: t.title,
@@ -927,9 +911,9 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.delete("/api/workspaces/:id/tasks/:taskId", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.delete("/api/workspaces/:id/tasks/:taskId", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const result = db.prepare("DELETE FROM tasks WHERE id = ? AND workspace_id = ?").run(req.params.taskId, req.workspaceId);
+      const result = await db.prepare("DELETE FROM tasks WHERE id = ? AND workspace_id = ?").run(req.params.taskId, req.workspaceId);
       if (result.changes === 0) {
         return res.status(404).json({ error: "Task not found" });
       }
@@ -940,14 +924,14 @@ export function registerWorkspaceRoutes({
   });
 
 
-  app.post("/api/workspaces/:id/tasks", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.post("/api/workspaces/:id/tasks", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { value, error } = getAllowedTaskCreate(req.body);
       if (error || !value) {
         return res.status(400).json({ error: error || "Invalid task payload" });
       }
 
-      const assignee = db.prepare("SELECT role FROM agents WHERE id = ? AND workspace_id = ?").get(value.assigneeId, req.workspaceId) as { role: string } | undefined;
+      const assignee = await db.prepare("SELECT role FROM agents WHERE id = ? AND workspace_id = ?").get(value.assigneeId, req.workspaceId) as { role: string } | undefined;
       if (!assignee) {
         return res.status(400).json({ error: "Invalid task assignee" });
       }
@@ -959,7 +943,7 @@ export function registerWorkspaceRoutes({
       });
 
       const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 6)}:${req.workspaceId}`;
-      db.prepare("INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, due_date, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(taskId, req.workspaceId, value.title, value.description, value.assigneeId, "todo", executionType, value.dueDate, value.repeat);
+      await db.prepare("INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, due_date, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(taskId, req.workspaceId, value.title, value.description, value.assigneeId, "todo", executionType, value.dueDate, value.repeat);
       writeAuditLog({
         workspaceId: req.workspaceId,
         userId: req.userId,
@@ -977,14 +961,13 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:workspaceId/tasks/:taskId/selected-media",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
         const taskId = req.params.taskId;
         const selectedMediaAssetIdRaw = req.body?.selectedMediaAssetId;
 
         if (selectedMediaAssetIdRaw === null || selectedMediaAssetIdRaw === undefined || selectedMediaAssetIdRaw === "") {
-          const result = db.prepare("UPDATE tasks SET selected_media_asset_id = NULL WHERE id = ? AND workspace_id = ?").run(taskId, req.workspaceId);
+          const result = await db.prepare("UPDATE tasks SET selected_media_asset_id = NULL WHERE id = ? AND workspace_id = ?").run(taskId, req.workspaceId);
           if (!result.changes) {
             return res.status(404).json({ error: "Task not found" });
           }
@@ -1005,14 +988,12 @@ export function registerWorkspaceRoutes({
           return res.status(400).json({ error: "selectedMediaAssetId must be an integer or null" });
         }
 
-        const mediaAsset = db
-          .prepare("SELECT id FROM media_assets WHERE id = ? AND workspace_id = ?")
-          .get(selectedMediaAssetId, req.workspaceId) as { id: number } | undefined;
+        const mediaAsset = await db.prepare("SELECT id FROM media_assets WHERE id = ? AND workspace_id = ?").get(selectedMediaAssetId, req.workspaceId) as { id: number } | undefined;
         if (!mediaAsset) {
           return res.status(404).json({ error: "Media asset not found" });
         }
 
-        const result = db.prepare("UPDATE tasks SET selected_media_asset_id = ? WHERE id = ? AND workspace_id = ?").run(
+        const result = await db.prepare("UPDATE tasks SET selected_media_asset_id = ? WHERE id = ? AND workspace_id = ?").run(
           selectedMediaAssetId,
           taskId,
           req.workspaceId,
@@ -1041,7 +1022,7 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:workspaceId/agents/:agentId/prompt-versions",
     requireAuth,
     requireWorkspaceAccess,
-    (req: AuthenticatedRequest, res) => {
+    async (req: AuthenticatedRequest, res) => {
       try {
         const agentId = req.params.agentId;
         const parsedLimit = Number.parseInt(String(req.query.limit || "10"), 10);
@@ -1049,15 +1030,13 @@ export function registerWorkspaceRoutes({
           ? Math.min(parsedLimit, 50)
           : 10;
 
-        const rows = db
-          .prepare(`
+        const rows = await db.prepare(`
             SELECT id, user_id, details, created_at
             FROM audit_logs
             WHERE workspace_id = ? AND action = 'agent.prompt_context.versioned'
             ORDER BY id DESC
             LIMIT 200
-          `)
-          .all(req.workspaceId) as Array<{ id: number; user_id: number | null; details: string | null; created_at: string | null }>;
+          `).all(req.workspaceId) as Array<{ id: number; user_id: number | null; details: string | null; created_at: string | null }>;
 
         const versions = rows
           .map((row) => {
@@ -1097,7 +1076,7 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:workspaceId/tasks/:taskId/automation-logs",
     requireAuth,
     requireWorkspaceAccess,
-    (req: AuthenticatedRequest, res) => {
+    async (req: AuthenticatedRequest, res) => {
       try {
         const taskId = req.params.taskId;
         const parsedLimit = Number.parseInt(String(req.query.limit || "20"), 10);
@@ -1105,15 +1084,13 @@ export function registerWorkspaceRoutes({
           ? Math.min(parsedLimit, 100)
           : 20;
 
-        const rows = db
-          .prepare(`
+        const rows = await db.prepare(`
             SELECT id, action, details, created_at
             FROM audit_logs
             WHERE workspace_id = ? AND action LIKE 'task.automation.%'
             ORDER BY id DESC
             LIMIT 200
-          `)
-          .all(req.workspaceId) as Array<{ id: number; action: string; details: string | null; created_at: string | null }>;
+          `).all(req.workspaceId) as Array<{ id: number; action: string; details: string | null; created_at: string | null }>;
 
         const logs = rows
           .map((row) => {
@@ -1147,13 +1124,10 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:workspaceId/tasks/:taskId/automation-retry",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
         const taskId = req.params.taskId;
-        const task = db
-          .prepare("SELECT id, artifact_payload FROM tasks WHERE id = ? AND workspace_id = ?")
-          .get(taskId, req.workspaceId) as { id: string; artifact_payload: string | null } | undefined;
+        const task = await db.prepare("SELECT id, artifact_payload FROM tasks WHERE id = ? AND workspace_id = ?").get(taskId, req.workspaceId) as { id: string; artifact_payload: string | null } | undefined;
 
         if (!task) {
           return res.status(404).json({ error: "Task not found" });
@@ -1199,7 +1173,7 @@ export function registerWorkspaceRoutes({
     },
   );
 
-  app.patch("/api/workspaces/:workspaceId/tasks/:taskId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.patch("/api/workspaces/:workspaceId/tasks/:taskId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const taskId = req.params.taskId;
       const { status, error } = getAllowedTaskStatusUpdate(req.body);
@@ -1207,7 +1181,7 @@ export function registerWorkspaceRoutes({
         return res.status(400).json({ error: error || "Invalid task status" });
       }
 
-      db.prepare("UPDATE tasks SET status = ? WHERE id = ? AND workspace_id = ?").run(status, taskId, req.workspaceId);
+      await db.prepare("UPDATE tasks SET status = ? WHERE id = ? AND workspace_id = ?").run(status, taskId, req.workspaceId);
       writeAuditLog({
         workspaceId: req.workspaceId,
         userId: req.userId,
@@ -1225,8 +1199,7 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:workspaceId/tasks/:taskId/promote-artifact",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
         const taskId = req.params.taskId;
         const leadId = Number.parseInt(String(req.body?.leadId), 10);
@@ -1235,14 +1208,12 @@ export function registerWorkspaceRoutes({
           return res.status(400).json({ error: "Valid leadId is required" });
         }
 
-        const task = db
-          .prepare(`
+        const task = await db.prepare(`
             SELECT t.id, t.title, t.artifact_payload, a.name as assignee_name
             FROM tasks t
             LEFT JOIN agents a ON a.id = t.assignee_id AND a.workspace_id = t.workspace_id
             WHERE t.id = ? AND t.workspace_id = ?
-          `)
-          .get(taskId, req.workspaceId) as
+          `).get(taskId, req.workspaceId) as
           | { id: string; title: string; artifact_payload: string | null; assignee_name: string | null }
           | undefined;
 
@@ -1266,9 +1237,7 @@ export function registerWorkspaceRoutes({
           return res.status(500).json({ error: "Task artifact is invalid" });
         }
 
-        const lead = db
-          .prepare("SELECT id, notes FROM leads WHERE id = ? AND workspace_id = ?")
-          .get(leadId, req.workspaceId) as { id: number; notes: string | null } | undefined;
+        const lead = await db.prepare("SELECT id, notes FROM leads WHERE id = ? AND workspace_id = ?").get(leadId, req.workspaceId) as { id: number; notes: string | null } | undefined;
 
         if (!lead) {
           return res.status(404).json({ error: "Lead not found" });
@@ -1284,7 +1253,7 @@ export function registerWorkspaceRoutes({
           .filter((value): value is string => Boolean(value && value.trim()))
           .join("\n\n");
 
-        db.prepare("UPDATE leads SET notes = ? WHERE id = ? AND workspace_id = ?").run(appendedNotes, leadId, req.workspaceId);
+        await db.prepare("UPDATE leads SET notes = ? WHERE id = ? AND workspace_id = ?").run(appendedNotes, leadId, req.workspaceId);
 
         writeAuditLog({
           workspaceId: req.workspaceId,
@@ -1301,14 +1270,14 @@ export function registerWorkspaceRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/messages", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/messages", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const { agentId } = req.query;
       let rows: any[];
       if (agentId) {
-        rows = db.prepare("SELECT * FROM messages WHERE workspace_id = ? AND agent_id = ? ORDER BY timestamp ASC").all(req.workspaceId, agentId as string);
+        rows = await db.prepare("SELECT * FROM messages WHERE workspace_id = ? AND agent_id = ? ORDER BY timestamp ASC").all(req.workspaceId, agentId as string);
       } else {
-        rows = db.prepare("SELECT * FROM messages WHERE workspace_id = ? ORDER BY timestamp ASC").all(req.workspaceId);
+        rows = await db.prepare("SELECT * FROM messages WHERE workspace_id = ? ORDER BY timestamp ASC").all(req.workspaceId);
       }
       const messages = rows.map((m) => ({
         id: m.id,
@@ -1327,16 +1296,16 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.delete("/api/workspaces/:id/agents/:agentId/messages", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.delete("/api/workspaces/:id/agents/:agentId/messages", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      db.prepare("DELETE FROM messages WHERE workspace_id = ? AND agent_id = ?").run(req.workspaceId, req.params.agentId);
+      await db.prepare("DELETE FROM messages WHERE workspace_id = ? AND agent_id = ?").run(req.workspaceId, req.params.agentId);
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: "Failed to clear agent message history" });
     }
   });
 
-  app.post("/api/workspaces/:id/messages", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.post("/api/workspaces/:id/messages", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const { value, error } = getAllowedMessageCreate(req.body);
       if (error || !value) {
@@ -1344,7 +1313,7 @@ export function registerWorkspaceRoutes({
       }
 
       const msgId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}:${req.workspaceId}`;
-      db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(msgId, req.workspaceId, value.agentId, value.senderId, value.senderName, value.senderAvatar, value.content, value.imageUrl, value.timestamp, value.type);
+      await db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(msgId, req.workspaceId, value.agentId, value.senderId, value.senderName, value.senderAvatar, value.content, value.imageUrl, value.timestamp, value.type);
       res.json({ id: msgId });
     } catch {
       res.status(500).json({ error: "Failed to save message" });
@@ -1353,9 +1322,7 @@ export function registerWorkspaceRoutes({
 
   app.get("/api/workspaces/:id/media", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const media = db
-        .prepare("SELECT id, name, type, category, thumbnail, size, author, created_at FROM media_assets WHERE workspace_id = ? ORDER BY created_at DESC, id DESC")
-        .all(req.workspaceId) as any[];
+      const media = await db.prepare("SELECT id, name, type, category, thumbnail, size, author, created_at FROM media_assets WHERE workspace_id = ? ORDER BY created_at DESC, id DESC").all(req.workspaceId) as any[];
       
       const mappedMedia = await Promise.all(media.map(async (m) => ({
         ...m,
@@ -1397,13 +1364,9 @@ export function registerWorkspaceRoutes({
         thumbnail = await uploadBase64ToGCS(thumbnail, req.workspaceId);
       }
 
-      const result = db
-        .prepare("INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .run(req.workspaceId, name, type, category, thumbnail, size, author);
+      const result = await db.prepare("INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author) VALUES (?, ?, ?, ?, ?, ?, ?)").run(req.workspaceId, name, type, category, thumbnail, size, author);
 
-      const created: any = db
-        .prepare("SELECT id, name, type, category, thumbnail, size, author, created_at FROM media_assets WHERE id = ? AND workspace_id = ?")
-        .get(result.lastInsertRowid, req.workspaceId);
+      const created: any = await db.prepare("SELECT id, name, type, category, thumbnail, size, author, created_at FROM media_assets WHERE id = ? AND workspace_id = ?").get(result.lastInsertRowid, req.workspaceId);
 
       if (created) {
         created.thumbnail = await getSignedUrlForGcs(created.thumbnail);
@@ -1428,24 +1391,23 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:workspaceId/media/:mediaId",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
         const mediaId = Number.parseInt(req.params.mediaId, 10);
         if (!Number.isInteger(mediaId)) {
           return res.status(400).json({ error: "Invalid media id" });
         }
 
-        const targetAsset = db.prepare("SELECT thumbnail FROM media_assets WHERE id = ? AND workspace_id = ?").get(mediaId, req.workspaceId) as any;
+        const targetAsset = await db.prepare("SELECT thumbnail FROM media_assets WHERE id = ? AND workspace_id = ?").get(mediaId, req.workspaceId) as any;
         if (!targetAsset) {
           return res.status(404).json({ error: "Media asset not found" });
         }
 
-        db.prepare("UPDATE tasks SET selected_media_asset_id = NULL WHERE workspace_id = ? AND selected_media_asset_id = ?").run(
+        await db.prepare("UPDATE tasks SET selected_media_asset_id = NULL WHERE workspace_id = ? AND selected_media_asset_id = ?").run(
           req.workspaceId,
           mediaId,
         );
-        const result = db.prepare("DELETE FROM media_assets WHERE id = ? AND workspace_id = ?").run(mediaId, req.workspaceId);
+        const result = await db.prepare("DELETE FROM media_assets WHERE id = ? AND workspace_id = ?").run(mediaId, req.workspaceId);
 
         if (targetAsset.thumbnail && targetAsset.thumbnail.startsWith('gcs://')) {
           void deleteGCSFile(targetAsset.thumbnail);
@@ -1467,9 +1429,9 @@ export function registerWorkspaceRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/automation-settings", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/automation-settings", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const row = db.prepare(`SELECT linkedin_mode, buffer_mode, teams_mode, notion_mode, buffer_profile_id, notion_parent_page_id, require_artifact_image,
+      const row = await db.prepare(`SELECT linkedin_mode, buffer_mode, teams_mode, notion_mode, buffer_profile_id, notion_parent_page_id, require_artifact_image,
         approval_mode_linkedin, approval_mode_buffer
         FROM workspace_automation_settings WHERE workspace_id = ?`).get(req.workspaceId) as
         | {
@@ -1505,8 +1467,7 @@ export function registerWorkspaceRoutes({
     "/api/workspaces/:id/automation-settings",
     requireAuth,
     requireWorkspaceAccess,
-    requireWorkspaceRole("owner", "admin"),
-    (req: AuthenticatedRequest, res) => {
+    requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
       try {
         const linkedinMode = typeof req.body?.linkedinMode === "string" ? req.body.linkedinMode.trim().toLowerCase() : "off";
         const bufferMode = typeof req.body?.bufferMode === "string" ? req.body.bufferMode.trim().toLowerCase() : "off";
@@ -1538,7 +1499,7 @@ export function registerWorkspaceRoutes({
           return res.status(400).json({ error: "notionMode must be off or create" });
         }
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO workspace_automation_settings (workspace_id, linkedin_mode, buffer_mode, teams_mode, notion_mode, buffer_profile_id, notion_parent_page_id, require_artifact_image, approval_mode_linkedin, approval_mode_buffer, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(workspace_id) DO UPDATE SET
@@ -1579,19 +1540,19 @@ export function registerWorkspaceRoutes({
     },
   );
 
-  app.get("/api/workspaces/:id/integrations/health", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/integrations/health", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const linkedin = db.prepare("SELECT workspace_id FROM linkedin_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
-      const buffer = db.prepare("SELECT workspace_id FROM buffer_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
-      const wordpress = db.prepare("SELECT workspace_id FROM wordpress_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
-      const hubspot = db.prepare("SELECT workspace_id FROM hubspot_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
-      const teams = db.prepare("SELECT workspace_id FROM teams_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
-      const notion = db.prepare("SELECT workspace_id FROM notion_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
-      const automationSettings = db.prepare("SELECT linkedin_mode, buffer_mode, teams_mode, notion_mode, require_artifact_image FROM workspace_automation_settings WHERE workspace_id = ?").get(req.workspaceId) as
+      const linkedin = await db.prepare("SELECT workspace_id FROM linkedin_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
+      const buffer = await db.prepare("SELECT workspace_id FROM buffer_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
+      const wordpress = await db.prepare("SELECT workspace_id FROM wordpress_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
+      const hubspot = await db.prepare("SELECT workspace_id FROM hubspot_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
+      const teams = await db.prepare("SELECT workspace_id FROM teams_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
+      const notion = await db.prepare("SELECT workspace_id FROM notion_connections WHERE workspace_id = ?").get(req.workspaceId) as { workspace_id: number } | undefined;
+      const automationSettings = await db.prepare("SELECT linkedin_mode, buffer_mode, teams_mode, notion_mode, require_artifact_image FROM workspace_automation_settings WHERE workspace_id = ?").get(req.workspaceId) as
         | { linkedin_mode: string; buffer_mode: string; teams_mode: string; notion_mode: string; require_artifact_image: number }
         | undefined;
 
-      const failureRows = db.prepare(`
+      const failureRows = await db.prepare(`
         SELECT id, action, details, created_at
         FROM audit_logs
         WHERE workspace_id = ? AND action LIKE 'task.automation.%.failed'
@@ -1649,7 +1610,7 @@ export function registerWorkspaceRoutes({
         }
       }
 
-      const queueRows = db.prepare(`
+      const queueRows = await db.prepare(`
         SELECT status, COUNT(*) as count
         FROM automation_jobs
         WHERE workspace_id = ?
@@ -1671,7 +1632,7 @@ export function registerWorkspaceRoutes({
         if (row.status === "dead_lettered") queue.deadLettered = row.count;
       }
 
-      const deduped24hRow = db.prepare(`
+      const deduped24hRow = await db.prepare(`
         SELECT COUNT(*) as count
         FROM audit_logs
         WHERE workspace_id = ?
@@ -1680,11 +1641,11 @@ export function registerWorkspaceRoutes({
       `).get(req.workspaceId) as { count: number } | undefined;
       queue.deduped24h = deduped24hRow?.count || 0;
 
-      const automationRows = db.prepare(`
+      const automationRows = await db.prepare(`
         SELECT action, details, created_at
         FROM audit_logs
         WHERE workspace_id = ? AND action LIKE 'task.automation.%'
-        ORDER BY id DESC
+        ORDER BY created_at DESC
         LIMIT 500
       `).all(req.workspaceId) as Array<{ action: string; details: string | null; created_at: string | null }>;
 
@@ -1805,21 +1766,21 @@ export function registerWorkspaceRoutes({
   // KNOWLEDGE DOCUMENTS API
   // =========================================================================
 
-  app.get("/api/workspaces/:id/knowledge", requireAuth, requireWorkspaceAccess, (req: AuthenticatedRequest, res) => {
+  app.get("/api/workspaces/:id/knowledge", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const rows = db.prepare("SELECT id, title, content, author, created_at, updated_at FROM knowledge_documents WHERE workspace_id = ? ORDER BY updated_at DESC").all(req.workspaceId);
+      const rows = await db.prepare("SELECT id, title, content, author, created_at, updated_at FROM knowledge_documents WHERE workspace_id = ? ORDER BY updated_at DESC").all(req.workspaceId);
       res.json(rows);
     } catch {
       res.status(500).json({ error: "Failed to fetch knowledge documents" });
     }
   });
 
-  app.post("/api/workspaces/:id/knowledge", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.post("/api/workspaces/:id/knowledge", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { title, content, author } = req.body;
       if (!title || !content) return res.status(400).json({ error: "Title and content are required" });
       const docId = `doc-${Date.now()}`;
-      db.prepare("INSERT INTO knowledge_documents (id, workspace_id, title, content, author) VALUES (?, ?, ?, ?, ?)").run(docId, req.workspaceId, title, content, author || "System");
+      await db.prepare("INSERT INTO knowledge_documents (id, workspace_id, title, content, author) VALUES (?, ?, ?, ?, ?)").run(docId, req.workspaceId, title, content, author || "System");
       res.status(201).json({ id: docId, title, content, author });
     } catch (err) {
       console.error(err);
@@ -1827,7 +1788,7 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.patch("/api/workspaces/:id/knowledge/:docId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.patch("/api/workspaces/:id/knowledge/:docId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     try {
       const { title, content } = req.body;
       const updates: string[] = [];
@@ -1837,7 +1798,7 @@ export function registerWorkspaceRoutes({
       if (updates.length > 0) {
         updates.push("updated_at = CURRENT_TIMESTAMP");
         values.push(req.params.docId, req.workspaceId);
-        db.prepare(`UPDATE knowledge_documents SET ${updates.join(", ")} WHERE id = ? AND workspace_id = ?`).run(...values);
+        await db.prepare(`UPDATE knowledge_documents SET ${updates.join(", ")} WHERE id = ? AND workspace_id = ?`).run(...values);
       }
       res.json({ success: true });
     } catch {
@@ -1845,9 +1806,9 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.delete("/api/workspaces/:id/knowledge/:docId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), (req: AuthenticatedRequest, res) => {
+  app.delete("/api/workspaces/:id/knowledge/:docId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
     try {
-      db.prepare("DELETE FROM knowledge_documents WHERE id = ? AND workspace_id = ?").run(req.params.docId, req.workspaceId);
+      await db.prepare("DELETE FROM knowledge_documents WHERE id = ? AND workspace_id = ?").run(req.params.docId, req.workspaceId);
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: "Failed to delete document" });

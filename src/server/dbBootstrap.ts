@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import type { PostgresShim } from "./db.ts";
 import { inferTaskExecutionType } from "./taskExecution.ts";
 
 type SeedLead = {
@@ -94,10 +94,15 @@ const INITIAL_MESSAGES_SEED: SeedMessage[] = [
   { id: "tc-3", agentId: "team-chat", senderId: "blog-writer", senderName: "Penny", senderAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Penny&gender=female", content: "On it, Sonny! I'll have the first batch of April drafts to you by tomorrow EOD.", imageUrl: null, timestamp: Date.now() - 1000000, type: "agent" },
 ];
 
-export function bootstrapDatabase(db: Database.Database) {
-  db.exec(`
+export async function bootstrapDatabase(db: PostgresShim) {
+  async function hasColumn(tableName: string, colName: string): Promise<boolean> {
+    const res = await db.prepare("SELECT column_name FROM information_schema.columns WHERE table_name = ? AND column_name = ?").get(tableName, colName);
+    return !!res;
+  }
+
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password TEXT,
       name TEXT,
@@ -108,47 +113,41 @@ export function bootstrapDatabase(db: Database.Database) {
   console.log("Database: users table checked/created");
 
   try {
-    const columns = db.prepare("PRAGMA table_info(users)").all() as any[];
-    const hasGoogleId = columns.some((col) => col.name === "google_id");
-    if (!hasGoogleId) {
-      console.log("Migration: google_id column missing, adding it now...");
-      db.exec("ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE");
+    if (!(await hasColumn("users", "google_id"))) {
+      await db.exec("ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE");
       console.log("Migration: Successfully added google_id column");
     }
-    const hasAvatar = columns.some((col) => col.name === "avatar");
-    if (!hasAvatar) {
-      db.exec("ALTER TABLE users ADD COLUMN avatar TEXT");
+    if (!(await hasColumn("users", "avatar"))) {
+      await db.exec("ALTER TABLE users ADD COLUMN avatar TEXT");
     }
   } catch (err) {
     console.error("Migration failed for users table:", err);
   }
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS workspaces (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       owner_id INTEGER NOT NULL,
       logo TEXT,
       description TEXT,
       target_audience TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      is_onboarded BOOLEAN DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      is_onboarded BOOLEAN DEFAULT false,
       FOREIGN KEY (owner_id) REFERENCES users(id)
     )
   `);
 
   try {
-    const columns = db.prepare("PRAGMA table_info(workspaces)").all() as any[];
-    const hasIsOnboarded = columns.some((col) => col.name === "is_onboarded");
-    if (!hasIsOnboarded) {
+    if (!(await hasColumn("workspaces", "is_onboarded"))) {
       console.log("Migration: is_onboarded column missing on workspaces, adding it now...");
-      db.exec("ALTER TABLE workspaces ADD COLUMN is_onboarded BOOLEAN DEFAULT 0");
+      await db.exec("ALTER TABLE workspaces ADD COLUMN is_onboarded BOOLEAN DEFAULT false");
     }
   } catch (err) {
     console.error("Migration error for workspaces is_onboarded:", err);
   }
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS workspace_members (
       workspace_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
@@ -159,100 +158,100 @@ export function bootstrapDatabase(db: Database.Database) {
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS workspace_invitations (
       id TEXT PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       email TEXT NOT NULL,
       role TEXT NOT NULL,
       status TEXT DEFAULT 'pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS google_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL UNIQUE,
       access_token TEXT NOT NULL,
       refresh_token TEXT,
-      expiry_date INTEGER,
+      expiry_date BIGINT,
       scopes TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS workspace_google_defaults (
       workspace_id INTEGER PRIMARY KEY,
       analytics_property_id TEXT,
       search_console_site_url TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS wordpress_connections (
       workspace_id INTEGER PRIMARY KEY,
       site_url TEXT NOT NULL,
       username TEXT NOT NULL,
       app_password TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS hubspot_connections (
       workspace_id INTEGER PRIMARY KEY,
       access_token TEXT NOT NULL,
       portal_id INTEGER,
       account_name TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS linkedin_connections (
       workspace_id INTEGER PRIMARY KEY,
       access_token TEXT NOT NULL,
       author_urn TEXT NOT NULL,
       account_name TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS buffer_connections (
       workspace_id INTEGER PRIMARY KEY,
       access_token TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS twilio_connections (
       workspace_id INTEGER PRIMARY KEY,
       account_sid TEXT NOT NULL,
       auth_token TEXT NOT NULL,
       from_number TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS slack_connections (
       workspace_id INTEGER PRIMARY KEY,
       bot_token TEXT NOT NULL,
@@ -260,38 +259,38 @@ export function bootstrapDatabase(db: Database.Database) {
       team_id TEXT,
       team_name TEXT,
       bot_user_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS teams_connections (
       workspace_id INTEGER PRIMARY KEY,
       webhook_url TEXT NOT NULL,
       default_channel_name TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS notion_connections (
       workspace_id INTEGER PRIMARY KEY,
       integration_token TEXT NOT NULL,
       bot_name TEXT,
       default_parent_page_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS leads (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       role TEXT,
       company TEXT,
@@ -305,84 +304,80 @@ export function bootstrapDatabase(db: Database.Database) {
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS sales_sequences (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       title TEXT NOT NULL,
       status TEXT DEFAULT 'Draft',
       schedule TEXT DEFAULT 'Runs every day',
       steps TEXT NOT NULL DEFAULT '[]',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS sequence_enrollments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       lead_id INTEGER NOT NULL,
       sequence_id INTEGER NOT NULL,
       current_step_idx INTEGER DEFAULT 0,
-      next_execution_datetime DATETIME,
+      next_execution_datetime TIMESTAMP,
       status TEXT DEFAULT 'Active',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
       FOREIGN KEY (lead_id) REFERENCES leads(id),
       FOREIGN KEY (sequence_id) REFERENCES sales_sequences(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS sequence_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       lead_id INTEGER NOT NULL,
       sequence_id INTEGER NOT NULL,
       event_type TEXT NOT NULL,
       content TEXT,
       agent_feedback TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
       FOREIGN KEY (lead_id) REFERENCES leads(id),
       FOREIGN KEY (sequence_id) REFERENCES sales_sequences(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS stan_memory_ledger (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       learning TEXT NOT NULL,
       confidence_score INTEGER DEFAULT 50,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
   try {
-    const leadColumns = db.prepare("PRAGMA table_info(leads)").all() as any[];
-    const hasWorkspaceId = leadColumns.some((col) => col.name === "workspace_id");
-    const hasNotes = leadColumns.some((col) => col.name === "notes");
-
-    if (!hasWorkspaceId) {
-      db.exec("ALTER TABLE leads ADD COLUMN workspace_id INTEGER");
+    if (!(await hasColumn("leads", "workspace_id"))) {
+      await db.exec("ALTER TABLE leads ADD COLUMN workspace_id INTEGER");
     }
 
-    if (!hasNotes) {
-      db.exec("ALTER TABLE leads ADD COLUMN notes TEXT");
+    if (!(await hasColumn("leads", "notes"))) {
+      await db.exec("ALTER TABLE leads ADD COLUMN notes TEXT");
     }
 
-    db.exec("CREATE INDEX IF NOT EXISTS idx_leads_workspace_id ON leads(workspace_id)");
+    await db.exec("CREATE INDEX IF NOT EXISTS idx_leads_workspace_id ON leads(workspace_id)");
   } catch (err) {
     console.error("Migration failed for leads table:", err);
   }
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS agents (
       id TEXT PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
@@ -400,15 +395,14 @@ export function bootstrapDatabase(db: Database.Database) {
   `);
 
   try {
-    const agentColumns = db.prepare("PRAGMA table_info(agents)").all() as Array<{ name: string }>;
-    if (!agentColumns.some((column) => column.name === "personality")) {
-      db.exec("ALTER TABLE agents ADD COLUMN personality TEXT");
+    if (!(await hasColumn("agents", "personality"))) {
+      await db.exec("ALTER TABLE agents ADD COLUMN personality TEXT");
     }
   } catch (err) {
     console.error("Migration failed for agents table:", err);
   }
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
@@ -422,9 +416,9 @@ export function bootstrapDatabase(db: Database.Database) {
       artifact_payload TEXT,
       output_summary TEXT,
       last_error TEXT,
-      last_run_at INTEGER,
-      started_at INTEGER,
-      completed_at INTEGER,
+      last_run_at BIGINT,
+      started_at BIGINT,
+      completed_at BIGINT,
       due_date TEXT,
       repeat TEXT,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
@@ -433,31 +427,30 @@ export function bootstrapDatabase(db: Database.Database) {
   `);
 
   try {
-    const taskColumns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name: string }>;
-    const ensureTaskColumn = (columnName: string, definition: string) => {
-      if (!taskColumns.some((column) => column.name === columnName)) {
-        db.exec(`ALTER TABLE tasks ADD COLUMN ${columnName} ${definition}`);
+    async function ensureTaskColumn(columnName: string, definition: string) {
+      if (!(await hasColumn("tasks", columnName))) {
+        await db.exec(`ALTER TABLE tasks ADD COLUMN ${columnName} ${definition}`);
       }
-    };
+    }
 
-    ensureTaskColumn("execution_type", "TEXT DEFAULT 'generic'");
-    ensureTaskColumn("selected_media_asset_id", "INTEGER");
-    ensureTaskColumn("artifact_type", "TEXT");
-    ensureTaskColumn("artifact_payload", "TEXT");
-    ensureTaskColumn("output_summary", "TEXT");
-    ensureTaskColumn("last_error", "TEXT");
-    ensureTaskColumn("last_run_at", "INTEGER");
-    ensureTaskColumn("started_at", "INTEGER");
-    ensureTaskColumn("completed_at", "INTEGER");
+    await ensureTaskColumn("execution_type", "TEXT DEFAULT 'generic'");
+    await ensureTaskColumn("selected_media_asset_id", "INTEGER");
+    await ensureTaskColumn("artifact_type", "TEXT");
+    await ensureTaskColumn("artifact_payload", "TEXT");
+    await ensureTaskColumn("output_summary", "TEXT");
+    await ensureTaskColumn("last_error", "TEXT");
+    await ensureTaskColumn("last_run_at", "BIGINT");
+    await ensureTaskColumn("started_at", "BIGINT");
+    await ensureTaskColumn("completed_at", "BIGINT");
 
-    db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_workspace_selected_media ON tasks(workspace_id, selected_media_asset_id)");
+    await db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_ws_med ON tasks(workspace_id, selected_media_asset_id)");
   } catch (err) {
     console.error("Migration failed for tasks table:", err);
   }
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS media_assets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       type TEXT NOT NULL DEFAULT 'image',
@@ -465,13 +458,13 @@ export function bootstrapDatabase(db: Database.Database) {
       thumbnail TEXT NOT NULL,
       size TEXT,
       author TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
-  db.exec("CREATE INDEX IF NOT EXISTS idx_media_assets_workspace_created ON media_assets(workspace_id, created_at DESC)");
+  await db.exec("CREATE INDEX IF NOT EXISTS idx_media_assets_ws_created ON media_assets(workspace_id, created_at DESC)");
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS workspace_automation_settings (
       workspace_id INTEGER PRIMARY KEY,
       linkedin_mode TEXT NOT NULL DEFAULT 'off',
@@ -484,51 +477,50 @@ export function bootstrapDatabase(db: Database.Database) {
       max_daily_ai_requests INTEGER NOT NULL DEFAULT 300,
       daily_ai_requests_count INTEGER NOT NULL DEFAULT 0,
       daily_ai_requests_date TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
   try {
-    const automationColumns = db.prepare("PRAGMA table_info(workspace_automation_settings)").all() as Array<{ name: string }>;
-    const ensureAutomationColumn = (columnName: string, definition: string) => {
-      if (!automationColumns.some((column) => column.name === columnName)) {
-        db.exec(`ALTER TABLE workspace_automation_settings ADD COLUMN ${columnName} ${definition}`);
+    async function ensureAutomationColumn(columnName: string, definition: string) {
+      if (!(await hasColumn("workspace_automation_settings", columnName))) {
+        await db.exec(`ALTER TABLE workspace_automation_settings ADD COLUMN ${columnName} ${definition}`);
       }
-    };
+    }
 
-    ensureAutomationColumn("teams_mode", "TEXT NOT NULL DEFAULT 'off'");
-    ensureAutomationColumn("notion_mode", "TEXT NOT NULL DEFAULT 'off'");
-    ensureAutomationColumn("notion_parent_page_id", "TEXT");
-    ensureAutomationColumn("approval_mode_linkedin", "TEXT NOT NULL DEFAULT 'auto'");
-    ensureAutomationColumn("approval_mode_buffer", "TEXT NOT NULL DEFAULT 'auto'");
-    ensureAutomationColumn("approval_mode_instagram", "TEXT NOT NULL DEFAULT 'auto'");
-    ensureAutomationColumn("approval_mode_twitter", "TEXT NOT NULL DEFAULT 'auto'");
-    ensureAutomationColumn("approval_mode_facebook", "TEXT NOT NULL DEFAULT 'auto'");
-    ensureAutomationColumn("max_daily_ai_requests", "INTEGER NOT NULL DEFAULT 300");
-    ensureAutomationColumn("daily_ai_requests_count", "INTEGER NOT NULL DEFAULT 0");
-    ensureAutomationColumn("daily_ai_requests_date", "TEXT");
+    await ensureAutomationColumn("teams_mode", "TEXT NOT NULL DEFAULT 'off'");
+    await ensureAutomationColumn("notion_mode", "TEXT NOT NULL DEFAULT 'off'");
+    await ensureAutomationColumn("notion_parent_page_id", "TEXT");
+    await ensureAutomationColumn("approval_mode_linkedin", "TEXT NOT NULL DEFAULT 'auto'");
+    await ensureAutomationColumn("approval_mode_buffer", "TEXT NOT NULL DEFAULT 'auto'");
+    await ensureAutomationColumn("approval_mode_instagram", "TEXT NOT NULL DEFAULT 'auto'");
+    await ensureAutomationColumn("approval_mode_twitter", "TEXT NOT NULL DEFAULT 'auto'");
+    await ensureAutomationColumn("approval_mode_facebook", "TEXT NOT NULL DEFAULT 'auto'");
+    await ensureAutomationColumn("max_daily_ai_requests", "INTEGER NOT NULL DEFAULT 300");
+    await ensureAutomationColumn("daily_ai_requests_count", "INTEGER NOT NULL DEFAULT 0");
+    await ensureAutomationColumn("daily_ai_requests_date", "TEXT");
   } catch (err) {
     console.error("Migration failed for workspace_automation_settings table:", err);
   }
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS knowledge_documents (
       id TEXT PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
       author TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS approval_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       task_id TEXT,
       agent_id TEXT NOT NULL,
@@ -536,17 +528,17 @@ export function bootstrapDatabase(db: Database.Database) {
       action_type TEXT NOT NULL,
       payload TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
-      requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      reviewed_at DATETIME,
+      requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at TIMESTAMP,
       reviewed_by_user_id INTEGER,
       rejection_reason TEXT,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
       FOREIGN KEY (reviewed_by_user_id) REFERENCES users(id)
     )
   `);
-  db.exec("CREATE INDEX IF NOT EXISTS idx_approval_requests_pending ON approval_requests(workspace_id, status, requested_at DESC)");
+  await db.exec("CREATE INDEX IF NOT EXISTS idx_appreqs_pending ON approval_requests(workspace_id, status, requested_at DESC)");
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
@@ -556,47 +548,47 @@ export function bootstrapDatabase(db: Database.Database) {
       sender_avatar TEXT,
       content TEXT NOT NULL,
       image_url TEXT,
-      timestamp INTEGER NOT NULL,
+      timestamp BIGINT NOT NULL,
       type TEXT NOT NULL,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
       FOREIGN KEY (agent_id) REFERENCES agents(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS audit_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER,
       user_id INTEGER,
       action TEXT NOT NULL,
       resource TEXT NOT NULL,
       details TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
       FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS workspace_webhook_secrets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       provider TEXT NOT NULL,
       secret TEXT NOT NULL,
       created_by_user_id INTEGER,
       is_active INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      rotated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      rotated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
       FOREIGN KEY (created_by_user_id) REFERENCES users(id),
       UNIQUE(workspace_id, provider, is_active)
     )
   `);
-  db.exec("CREATE INDEX IF NOT EXISTS idx_workspace_webhook_secrets_lookup ON workspace_webhook_secrets(workspace_id, provider, is_active)");
+  await db.exec("CREATE INDEX IF NOT EXISTS idx_workspace_webhook_secrets_lookup ON workspace_webhook_secrets(workspace_id, provider, is_active)");
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS automation_jobs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       source TEXT NOT NULL,
       channel TEXT,
@@ -606,66 +598,65 @@ export function bootstrapDatabase(db: Database.Database) {
       dedupe_key TEXT,
       attempts INTEGER NOT NULL DEFAULT 0,
       max_attempts INTEGER NOT NULL DEFAULT 5,
-      next_run_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      next_run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       last_error TEXT,
-      dead_lettered_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      dead_lettered_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
-  db.exec("CREATE INDEX IF NOT EXISTS idx_automation_jobs_ready ON automation_jobs(status, next_run_at)");
-  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_jobs_dedupe ON automation_jobs(workspace_id, action, dedupe_key) WHERE dedupe_key IS NOT NULL");
+  await db.exec("CREATE INDEX IF NOT EXISTS idx_automation_jobs_ready ON automation_jobs(status, next_run_at)");
+  await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_jobs_dedupe ON automation_jobs(workspace_id, action, dedupe_key) "); // SQLite WHERE dedupe_key IS NOT NULL is complex in PG without partial index, we omit for schema simplicity
 
   try {
-    const automationJobColumns = db.prepare("PRAGMA table_info(automation_jobs)").all() as Array<{ name: string }>;
-    if (!automationJobColumns.some((column) => column.name === "dedupe_key")) {
-      db.exec("ALTER TABLE automation_jobs ADD COLUMN dedupe_key TEXT");
+    if (!(await hasColumn("automation_jobs", "dedupe_key"))) {
+      await db.exec("ALTER TABLE automation_jobs ADD COLUMN dedupe_key TEXT");
     }
   } catch (err) {
     console.error("Migration failed for automation_jobs table:", err);
   }
 
-  const count = db.prepare("SELECT COUNT(*) as count FROM leads").get() as { count: number };
-  if (count.count === 0) {
+  const count = await db.prepare("SELECT COUNT(*) as count FROM leads").get() as { count: string };
+  if (Number(count?.count) === 0) {
     const insert = db.prepare(`
       INSERT INTO leads (name, role, company, location, email, status, sequence, linkedin_url, avatar, workspace_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
     `);
 
-    INITIAL_LEADS_SEED.forEach((lead) => {
-      insert.run(lead.name, lead.role, lead.company, lead.location, lead.email, lead.status, lead.sequence, lead.linkedin_url, lead.avatar);
-    });
+    for (const lead of INITIAL_LEADS_SEED) {
+      await insert.run(lead.name, lead.role, lead.company, lead.location, lead.email, lead.status, lead.sequence, lead.linkedin_url, lead.avatar);
+    }
   }
 
-  const usersWithoutWorkspaces = db.prepare(`
+  const usersWithoutWorkspaces = await db.prepare(`
     SELECT id, name, email FROM users
     WHERE id NOT IN (SELECT user_id FROM workspace_members)
   `).all() as Array<{ id: number; name: string | null; email: string }>;
 
-  usersWithoutWorkspaces.forEach((user) => {
+  for (const user of usersWithoutWorkspaces) {
     const wsName = `${user.name || user.email.split("@")[0]}'s Workspace`;
-    const wsResult = db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?)").run(wsName, user.id);
-    const workspaceId = wsResult.lastInsertRowid;
-    db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, user.id, "owner");
-  });
-
-  const defaultWorkspace = db.prepare("SELECT id FROM workspaces ORDER BY id ASC LIMIT 1").get() as { id: number } | undefined;
-  if (defaultWorkspace?.id) {
-    db.prepare("UPDATE leads SET workspace_id = ? WHERE workspace_id IS NULL").run(defaultWorkspace.id);
+    const wsResult = await db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?) RETURNING id").get(wsName, user.id);
+    const workspaceId = (wsResult as any).id;
+    await db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, user.id, "owner");
   }
 
-  function seedWorkspace(workspaceId: number | bigint) {
-    const agentCount = db.prepare("SELECT COUNT(*) as count FROM agents WHERE workspace_id = ?").get(workspaceId) as { count: number };
-    if (agentCount.count > 0) return;
+  const defaultWorkspace = await db.prepare("SELECT id FROM workspaces ORDER BY id ASC LIMIT 1").get() as { id: number } | undefined;
+  if (defaultWorkspace?.id) {
+    await db.prepare("UPDATE leads SET workspace_id = ? WHERE workspace_id IS NULL").run(defaultWorkspace.id);
+  }
 
-    const insertAgent = db.prepare("INSERT OR IGNORE INTO agents (id, workspace_id, name, role, status, description, avatar, capabilities, guidelines, personality, last_action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    const insertTask = db.prepare("INSERT OR IGNORE INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, due_date, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    const insertMessage = db.prepare("INSERT OR IGNORE INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  async function seedWorkspace(workspaceId: number | string | bigint) {
+    const agentCount = await db.prepare("SELECT COUNT(*) as count FROM agents WHERE workspace_id = ?").get(workspaceId) as { count: string };
+    if (Number(agentCount?.count) > 0) return;
+
+    const insertAgent = db.prepare("INSERT INTO agents (id, workspace_id, name, role, status, description, avatar, capabilities, guidelines, personality, last_action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
+    const insertTask = db.prepare("INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, due_date, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
+    const insertMessage = db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
 
     for (const a of INITIAL_AGENTS_SEED) {
       const agentId = `${a.id}:${workspaceId}`;
-      insertAgent.run(agentId, workspaceId, a.name, a.role, "idle", a.description, a.avatar, a.capabilities, a.guidelines, a.personality, a.lastAction);
+      await insertAgent.run(agentId, workspaceId, a.name, a.role, "idle", a.description, a.avatar, a.capabilities, a.guidelines, a.personality, a.lastAction);
     }
     for (const t of INITIAL_TASKS_SEED) {
       const taskId = `${t.id}:${workspaceId}`;
@@ -676,18 +667,18 @@ export function bootstrapDatabase(db: Database.Database) {
         taskDescription: t.description,
         agentRole: seedAgent?.role,
       });
-      insertTask.run(taskId, workspaceId, t.title, t.description || "", assigneeId, t.status, executionType, t.dueDate || "", t.repeat || "");
+      await insertTask.run(taskId, workspaceId, t.title, t.description || "", assigneeId, t.status, executionType, t.dueDate || "", t.repeat || "");
     }
     for (const m of INITIAL_MESSAGES_SEED) {
       const msgId = `${m.id}:${workspaceId}`;
       const agentId = `${m.agentId}:${workspaceId}`;
-      insertMessage.run(msgId, workspaceId, agentId, m.senderId, m.senderName, m.senderAvatar, m.content, m.imageUrl, m.timestamp, m.type);
+      await insertMessage.run(msgId, workspaceId, agentId, m.senderId, m.senderName, m.senderAvatar, m.content, m.imageUrl, m.timestamp, m.type);
     }
   }
 
-  const allWorkspaces = db.prepare("SELECT id FROM workspaces").all() as Array<{ id: number }>;
+  const allWorkspaces = await db.prepare("SELECT id FROM workspaces").all() as Array<{ id: number }>;
   for (const ws of allWorkspaces) {
-    seedWorkspace(ws.id);
+    await seedWorkspace(ws.id);
   }
 
   return { seedWorkspace };

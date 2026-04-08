@@ -4,7 +4,7 @@ import { generateAuthUrl, exchangeCodeForTokens, initializeWorkspaceFolder } fro
 export function registerGoogleDriveRoutes({ app, db, requireAuth, requireWorkspaceAccess }: any) {
   
   // 1. Kickoff the Auth Flow
-  app.get('/api/workspaces/:workspaceId/integrations/google/auth', requireAuth, requireWorkspaceAccess, (req: express.Request, res: express.Response) => {
+  app.get('/api/workspaces/:workspaceId/integrations/google/auth', requireAuth, requireWorkspaceAccess, async (req: express.Request, res: express.Response) => {
     const { workspaceId } = req.params;
     const state = JSON.stringify({ workspaceId });
     const url = generateAuthUrl(state);
@@ -28,13 +28,13 @@ export function registerGoogleDriveRoutes({ app, db, requireAuth, requireWorkspa
       const auth = getOAuthClient();
       auth.setCredentials(tokens);
 
-      const workspace = db.prepare('SELECT name FROM workspaces WHERE id = ?').get(workspaceId);
+      const workspace = await await db.prepare('SELECT name FROM workspaces WHERE id = ?').get(workspaceId);
       const workspaceName = workspace?.name || 'Workspace';
 
       const folderId = await initializeWorkspaceFolder(auth, workspaceName);
 
       // Save everything
-      db.prepare(`
+      await db.prepare(`
         UPDATE workspaces 
         SET google_access_token = ?, google_refresh_token = ?, google_folder_id = ?, google_token_expiry = ?
         WHERE id = ?
@@ -49,9 +49,9 @@ export function registerGoogleDriveRoutes({ app, db, requireAuth, requireWorkspa
   });
 
   // 3. Status check
-  app.get('/api/workspaces/:workspaceId/integrations/google/status', requireAuth, requireWorkspaceAccess, (req: express.Request, res: express.Response) => {
+  app.get('/api/workspaces/:workspaceId/integrations/google/status', requireAuth, requireWorkspaceAccess, async (req: express.Request, res: express.Response) => {
     const { workspaceId } = req.params;
-    const workspace = db.prepare('SELECT google_folder_id FROM workspaces WHERE id = ?').get(workspaceId);
+    const workspace = await db.prepare('SELECT google_folder_id FROM workspaces WHERE id = ?').get(workspaceId);
     
     if (workspace?.google_folder_id) {
       res.json({ connected: true, folderId: workspace.google_folder_id });
@@ -61,7 +61,7 @@ export function registerGoogleDriveRoutes({ app, db, requireAuth, requireWorkspa
   });
 
   // 4. Disconnect
-  app.delete('/api/workspaces/:workspaceId/integrations/google', requireAuth, requireWorkspaceAccess, (req: express.Request, res: express.Response) => {
+  app.delete('/api/workspaces/:workspaceId/integrations/google', requireAuth, requireWorkspaceAccess, async (req: express.Request, res: express.Response) => {
     const { workspaceId } = req.params;
     db.prepare(`
       UPDATE workspaces 

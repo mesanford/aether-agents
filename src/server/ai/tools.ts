@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { z } from "zod";
 import fs from 'fs';
 import path from 'path';
-import Database from 'better-sqlite3';
+import db from '../db.ts';
 import { ShadowGitServer } from '../lib/git/shadow';
 
 const SHADOW_DIR = path.resolve(process.cwd(), '.shadow-workspace');
@@ -23,8 +23,7 @@ export const searchGoogleDriveTool = tool(
   async ({ query }, config) => {
     if (!config?.configurable?.workspaceId) return "Error: Missing workspaceId in config.";
     try {
-      const db = new Database('./crm.db');
-      const workspace = db.prepare('SELECT google_refresh_token, google_folder_id FROM workspaces WHERE id = ?').get(config.configurable.workspaceId) as any;
+      const workspace = await db.prepare('SELECT google_refresh_token, google_folder_id FROM workspaces WHERE id = ?').get(config.configurable.workspaceId) as any;
       
       if (!workspace?.google_refresh_token || !workspace?.google_folder_id) {
         return "Google Drive is not connected. The user must connect it via Settings -> Integrations.";
@@ -103,8 +102,7 @@ export const generateImageTool = tool(
           const threadId = config.configurable.thread_id as string;
           const workspaceId = config.configurable?.workspace_id || 1;
           
-          const db = new Database('./crm.db');
-          const insertResult = db.prepare(`
+          const insertResult = await db.prepare(`
             INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author)
             VALUES (?, ?, ?, ?, ?, ?, ?)
           `).run(workspaceId, `AI Generation: ${prompt.substring(0, 30)}...`, 'image', 'generated', dataUrl, 'Unknown', threadId.includes('social-media-manager') ? 'Sonny' : 'Penny');
@@ -132,12 +130,10 @@ export const scheduleSocialPostTool = tool(
     const workspaceId = config.configurable?.workspace_id || 1;
     const assigneeId = threadId.replace('thread_', '').split('_')[1] || 'social-media-manager';
     
-    const db = new Database('./crm.db');
-    
     let fetchedImageUrl = null;
     if (args.mediaAssetId) {
       try {
-        const media = db.prepare('SELECT thumbnail FROM media_assets WHERE id = ?').get(args.mediaAssetId) as any;
+        const media = await db.prepare('SELECT thumbnail FROM media_assets WHERE id = ?').get(args.mediaAssetId) as any;
         if (media?.thumbnail) fetchedImageUrl = media.thumbnail;
       } catch (err) {
         console.error("Failed to load media asset for social post", err);
@@ -152,7 +148,7 @@ export const scheduleSocialPostTool = tool(
     });
 
     const taskId = `task-${Date.now()}`;
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, artifact_payload, due_date, selected_media_asset_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(taskId, workspaceId, `Social Drop on ${args.platform}`, `Stage Content: ${args.content?.substring(0, 50)}...`, assigneeId, 'todo', 'social_post', draftArtifact, args.date || 'Soon', args.mediaAssetId || null);
@@ -173,12 +169,10 @@ export const publishBlogPostTool = tool(
     const workspaceId = config.configurable?.workspace_id || 1;
     const assigneeId = threadId.replace('thread_', '').split('_')[1] || 'blog-writer';
     
-    const db = new Database('./crm.db');
-    
     let fetchedImageUrl = null;
     if (args.mediaAssetId) {
       try {
-        const media = db.prepare('SELECT thumbnail FROM media_assets WHERE id = ?').get(args.mediaAssetId) as any;
+        const media = await db.prepare('SELECT thumbnail FROM media_assets WHERE id = ?').get(args.mediaAssetId) as any;
         if (media?.thumbnail) fetchedImageUrl = media.thumbnail;
       } catch (err) {
         console.error("Failed to load media asset for blog post", err);
@@ -197,7 +191,7 @@ export const publishBlogPostTool = tool(
     const isNewsletter = plat.toLowerCase().includes('newsletter') || plat.toLowerCase().includes('substack');
     const executionType = isNewsletter ? 'newsletter_draft' : 'blog_draft';
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, artifact_payload, due_date, selected_media_asset_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(taskId, workspaceId, `Publish Article: ${args.title}`, `Stage Content: ${args.content?.substring(0, 50)}...`, assigneeId, 'todo', executionType, draftArtifact, 'Soon', args.mediaAssetId || null);
@@ -241,17 +235,15 @@ export const deleteTaskTool = tool(
     const workspaceId = config.configurable?.workspace_id || 1;
     const assigneeId = threadId.replace('thread_', '').split('_')[1] || '%';
     
-    const db = new Database('./crm.db');
-    
     try {
       if (query.trim().toUpperCase() === 'ALL') {
-        const result = db.prepare(`
+        const result = await db.prepare(`
           DELETE FROM tasks 
           WHERE workspace_id = ? AND assignee_id LIKE ? AND status != 'done' AND execution_type IN ('social_post', 'blog_draft', 'newsletter_draft', 'blog_post')
         `).run(workspaceId, `%${assigneeId}%`);
         return `[SUCCESS] Deleted ${result.changes} draft(s) from the queue.`;
       } else {
-        const result = db.prepare(`
+        const result = await db.prepare(`
           DELETE FROM tasks 
           WHERE workspace_id = ? AND assignee_id LIKE ? AND status != 'done' AND (title LIKE ? OR description LIKE ?) AND execution_type IN ('social_post', 'blog_draft', 'newsletter_draft', 'blog_post')
         `).run(workspaceId, `%${assigneeId}%`, `%${query}%`, `%${query}%`);

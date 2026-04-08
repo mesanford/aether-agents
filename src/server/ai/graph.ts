@@ -1,8 +1,7 @@
 import { config } from 'dotenv';
 config({ path: '.env.local', override: true });
 
-import { END, START, StateGraph } from '@langchain/langgraph';
-import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
+import { END, START, StateGraph, MemorySaver } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { AgentState, customMessagesReducer } from './state';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
@@ -298,7 +297,7 @@ builder.addConditionalEdges('tool_node' as any,
 
 // Compile Graph
 // Global memory checkpointer tracks thread_id persistently
-export const checkpointer = SqliteSaver.fromConnString("crm.db");
+export const checkpointer = new MemorySaver();
 export const workflow = builder.compile({ 
   checkpointer,
   interruptBefore: ['approval_node' as any]

@@ -5,12 +5,9 @@ import type { AuthenticatedRequest, ConnectedServices, LiveContext } from "../ty
 import { workflow } from "../ai/graph.ts";
 import { agentIds } from "../ai/agents.ts";
 import { checkAndIncrementDailyAIRequestLimit, DailyLimitExceededError } from "../ai/rateLimiterUtility.ts";
-type DatabaseLike = {
-  prepare: (sql: string) => {
-    all: (...args: unknown[]) => any[];
-    get: (...args: unknown[]) => any;
-  };
-};
+import type { PostgresShim } from "../db.ts";
+
+type DatabaseLike = PostgresShim;
 
 type RegisterAiRoutesArgs = {
   app: express.Application;
@@ -113,13 +110,13 @@ export function registerAiRoutes({
       .join("\n");
   };
 
-  const getWorkspaceAgentProfiles = (workspaceId: string) => {
+  const getWorkspaceAgentProfiles = async (workspaceId: string) => {
     if (!db) {
       return {} as Record<string, string>;
     }
 
     try {
-      const rows = db.prepare(`
+      const rows = await db.prepare(`
         SELECT id, description, capabilities, guidelines, personality
         FROM agents
         WHERE workspace_id = ?
@@ -167,12 +164,12 @@ export function registerAiRoutes({
       
       try {
         if (db) {
-          const workspaceInfo = db.prepare("SELECT description, target_audience FROM workspaces WHERE id = ?").get(req.params.id) as any;
+          const workspaceInfo = await db.prepare("SELECT description, target_audience FROM workspaces WHERE id = ?").get(req.params.id) as any;
           if (workspaceInfo && (workspaceInfo.description || workspaceInfo.target_audience)) {
             dataAccessSection += `\n\n[COMPANY KNOWLEDGE]\nCompany Description: ${workspaceInfo.description || 'N/A'}\nTarget Audience: ${workspaceInfo.target_audience || 'N/A'}\nCRITICAL: You are an internal agency employee working for this team. ALL of your logic, ideas, drafts and actions MUST strictly align with the core company description and adapt natively to the target audience defined above! NEVER contradict these core principles.\n\n`;
           }
 
-          const docs = db.prepare("SELECT title, content FROM knowledge_documents WHERE workspace_id = ? ORDER BY updated_at DESC").all(req.params.id) as any[];
+          const docs = await db.prepare("SELECT title, content FROM knowledge_documents WHERE workspace_id = ? ORDER BY updated_at DESC").all(req.params.id) as any[];
           if (docs && docs.length > 0) {
             dataAccessSection += `<company_knowledge_base>\n`;
             docs.forEach(doc => {
@@ -193,7 +190,7 @@ export function registerAiRoutes({
       
       try {
         if (db) {
-          checkAndIncrementDailyAIRequestLimit(db, req.params.id);
+          await checkAndIncrementDailyAIRequestLimit(db, req.params.id);
         }
       } catch (limitErr) {
         if (limitErr instanceof DailyLimitExceededError) {
