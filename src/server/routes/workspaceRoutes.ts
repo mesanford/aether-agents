@@ -228,11 +228,11 @@ export function registerWorkspaceRoutes({
   app.get("/api/workspaces", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const workspaces = await db.prepare(`
-        SELECT w.*, wm.role 
+        SELECT w.*, COALESCE(wm.role, 'owner') as role 
         FROM workspaces w 
-        JOIN workspace_members wm ON w.id = wm.workspace_id 
-        WHERE wm.user_id = ?
-      `).all(req.userId);
+        LEFT JOIN workspace_members wm ON w.id = wm.workspace_id AND wm.user_id = ?
+        WHERE wm.user_id = ? OR w.owner_id = ?
+      `).all(req.userId, req.userId, req.userId);
 
       res.json(workspaces);
     } catch {

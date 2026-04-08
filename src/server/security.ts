@@ -43,9 +43,18 @@ export function createSecurityTools(db: DatabaseLike, jwtSecret: string) {
         return res.status(400).json({ error: "Invalid workspace id" });
       }
 
-      const membership = await db.prepare(
+      let membership = await db.prepare(
         "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?"
       ).get(workspaceId, req.userId) as { role: string } | undefined;
+
+      if (!membership) {
+        // Auto-recover lost workspace ownership
+        const workspace = await db.prepare("SELECT owner_id FROM workspaces WHERE id = ?").get(workspaceId) as { owner_id: number } | undefined;
+        if (workspace && workspace.owner_id === req.userId) {
+          await db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING").run(workspaceId, req.userId, "owner");
+          membership = { role: "owner" };
+        }
+      }
 
       if (!membership) {
         return res.status(403).json({ error: "Forbidden" });
