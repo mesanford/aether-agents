@@ -104,9 +104,9 @@ export const generateImageTool = tool(
           
           const insertResult = await db.prepare(`
             INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(workspaceId, `AI Generation: ${prompt.substring(0, 30)}...`, 'image', 'generated', dataUrl, 'Unknown', threadId.includes('social-media-manager') ? 'Sonny' : 'Penny');
-          mediaAssetId = insertResult.lastInsertRowid;
+            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+          `).get(workspaceId, `AI Generation: ${prompt.substring(0, 30)}...`, 'image', 'generated', dataUrl, 'Unknown', threadId.includes('social-media-manager') ? 'Sonny' : 'Penny') as any;
+          mediaAssetId = insertResult.id;
         }
         
         return `[IMAGE GENERATED] Visual for '${prompt}' created. MEDIA_ASSET_ID: ${mediaAssetId || 'unknown'}`;

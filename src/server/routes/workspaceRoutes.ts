@@ -245,11 +245,11 @@ export function registerWorkspaceRoutes({
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "Workspace name is required" });
 
-      const result = await db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?)").run(name, req.userId);
-      const workspaceId = result.lastInsertRowid;
+      const result = await db.prepare("INSERT INTO workspaces (name, owner_id) VALUES (?, ?) RETURNING id").get(name, req.userId) as any;
+      const workspaceId = result.id;
 
       await db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, req.userId, "owner");
-      seedWorkspace(workspaceId as number | bigint);
+      await seedWorkspace(workspaceId).catch(console.error);
 
       res.json({ id: workspaceId, name, role: "owner" });
     } catch {
@@ -665,16 +665,16 @@ export function registerWorkspaceRoutes({
 
     const result = await db.prepare(`
       INSERT INTO leads (name, role, company, location, email, status, sequence, linkedin_url, avatar, workspace_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(name.trim(), role, company, location, email, status || "New Lead", sequence || "None", linkedin_url, avatar, req.workspaceId);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+    `).get(name.trim(), role, company, location, email, status || "New Lead", sequence || "None", linkedin_url, avatar, req.workspaceId) as any;
     writeAuditLog({
       workspaceId: req.workspaceId,
       userId: req.userId,
       action: "lead.created",
       resource: "leads",
-      details: { leadId: result.lastInsertRowid },
+      details: { leadId: result.id },
     });
-    return res.json({ id: result.lastInsertRowid });
+    return res.json({ id: result.id });
   });
 
   app.patch("/api/workspaces/:workspaceId/leads/:id", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
@@ -738,10 +738,10 @@ export function registerWorkspaceRoutes({
       const stepsJson = Array.isArray(steps) ? JSON.stringify(steps) : '[]';
       const result = await db.prepare(`
         INSERT INTO sales_sequences (workspace_id, title, status, schedule, steps)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(req.workspaceId, title, status || 'Draft', schedule || 'Runs every day', stepsJson);
+        VALUES (?, ?, ?, ?, ?) RETURNING id
+      `).get(req.workspaceId, title, status || 'Draft', schedule || 'Runs every day', stepsJson) as any;
       
-      res.json({ id: result.lastInsertRowid });
+      res.json({ id: result.id });
     } catch {
       res.status(500).json({ error: "Failed to create sequence" });
     }
@@ -1364,9 +1364,9 @@ export function registerWorkspaceRoutes({
         thumbnail = await uploadBase64ToGCS(thumbnail, req.workspaceId);
       }
 
-      const result = await db.prepare("INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author) VALUES (?, ?, ?, ?, ?, ?, ?)").run(req.workspaceId, name, type, category, thumbnail, size, author);
+      const result = await db.prepare("INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id").get(req.workspaceId, name, type, category, thumbnail, size, author) as any;
 
-      const created: any = await db.prepare("SELECT id, name, type, category, thumbnail, size, author, created_at FROM media_assets WHERE id = ? AND workspace_id = ?").get(result.lastInsertRowid, req.workspaceId);
+      const created: any = await db.prepare("SELECT id, name, type, category, thumbnail, size, author, created_at FROM media_assets WHERE id = ? AND workspace_id = ?").get(result.id, req.workspaceId);
 
       if (created) {
         created.thumbnail = await getSignedUrlForGcs(created.thumbnail);
@@ -1377,7 +1377,7 @@ export function registerWorkspaceRoutes({
         userId: req.userId,
         action: "media.created",
         resource: "media_assets",
-        details: { mediaId: result.lastInsertRowid, type, category },
+        details: { mediaId: result.id, type, category },
       });
 
       return res.json(created);
