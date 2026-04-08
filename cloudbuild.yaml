@@ -28,3 +28,6 @@ steps:
 
 images:
   - 'gcr.io/$PROJECT_ID/agencyos:$BUILD_ID'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
