@@ -305,7 +305,7 @@ export const updateWorkspaceTaskTool = tool(
   async ({ taskId, repeat, dueDate, title, description }, config) => {
     try {
       if (!config?.configurable?.workspaceId) return "Error: Missing workspaceId in config.";
-      const { getAllowedTaskUpdate } = require('../validators.ts');
+      const { getAllowedTaskUpdate } = await import('../validators.ts');
       
       const updateData = { repeat, dueDate, title, description };
       Object.keys(updateData).forEach(key => updateData[key as keyof typeof updateData] === undefined && delete updateData[key as keyof typeof updateData]);

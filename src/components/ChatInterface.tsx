@@ -2683,34 +2683,42 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             </div>
                             
                             {editingTaskScheduleId === task.id && (
-                              <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
+                              <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center gap-2 md:gap-4">
                                 <input
                                   type="text"
                                   value={taskScheduleForm.dueDate}
                                   onChange={e => setTaskScheduleForm({...taskScheduleForm, dueDate: e.target.value})}
                                   placeholder="Due e.g., Tomorrow at 3PM"
-                                  className="px-3 py-1.5 text-sm rounded bg-white border border-slate-200 outline-none focus:border-blue-500 w-[180px]"
+                                  className="px-3 py-1.5 text-sm rounded bg-white border border-slate-200 outline-none focus:border-blue-500 w-[160px] flex-1"
                                 />
-                                <input
-                                  type="text"
+                                <select
                                   value={taskScheduleForm.repeat}
                                   onChange={e => setTaskScheduleForm({...taskScheduleForm, repeat: e.target.value})}
-                                  placeholder="Repeat e.g., Daily"
-                                  className="px-3 py-1.5 text-sm rounded bg-white border border-slate-200 outline-none focus:border-blue-500 w-[140px]"
-                                />
-                                <button
-                                  onClick={() => handleSaveTaskSchedule(task.id)}
-                                  disabled={isUpdatingTask}
-                                  className="ml-auto px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+                                  className="px-3 py-1.5 text-sm rounded bg-white border border-slate-200 outline-none focus:border-blue-500 w-[160px] flex-1"
                                 >
-                                  {isUpdatingTask ? 'Saving...' : 'Save'}
-                                </button>
-                                <button
-                                  onClick={() => setEditingTaskScheduleId(null)}
-                                  className="px-3 py-1.5 text-slate-500 hover:bg-slate-200 text-sm font-medium rounded"
-                                >
-                                  Cancel
-                                </button>
+                                  <option value="">No Repeat</option>
+                                  <option value="Every 10 minutes">10 Minutes</option>
+                                  <option value="Every 20 minutes">20 Minutes</option>
+                                  <option value="Every 30 minutes">30 Minutes</option>
+                                  <option value="Hourly">Hourly</option>
+                                  <option value="Daily">Daily</option>
+                                  <option value="Weekly">Weekly</option>
+                                </select>
+                                <div className="flex items-center gap-2 ml-auto w-full sm:w-auto mt-2 sm:mt-0">
+                                  <button
+                                    onClick={() => handleSaveTaskSchedule(task.id)}
+                                    disabled={isUpdatingTask}
+                                    className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+                                  >
+                                    {isUpdatingTask ? 'Saving...' : 'Save'}
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingTaskScheduleId(null)}
+                                    className="flex-1 px-3 py-1.5 text-slate-500 hover:bg-slate-200 text-sm font-medium rounded"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
                               </div>
                             )}
                             <div className="p-5 flex-1 flex flex-col">
