@@ -101,8 +101,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         // Save all agent name changes
         await Promise.all(
           agents.map(agent => {
-            if (agentNames[agent.id] !== agent.name) {
-              return apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${agent.id}`, {
+            if (agentNames[agent.id] && agentNames[agent.id] !== agent.name) {
+              return apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agent.id)}`, {
                 method: 'PATCH',
                 token,
                 onAuthFailure,

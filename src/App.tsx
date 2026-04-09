@@ -597,7 +597,7 @@ export default function App() {
           activeWorkspaceId={activeWorkspaceId!}
           onAuthFailure={handleLogout}
           onComplete={() => {
-            setWorkspaces(prev => prev.map(w => w.id === activeWorkspaceId ? { ...w, is_onboarded: true } : w));
+            window.location.reload();
           }}
         />
       </div>
