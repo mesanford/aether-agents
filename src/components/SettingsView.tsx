@@ -247,8 +247,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [twilioStatus, setTwilioStatus] = useState<TwilioStatus>({ connected: false, accountSid: null, fromNumber: null, updatedAt: null });
   const [webhookSecrets, setWebhookSecrets] = useState<WebhookSecretProvider[]>([]);
   const [knowledgeDriveStatus, setKnowledgeDriveStatus] = useState<any>({ connected: false, folderId: null });
-  const [connecting, setConnecting] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
+  const [googleConnecting, setGoogleConnecting] = useState(false);
+  const [googleDisconnecting, setGoogleDisconnecting] = useState(false);
+  const [knowledgeConnecting, setKnowledgeConnecting] = useState(false);
+  const [knowledgeDisconnecting, setKnowledgeDisconnecting] = useState(false);
   const [isWordPressModalOpen, setIsWordPressModalOpen] = useState(false);
   const [wordpressSaving, setWordpressSaving] = useState(false);
   const [wordpressDisconnecting, setWordpressDisconnecting] = useState(false);
@@ -494,7 +496,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleConnectGoogle = async () => {
     if (!token) return;
-    setConnecting(true);
+    setGoogleConnecting(true);
     try {
       const { url } = await apiFetch<{ url: string }>('/api/integrations/google/connect', {
         token,
@@ -502,18 +504,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       });
 
       const popup = window.open(url, 'google-workspace-auth', 'width=500,height=650,scrollbars=yes');
+      if (!popup) {
+        toast.error('Your browser blocked the authentication popup. Please allow popups for this site and try again.');
+        setGoogleConnecting(false);
+        return;
+      }
 
       const handleMessage = (event: MessageEvent) => {
         if (event.data?.type === 'WORKSPACE_AUTH_SUCCESS') {
           window.removeEventListener('message', handleMessage);
           popup?.close();
           fetchStatus();
-          setConnecting(false);
+          setGoogleConnecting(false);
         } else if (event.data?.type === 'WORKSPACE_AUTH_ERROR') {
           window.removeEventListener('message', handleMessage);
           popup?.close();
           toast.error(`Connection failed: ${event.data.error}`);
-          setConnecting(false);
+          setGoogleConnecting(false);
         }
       };
       window.addEventListener('message', handleMessage);
@@ -523,44 +530,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         if (popup?.closed) {
           clearInterval(timer);
           window.removeEventListener('message', handleMessage);
-          setConnecting(false);
+          setGoogleConnecting(false);
           fetchStatus();
         }
       }, 500);
     } catch (err) {
       console.error('Failed to start Google connect:', err);
-      setConnecting(false);
+      setGoogleConnecting(false);
     }
   };
 
   const handleConnectKnowledgeDrive = async () => {
     if (!token || !activeWorkspaceId) return;
-    setConnecting(true);
+    setKnowledgeConnecting(true);
     try {
       const { url } = await apiFetch<{url: string}>(`/api/workspaces/${activeWorkspaceId}/integrations/google/auth`, { token });
       window.location.href = url;
     } catch (e) {
       console.error(e);
-      setConnecting(false);
+      setKnowledgeConnecting(false);
     }
   };
 
   const handleDisconnectKnowledgeDrive = async () => {
     if (!token || !activeWorkspaceId) return;
-    setDisconnecting(true);
+    setKnowledgeDisconnecting(true);
     try {
       await apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/google`, { method: 'DELETE', token });
       fetchStatus();
     } catch (e) {
       console.error(e);
     } finally {
-      setDisconnecting(false);
+      setKnowledgeDisconnecting(false);
     }
   };
 
   const handleDisconnectGoogle = async () => {
     if (!token) return;
-    setDisconnecting(true);
+    setGoogleDisconnecting(true);
     try {
       await apiFetch('/api/integrations/google', {
         method: 'DELETE',
@@ -571,7 +578,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } catch {
       // ignore
     } finally {
-      setDisconnecting(false);
+      setGoogleDisconnecting(false);
     }
   };
 
@@ -935,7 +942,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       ],
       onConnect: handleConnectGoogle,
       onDisconnect: handleDisconnectGoogle,
-      isLoading: connecting || disconnecting,
+      isLoading: googleConnecting || googleDisconnecting,
     },
     {
       id: 'knowledge-drive',
@@ -947,7 +954,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       services: knowledgeDriveStatus?.connected ? [{ name: `Folder ID: ${knowledgeDriveStatus.folderId}`, connected: true }] : [],
       onConnect: handleConnectKnowledgeDrive,
       onDisconnect: handleDisconnectKnowledgeDrive,
-      isLoading: connecting || disconnecting,
+      isLoading: knowledgeConnecting || knowledgeDisconnecting,
     },
     {
       id: 'linkedin',
