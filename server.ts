@@ -55,6 +55,10 @@ async function startServer() {
   const app = express();
   const PORT = Number.parseInt(process.env.PORT || "3001", 10);
 
+  // Register body parser FIRST — must be before app.listen() so all routes
+  // (including those registered during bootstrap) have JSON parsing available.
+  app.use(express.json({ limit: "256kb" }));
+
   // Register readiness guard BEFORE app.listen so it's in the middleware chain.
   // Returns 503 for /api/* routes until DB bootstrap completes.
   let isReady = false;
@@ -66,21 +70,24 @@ async function startServer() {
     next();
   });
 
+  // Warn about missing JWT_SECRET but do NOT exit — closing the server here
+  // would kill the port before Cloud Run considers the revision ready.
+  if (isProduction && !process.env.JWT_SECRET) {
+    console.error("WARNING: JWT_SECRET environment variable is not set in production. Auth will be insecure.");
+  }
+
   // Start listening IMMEDIATELY so Cloud Run health checks pass while
   // async bootstrap (DB migrations, GCS migration) completes in the background.
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on port ${PORT} (bootstrapping...)`);
   });
 
-  // NOW we can safely check secrets — the port is already open.
-  if (isProduction && !process.env.JWT_SECRET) {
-    console.error("FATAL: JWT_SECRET environment variable is required in production.");
-    // Drain existing connections before exiting
-    server.close(() => process.exit(1));
-    return;
-  }
-
-  app.use(express.json({ limit: "256kb" }));
+  // Gracefully handle listen errors (e.g. EADDRINUSE) so the process exits
+  // with a clear message rather than hanging.
+  server.on("error", (err) => {
+    console.error("FATAL: Failed to bind to port:", err);
+    process.exit(1);
+  });
 
   let seedWorkspace: (() => Promise<void>) | undefined;
   try {
@@ -294,4 +301,7 @@ async function startServer() {
   console.log(`Server fully ready on http://localhost:${PORT}`);
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("FATAL: startServer() threw an unhandled error:", err);
+  process.exit(1);
+});
