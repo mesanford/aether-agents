@@ -133,6 +133,7 @@ export function registerAuthRoutes({
       const updatedUser = await db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId);
       return res.json({ user: updatedUser });
     } catch (err) {
+      console.error("Profile update error:", err);
       return res.status(500).json({ error: "Failed to update profile" });
     }
   });

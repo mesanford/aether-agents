@@ -206,8 +206,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showDeleteWorkspaceModal, setShowDeleteWorkspaceModal] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.name || 'marcus'}`);
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user?.name || 'marcus'}&backgroundColor=f5f5f4`);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+
+  useEffect(() => {
+    if (user?.avatar) {
+      setAvatarUrl(user.avatar);
+    }
+  }, [user?.avatar]);
 
   const handleAvatarSelect = async (url: string) => {
     setAvatarUrl(url);
