@@ -35,14 +35,12 @@ const __dirname = path.dirname(__filename);
 
 const isProduction = process.env.NODE_ENV === "production";
 
-if (isProduction && !process.env.JWT_SECRET) {
-  // Secrets may take a moment to mount on cold start; log and exit gracefully
-  console.error("FATAL: JWT_SECRET environment variable is required in production.");
-  process.exit(1);
-}
-
+// NOTE: Do NOT call process.exit() here at module level — that would kill the
+// container before app.listen() opens the port, triggering Cloud Run timeout.
 if (!process.env.JWT_SECRET) {
-  console.warn("JWT_SECRET environment variable is not set. Using a development-only fallback secret.");
+  if (!isProduction) {
+    console.warn("JWT_SECRET environment variable is not set. Using a development-only fallback secret.");
+  }
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "development-only-jwt-secret";
@@ -57,14 +55,9 @@ async function startServer() {
   const app = express();
   const PORT = Number.parseInt(process.env.PORT || "3001", 10);
 
-  // Start listening IMMEDIATELY so Cloud Run health checks pass while
-  // async bootstrap (DB migrations, GCS migration) completes in the background.
+  // Register readiness guard BEFORE app.listen so it's in the middleware chain.
+  // Returns 503 for /api/* routes until DB bootstrap completes.
   let isReady = false;
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server listening on port ${PORT} (bootstrapping...)`);
-  });
-
-  // Readiness guard: return 503 for API calls until DB is ready
   app.use((req, res, next) => {
     if (!isReady && req.path.startsWith("/api")) {
       res.status(503).json({ error: "Server is starting up, please retry shortly." });
@@ -73,8 +66,19 @@ async function startServer() {
     next();
   });
 
-  const DATABASE_PATH = process.env.DATABASE_PATH || "crm.db";
+  // Start listening IMMEDIATELY so Cloud Run health checks pass while
+  // async bootstrap (DB migrations, GCS migration) completes in the background.
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server listening on port ${PORT} (bootstrapping...)`);
+  });
 
+  // NOW we can safely check secrets — the port is already open.
+  if (isProduction && !process.env.JWT_SECRET) {
+    console.error("FATAL: JWT_SECRET environment variable is required in production.");
+    // Drain existing connections before exiting
+    server.close(() => process.exit(1));
+    return;
+  }
 
   app.use(express.json({ limit: "256kb" }));
 

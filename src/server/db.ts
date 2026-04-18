@@ -6,15 +6,27 @@ dotenv.config({ path: ".env.local" });
  * A lightweight shim wrapping node-postgres (pg) to provide an API surface
  * visually similar to better-sqlite3, easing the migration while enforcing
  * async/await for all network queries.
+ *
+ * The Pool is created lazily on first use so that importing this module at the
+ * top of server.ts does NOT immediately attempt a DB connection. This avoids a
+ * startup crash when DATABASE_URL is injected by Cloud Run's secret manager a
+ * fraction of a second after the container starts.
  */
 export class PostgresShim {
-  public pool: Pool;
+  private _pool: Pool | null = null;
+  private readonly config: PoolConfig | undefined;
 
   constructor(config?: PoolConfig) {
-    // Connect to PG. If DATABASE_URL is not set, tries default localhost config.
-    this.pool = new Pool(config || {
-      connectionString: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/agencyos",
-    });
+    this.config = config;
+  }
+
+  public get pool(): Pool {
+    if (!this._pool) {
+      this._pool = new Pool(this.config || {
+        connectionString: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/agencyos",
+      });
+    }
+    return this._pool;
   }
 
   /**
