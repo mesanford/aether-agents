@@ -892,8 +892,24 @@ export function registerWorkspaceRoutes({
           },
         });
       }
-      return res.json({ success: true });
-    } catch {
+
+      const updatedAgent = await db.prepare("SELECT * FROM agents WHERE id = ? AND workspace_id = ?").get(agentId, req.workspaceId) as any;
+      if (!updatedAgent) return res.status(404).json({ error: "Agent not found after update" });
+
+      return res.json({
+        id: updatedAgent.id,
+        name: updatedAgent.name,
+        role: updatedAgent.role,
+        status: updatedAgent.status,
+        description: updatedAgent.description,
+        avatar: updatedAgent.avatar,
+        capabilities: JSON.parse(updatedAgent.capabilities || "[]"),
+        instructions: updatedAgent.instructions || "",
+        personality: parseAgentPersonality(updatedAgent.personality, updatedAgent.role),
+        lastAction: updatedAgent.last_action,
+      });
+    } catch (err: any) {
+      console.error("Agent update error:", err);
       return res.status(500).json({ error: "Failed to update agent" });
     }
   });
@@ -1213,8 +1229,30 @@ export function registerWorkspaceRoutes({
         resource: "tasks",
         details: { taskId, ...updates },
       });
-      return res.json({ success: true, updates });
-    } catch {
+
+      const t = await db.prepare("SELECT * FROM tasks WHERE id = ? AND workspace_id = ?").get(taskId, req.workspaceId) as any;
+      if (!t) return res.status(404).json({ error: "Task not found after update" });
+
+      return res.json({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        assigneeId: t.assignee_id,
+        status: t.status,
+        executionType: t.execution_type,
+        outputSummary: t.output_summary,
+        lastError: t.last_error,
+        lastRunAt: t.last_run_at,
+        startedAt: t.started_at,
+        completedAt: t.completed_at,
+        selectedMediaAssetId: t.selected_media_asset_id,
+        artifactType: t.artifact_type,
+        artifact: t.artifact_payload ? JSON.parse(t.artifact_payload) : null,
+        dueDate: t.due_date,
+        repeat: t.repeat,
+      });
+    } catch (err: any) {
+      console.error("Task update error:", err);
       return res.status(500).json({ error: "Failed to update task" });
     }
   });

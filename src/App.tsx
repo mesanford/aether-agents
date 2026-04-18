@@ -315,12 +315,13 @@ export default function App() {
     ));
 
     try {
-      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
+      const updatedAgent = await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
         method: 'PATCH',
         token,
         onAuthFailure: () => handleLogout(),
         body: JSON.stringify({ instructions }),
       });
+      setAgents(prev => prev.map(a => a.id === agentId ? updatedAgent : a));
       return true;
     } catch (err) {
       console.error('Failed to save instructions', err);
@@ -343,12 +344,13 @@ export default function App() {
     ));
 
     try {
-      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
+      const updatedAgent = await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
         method: 'PATCH',
         token,
         onAuthFailure: () => handleLogout(),
         body: JSON.stringify({ name }),
       });
+      setAgents(prev => prev.map(a => a.id === agentId ? updatedAgent : a));
       return true;
     } catch (err) {
       console.error('Failed to save agent name', err);
@@ -370,12 +372,13 @@ export default function App() {
         : a
     ));
     try {
-      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
+      const updatedAgent = await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
         method: 'PATCH',
         token,
         onAuthFailure: () => handleLogout(),
         body: JSON.stringify({ capabilities }),
       });
+      setAgents(prev => prev.map(a => a.id === agentId ? updatedAgent : a));
       return true;
     } catch (err) {
       console.error('Failed to save capabilities', err);
@@ -406,12 +409,13 @@ export default function App() {
     ));
 
     try {
-      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
+      const updatedAgent = await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${encodeURIComponent(agentId)}`, {
         method: 'PATCH',
         token,
         onAuthFailure: () => handleLogout(),
         body: JSON.stringify({ personality: normalized }),
       });
+      setAgents(prev => prev.map(a => a.id === agentId ? updatedAgent : a));
       return true;
     } catch (err) {
       console.error('Failed to save personality', err);
@@ -908,6 +912,8 @@ export default function App() {
                       token,
                       onAuthFailure: () => handleLogout(),
                       body: JSON.stringify({ status }),
+                    }).then((updatedTask) => {
+                      setTasks(prev => prev.map(t => t.id === id ? updatedTask : t));
                     }).catch(err => console.error('Failed to update task status', err));
                   }
                 }}
