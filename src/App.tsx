@@ -259,7 +259,7 @@ export default function App() {
           id: `hist_${i}`,
           senderId: m.role === 'user' ? 'user' : m.sender,
           senderName: m.role === 'user' ? user.name : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.name || DEFAULT_AGENT_NAMES[m.sender] || 'System'),
-          senderAvatar: m.role === 'user' ? (user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.email}`) : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.sender}`),
+          senderAvatar: m.role === 'user' ? (user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}`) : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.sender}`),
           content: m.content,
           timestamp: Date.now(),
           type: m.role === 'user' ? 'user' : 'agent'
@@ -523,7 +523,7 @@ export default function App() {
       id: Date.now().toString(),
       senderId: 'user',
       senderName: user.name,
-      senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.email}`,
+      senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}`,
       content,
       timestamp: Date.now(),
       type: 'user'

@@ -183,11 +183,11 @@ interface IntegrationHealth {
 }
 
 const PREBUILT_AVATARS = [
-  "https://api.dicebear.com/9.x/avataaars/svg?seed=marcus",
-  "https://api.dicebear.com/9.x/avataaars/svg?seed=sarah&style=circle",
-  "https://api.dicebear.com/9.x/avataaars/svg?seed=alex&backgroundColor=b6e3f4",
-  "https://api.dicebear.com/9.x/avataaars/svg?seed=jessica&backgroundColor=c0aede",
-  "https://api.dicebear.com/9.x/avataaars/svg?seed=david&backgroundColor=ffdfbf",
+  "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=marcus&backgroundColor=f5f5f4",
+  "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=sarah&backgroundColor=b6e3f4",
+  "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=alex&backgroundColor=c0aede",
+  "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=jessica&backgroundColor=ffdfbf",
+  "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=david&backgroundColor=d1f4d1",
 ];
 
 export const SettingsView: React.FC<SettingsViewProps> = ({

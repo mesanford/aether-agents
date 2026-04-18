@@ -43,7 +43,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
       ]);
       setMembers(membersData.map((m: any) => ({
         ...m,
-        avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${m.email}`
+        avatar: `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.email}`
       })));
       setInvites(invitesData);
     } catch (err) {
@@ -60,6 +60,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
 
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,17 +71,33 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
       await apiFetch(`/api/workspaces/${activeWorkspaceId}/invites`, {
         method: 'POST',
         token,
-        body: JSON.stringify({ email: inviteEmail, role: 'member' }),
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
         onAuthFailure
       });
       toast.success('Invitation sent successfully!');
       setInviteEmail('');
+      setInviteRole('member');
       setIsInviteModalOpen(false);
       fetchTeamData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to send invite');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const updateMemberRole = async (memberId: number, newRole: 'admin' | 'member') => {
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/members/${memberId}`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify({ role: newRole }),
+        onAuthFailure
+      });
+      toast.success('Member role updated');
+      fetchTeamData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update role');
     }
   };
 
@@ -181,11 +198,20 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                   <td className="px-6 md:px-8 py-4 md:py-5">
                     <div className="flex items-center gap-2">
                       {member.role === 'owner' ? (
-                        <ShieldCheck className="w-4 h-4 text-brand-600" />
+                        <>
+                          <ShieldCheck className="w-4 h-4 text-brand-600" />
+                          <span className="text-sm font-medium text-stone-700 capitalize">{member.role}</span>
+                        </>
                       ) : (
-                        <Shield className="w-4 h-4 text-stone-400" />
+                        <select
+                          className="bg-transparent text-sm font-medium text-stone-700 capitalize outline-none cursor-pointer hover:text-brand-600 transition-colors"
+                          value={member.role}
+                          onChange={(e) => updateMemberRole(member.id, e.target.value as 'admin' | 'member')}
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="member">Member</option>
+                        </select>
                       )}
-                      <span className="text-sm font-medium text-stone-700 capitalize">{member.role}</span>
                     </div>
                   </td>
                   <td className="px-6 md:px-8 py-4 md:py-5">
@@ -287,11 +313,23 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                   <input 
                     autoFocus
                     type="email" 
+                    required
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     placeholder="colleague@company.com"
                     className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">Workspace Role</label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as 'admin' | 'member')}
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all appearance-none"
+                  >
+                    <option value="member">Member (View & Use Agents)</option>
+                    <option value="admin">Admin (Edit Agents & Settings)</option>
+                  </select>
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button 

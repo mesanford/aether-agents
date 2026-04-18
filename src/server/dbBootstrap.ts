@@ -102,9 +102,9 @@ const INITIAL_TASKS_SEED: SeedTask[] = [
 ];
 
 const INITIAL_MESSAGES_SEED: SeedMessage[] = [
-  { id: "smm-1", agentId: "social-media-manager", senderId: "user", senderName: "Marcus Sanford", senderAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=marcus", content: "Sonny, please recreate the images for all scheduled and draft blog posts to fit our brand look and feel, just like you did for the \"Higher ed has an Innovation Paradox\" post.", imageUrl: null, timestamp: Date.now() - 1000000, type: "user" },
+  { id: "smm-1", agentId: "social-media-manager", senderId: "user", senderName: "Marcus Sanford", senderAvatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=marcus&backgroundColor=f5f5f4", content: "Sonny, please recreate the images for all scheduled and draft blog posts to fit our brand look and feel, just like you did for the \"Higher ed has an Innovation Paradox\" post.", imageUrl: null, timestamp: Date.now() - 1000000, type: "user" },
   { id: "smm-2", agentId: "social-media-manager", senderId: "social-media-manager", senderName: "Sonny", senderAvatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf", content: "I've been working through the queue to get every single post matched up with that clean MM Sanford aesthetic.\n\n**Here's where we're at:**\n\n* I've unscheduled and updated the images for **15 posts** to that minimalist, light-beige and Sanford Orange look.\n* I've also successfully rescheduled those new versions back to their original slots in March.\n\nShould I keep going and finish off the last few?", imageUrl: null, timestamp: Date.now() - 500000, type: "agent" },
-  { id: "smm-3", agentId: "social-media-manager", senderId: "user", senderName: "Marcus Sanford", senderAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=marcus", content: "yes", imageUrl: null, timestamp: Date.now() - 100000, type: "user" },
+  { id: "smm-3", agentId: "social-media-manager", senderId: "user", senderName: "Marcus Sanford", senderAvatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=marcus&backgroundColor=f5f5f4", content: "yes", imageUrl: null, timestamp: Date.now() - 100000, type: "user" },
   { id: "smm-4", agentId: "social-media-manager", senderId: "social-media-manager", senderName: "Sonny", senderAvatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf", content: "Sweet. Everything's locked, loaded, and looking much more \"Sanford\" now. 🎨\n\nSince the March calendar is officially a masterpiece, do you want me to keep the momentum going on the April queue, or are we taking a breather? ☕", imageUrl: null, timestamp: Date.now() - 50000, type: "agent" },
   { id: "tc-1", agentId: "team-chat", senderId: "executive-assistant", senderName: "Eva", senderAvatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4", content: "Hi team! I've set up this space for us to collaborate on the Sanford project. @Sonny, how is the brand glow-up coming along?", imageUrl: null, timestamp: Date.now() - 2000000, type: "agent" },
   { id: "tc-2", agentId: "team-chat", senderId: "social-media-manager", senderName: "Sonny", senderAvatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf", content: "It's going great, Eva! Just finished the March calendar. @Penny, I might need some help with the April blog post visuals once you have the drafts ready.", imageUrl: null, timestamp: Date.now() - 1500000, type: "agent" },
@@ -398,7 +398,20 @@ export async function bootstrapDatabase(db: PostgresShim) {
       await db.exec("ALTER TABLE leads ADD COLUMN notes TEXT");
     }
 
+    if (!(await hasColumn("leads", "source_context"))) {
+      await db.exec("ALTER TABLE leads ADD COLUMN source_context TEXT");
+    }
+
+    if (!(await hasColumn("leads", "created_at"))) {
+      await db.exec("ALTER TABLE leads ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+    }
+
+    if (!(await hasColumn("leads", "updated_at"))) {
+      await db.exec("ALTER TABLE leads ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+    }
+
     await db.exec("CREATE INDEX IF NOT EXISTS idx_leads_workspace_id ON leads(workspace_id)");
+    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_workspace_email ON leads(workspace_id, email)");
   } catch (err) {
     console.error("Migration failed for leads table:", err);
   }
