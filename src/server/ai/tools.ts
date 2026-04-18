@@ -345,23 +345,6 @@ export const updateWorkspaceTaskTool = tool(
   }
 );
 
-export const allTools = [
-  queryBrainTool,
-  searchGoogleDriveTool,
-  draftEmailTool,
-  readGoogleChatTool,
-  searchWebTool,
-  generateImageTool,
-  scheduleSocialPostTool,
-  publishBlogPostTool,
-  updateCrmTool,
-  linkedinOutreachTool,
-  deleteTaskTool,
-  writeWorkspaceFileTool,
-  getWorkspaceTasksTool,
-  updateWorkspaceTaskTool
-];
-
 export const createGenericTaskTool = tool(
   async ({ title, description, dueDate }, config) => {
     if (!config?.configurable?.thread_id) return `[FAILED] Missing conversation thread context.`;

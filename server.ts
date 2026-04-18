@@ -62,6 +62,8 @@ async function startServer() {
   // Register readiness guard BEFORE app.listen so it's in the middleware chain.
   // Returns 503 for /api/* routes until DB bootstrap completes.
   let isReady = false;
+  let seedWorkspace: ((workspaceId: string | number | bigint) => Promise<void>) | undefined;
+
   app.use((req, res, next) => {
     if (!isReady && req.path.startsWith("/api")) {
       res.status(503).json({ error: "Server is starting up, please retry shortly." });
@@ -89,7 +91,6 @@ async function startServer() {
     process.exit(1);
   });
 
-  let seedWorkspace: (() => Promise<void>) | undefined;
   try {
     const bootstrapResult = await bootstrapDatabase(db);
     seedWorkspace = bootstrapResult.seedWorkspace;
