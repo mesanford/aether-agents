@@ -154,20 +154,20 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="fixed inset-0 z-50 bg-warm-50 overflow-y-auto flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-3xl">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-600 shadow-xl mb-6">
             <Sparkles className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Welcome to AgencyOS</h2>
-          <p className="mt-3 text-lg text-slate-500">Let's set up your autonomous workforce in three simple steps.</p>
+          <h2 className="text-3xl font-extrabold text-stone-900 tracking-tight">Welcome to AgencyOS</h2>
+          <p className="mt-3 text-lg text-stone-500">Let's set up your autonomous workforce in three simple steps.</p>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between relative">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-200 rounded-full" />
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-warm-200 rounded-full" />
             <div 
               className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-brand-600 rounded-full transition-all duration-500"
               style={{ width: `${((step - 1) / 2) * 100}%` }}
@@ -177,7 +177,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
               <div 
                 key={i}
                 className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors duration-300 ${
-                  step >= i ? 'bg-brand-600 text-white shadow-md' : 'bg-white text-slate-400 border-2 border-slate-200'
+                  step >= i ? 'bg-brand-600 text-white shadow-md' : 'bg-white text-stone-400 border-2 border-warm-200'
                 }`}
               >
                 {i === 1 ? <Building2 className="w-4 h-4" /> : i === 2 ? <Users className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
@@ -186,7 +186,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl border border-warm-200 overflow-hidden">
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div
@@ -197,8 +197,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                 className="p-8 sm:p-10"
               >
                 <div className="mb-6">
-                  <h3 className="text-2xl font-bold text-slate-900">Company Overview</h3>
-                  <p className="text-slate-500 mt-2">Before your agents can act, they need to know what your business is all about.</p>
+                  <h3 className="text-2xl font-bold text-stone-900">Company Overview</h3>
+                  <p className="text-stone-500 mt-2">Before your agents can act, they need to know what your business is all about.</p>
                 </div>
                 
                 <div className="mb-8 p-5 bg-gradient-to-r from-brand-50 to-indigo-50 border border-brand-100 rounded-xl relative overflow-hidden">
@@ -228,21 +228,21 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">What does your company do? (Description)</label>
+                    <label className="block text-sm font-bold text-stone-700 mb-2">What does your company do? (Description)</label>
                     <textarea
                       value={companyDesc}
                       onChange={e => setCompanyDesc(e.target.value)}
                       placeholder="e.g. We are a B2B SaaS platform that helps logistics companies manage their fleets using AI routing."
-                      className="w-full text-base py-3 px-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 h-32"
+                      className="w-full text-base py-3 px-4 border border-warm-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 h-32"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Who is your target audience?</label>
+                    <label className="block text-sm font-bold text-stone-700 mb-2">Who is your target audience?</label>
                     <textarea
                       value={targetAudience}
                       onChange={e => setTargetAudience(e.target.value)}
                       placeholder="e.g. Logistics managers, operations directors at shipping firms."
-                      className="w-full text-base py-3 px-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 h-24"
+                      className="w-full text-base py-3 px-4 border border-warm-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 h-24"
                     />
                   </div>
                 </div>
@@ -259,21 +259,21 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
               >
                 <div className="mb-6">
                   <button onClick={() => setStep(1)} className="text-brand-600 hover:text-brand-700 font-medium text-sm flex items-center mb-4"><ChevronLeft className="w-4 h-4 mr-1" /> Back</button>
-                  <h3 className="text-2xl font-bold text-slate-900">Name Your Agents</h3>
-                  <p className="text-slate-500 mt-2">These are your foundational departments. Give them custom identities or stick with the defaults!</p>
+                  <h3 className="text-2xl font-bold text-stone-900">Name Your Agents</h3>
+                  <p className="text-stone-500 mt-2">These are your foundational departments. Give them custom identities or stick with the defaults!</p>
                 </div>
 
                 <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
                   {agents.map(agent => (
-                    <div key={agent.id} className="flex items-center gap-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
+                    <div key={agent.id} className="flex items-center gap-4 p-4 border border-warm-200 rounded-xl bg-warm-50">
                       <img src={agent.avatar} alt="" className="w-12 h-12 rounded-lg object-cover" />
                       <div className="flex-1">
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{agent.role}</label>
+                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">{agent.role}</label>
                         <input
                           type="text"
                           value={agentNames[agent.id] || ''}
                           onChange={e => setAgentNames(prev => ({...prev, [agent.id]: e.target.value}))}
-                          className="w-full font-bold text-slate-900 bg-white px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+                          className="w-full font-bold text-stone-900 bg-white px-3 py-2 border border-warm-300 rounded-lg focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
                     </div>
@@ -292,8 +292,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
               >
                 <div className="mb-6">
                   <button onClick={() => setStep(2)} className="text-brand-600 hover:text-brand-700 font-medium text-sm flex items-center mb-4"><ChevronLeft className="w-4 h-4 mr-1" /> Back</button>
-                  <h3 className="text-2xl font-bold text-slate-900">Core Playbook</h3>
-                  <p className="text-slate-500 mt-2">This forms the absolute foundational "Knowledge Document" that all agents will reference before acting.</p>
+                  <h3 className="text-2xl font-bold text-stone-900">Core Playbook</h3>
+                  <p className="text-stone-500 mt-2">This forms the absolute foundational "Knowledge Document" that all agents will reference before acting.</p>
                 </div>
 
                 <div>
@@ -301,14 +301,14 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                     value={playbookContent}
                     onChange={e => setPlaybookContent(e.target.value)}
                     placeholder="E.g., Our tone is professional yet punchy. We never use exclamation points. We focus obsessively on ROI and metrics when speaking to customers..."
-                    className="w-full text-base py-4 px-5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 h-[40vh]"
+                    className="w-full text-base py-4 px-5 border border-warm-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 h-[40vh]"
                   />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+          <div className="px-8 py-6 bg-warm-50 border-t border-warm-200 flex justify-end">
             {step < 3 ? (
               <button
                 onClick={handleNext}

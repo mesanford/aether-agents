@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#03b5d3",
+                        "secondary": "#4cd7f6",
+                        "surface-container-lowest": "#060e20",
+                        "outline-variant": "#464554",
+                        "on-tertiary": "#003824",
+                        "on-error": "#690005",
+                        "background": "#0b1326",
+                        "error": "#ffb4ab",
+                        "on-surface-variant": "#c7c4d7",
+                        "primary-fixed": "#e1e0ff",
+                        "on-tertiary-container": "#000703",
+                        "on-primary-fixed": "#07006c",
+                        "on-secondary-fixed": "#001f26",
+                        "outline": "#908fa0",
+                        "surface-tint": "#c0c1ff",
+                        "secondary-fixed": "#acedff",
+                        "primary": "#c0c1ff",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#00424e",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "on-secondary": "#003640",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "surface-container-high": "#222a3d",
+                        "on-tertiary-fixed": "#002113",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "primary-container": "#8083ff",
+                        "tertiary-fixed": "#6ffbbe",
+                        "error-container": "#93000a",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-primary-container": "#0d0096",
+                        "on-primary": "#1000a9",
+                        "secondary-fixed-dim": "#4cd7f6",
+                        "inverse-surface": "#dae2fd",
+                        "on-secondary-fixed-variant": "#004e5c",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "tertiary-container": "#00885d",
+                        "inverse-primary": "#494bd6",
+                        "tertiary": "#4edea3",
+                        "surface-bright": "#31394d",
+                        "surface-container-highest": "#2d3449",
+                        "on-surface": "#dae2fd",
+                        "on-background": "#dae2fd",
+                        "inverse-on-surface": "#283044",
+                        "surface-container": "#171f33",
+                        "surface-dim": "#0b1326",
+                        "surface-variant": "#2d3449"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary/30">
+<!-- SideNavBar -->
+<nav class="h-screen w-64 flex-col fixed left-0 top-0 bg-[#0b1326] dark:bg-[#0b1326] bg-slate-900/50 backdrop-blur-xl shadow-[20px_0_60px_-15px_rgba(218,226,253,0.06)] flex py-8 px-4 z-50">
+<div class="mb-10 px-2">
+<h1 class="text-xl font-black text-white tracking-tighter headline">Synthetic Architect</h1>
+<p class="text-[10px] text-slate-500 font-manrope font-bold tracking-tight uppercase mt-1">Multi-Agent Core</p>
+</div>
+<div class="flex-1 space-y-2">
+<div class="flex items-center gap-3 p-3 rounded-xl cursor-pointer active:scale-95 text-slate-400 hover:text-white transition-colors hover:bg-white/5 transition-all duration-300">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-manrope font-bold tracking-tight text-sm uppercase">Dashboard</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-xl cursor-pointer active:scale-95 text-indigo-400 font-bold border-r-2 border-indigo-400 bg-indigo-500/5 transition-all duration-300">
+<span class="material-symbols-outlined">settings_input_component</span>
+<span class="font-manrope font-bold tracking-tight text-sm uppercase">Agent Config</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-xl cursor-pointer active:scale-95 text-slate-400 hover:text-white transition-colors hover:bg-white/5 transition-all duration-300">
+<span class="material-symbols-outlined">forum</span>
+<span class="font-manrope font-bold tracking-tight text-sm uppercase">Collab Chat</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-xl cursor-pointer active:scale-95 text-slate-400 hover:text-white transition-colors hover:bg-white/5 transition-all duration-300">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-manrope font-bold tracking-tight text-sm uppercase">Analytics</span>
+</div>
+</div>
+<div class="mt-auto space-y-2 pt-6 border-t border-white/5">
+<button class="w-full py-3 px-4 bg-gradient-to-r from-primary to-primary-container text-on-primary font-bold rounded-xl text-sm mb-4 active:scale-95 transition-all">
+                Deploy New Agent
+            </button>
+<div class="flex items-center gap-3 p-3 rounded-xl cursor-pointer text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+<span class="material-symbols-outlined">dns</span>
+<span class="font-manrope font-bold tracking-tight text-sm uppercase">System Health</span>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-xl cursor-pointer text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-manrope font-bold tracking-tight text-sm uppercase">Settings</span>
+</div>
+</div>
+</nav>
+<!-- TopAppBar -->
+<header class="w-full h-16 fixed top-0 z-40 bg-[#0b1326]/80 backdrop-blur-md bg-slate-900/30 flex items-center justify-between pl-72 pr-8">
+<div class="flex items-center gap-8">
+<span class="hidden md:block text-lg font-bold text-white font-headline">Architect OS</span>
+<nav class="flex gap-6">
+<a class="text-slate-500 font-inter text-xs font-medium tracking-wide hover:text-indigo-200 transition-colors" href="#">Nodes</a>
+<a class="text-indigo-300 border-b border-indigo-400 font-inter text-xs font-medium tracking-wide" href="#">Registry</a>
+<a class="text-slate-500 font-inter text-xs font-medium tracking-wide hover:text-indigo-200 transition-colors" href="#">Logs</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">search</span>
+<input class="bg-surface-container-lowest border-none rounded-full pl-10 pr-4 py-1.5 text-xs focus:ring-1 focus:ring-primary w-64 text-on-surface placeholder:text-slate-600" placeholder="Search systems..." type="text"/>
+</div>
+<div class="flex items-center gap-4 text-slate-500">
+<span class="material-symbols-outlined cursor-pointer hover:text-indigo-400 transition-colors">notifications_active</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-indigo-400 transition-colors">bolt</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-indigo-400 transition-colors">account_tree</span>
+</div>
+<div class="h-8 w-8 rounded-full bg-surface-container-highest overflow-hidden border border-outline-variant/20">
+<img alt="Administrator Avatar" class="w-full h-full object-cover" data-alt="Close up portrait of a professional system administrator in a dark tech-focused environment with subtle blue lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvVHBZtQ7ANkLRd5erNi-O-0w16FcgsR3-DbUb0vHo__fWi_W7A3mJrH19eCkc4g1ShfQHQoUOg09lQuSsYaQASrGOymSP9OFAp7Zfd69iSvvO8gNc64TV16cLZWXiIt2Glrbss90GAyZDwMR79i2auc7AoXU51Jbo-DaI2pjw2DpQM0gzc_MwBvZXdHOZEJnUP1D2o622Fr6Mp8lumpq_WrBUk8YHTGSN-b_wjzb5i3FWlxHU5wnTplB8OEzWcNibJ3wKeGvWvOb8"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pl-64 pt-16 min-h-screen">
+<div class="max-w-[1400px] mx-auto p-8">
+<!-- Breadcrumbs & Header -->
+<div class="mb-10">
+<div class="flex items-center gap-2 text-xs text-on-surface-variant font-medium mb-2 uppercase tracking-widest">
+<span>Registry</span>
+<span class="material-symbols-outlined text-[10px]">chevron_right</span>
+<span class="text-primary">Agent Configuration</span>
+</div>
+<div class="flex justify-between items-end">
+<div>
+<h2 class="text-4xl font-extrabold font-headline tracking-tighter text-white mb-2">Configure Neural Agent</h2>
+<p class="text-on-surface-variant text-sm max-w-xl">Initialize a new synthetic entity by defining its cognitive architecture, memory thresholds, and operational constraints.</p>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2.5 rounded-xl border border-outline-variant/30 text-secondary text-sm font-bold hover:bg-secondary/5 transition-all">
+                            Discard Draft
+                        </button>
+<button class="px-8 py-2.5 rounded-xl bg-gradient-to-r from-primary to-primary-container text-on-primary font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all">
+                            Instantiate Agent
+                        </button>
+</div>
+</div>
+</div>
+<!-- Bento Layout Content -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Left Column: Primary Config -->
+<div class="col-span-8 space-y-6">
+<!-- Identity Section -->
+<div class="p-8 rounded-full bg-surface-container-low/50 backdrop-blur-sm border-none">
+<div class="flex items-center gap-4 mb-8">
+<div class="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-3xl">fingerprint</span>
+</div>
+<h3 class="text-xl font-bold font-headline text-white tracking-tight">Core Identity</h3>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1">Agent Name</label>
+<input class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-primary rounded-xl px-4 py-3 text-on-surface placeholder:text-slate-700 transition-all" placeholder="e.g. Nexus-7 Architect" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1">Model Selection</label>
+<select class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-primary rounded-xl px-4 py-3 text-on-surface appearance-none transition-all">
+<option>GPT-4o Omniscience</option>
+<option>Claude 3.5 Sonnet (Refined)</option>
+<option>Llama 3 70B Architect</option>
+</select>
+</div>
+<div class="col-span-2 space-y-2">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1">System Directive (The Prime Goal)</label>
+<textarea class="w-full bg-surface-container-lowest border-none focus:ring-1 focus:ring-primary rounded-xl px-4 py-3 text-on-surface placeholder:text-slate-700 transition-all resize-none" placeholder="Define the core purpose and behavioral boundaries..." rows="4"></textarea>
+</div>
+</div>
+</div>
+<!-- Cognitive Capabilities Grid -->
+<div class="grid grid-cols-2 gap-6">
+<!-- Knowledge Settings -->
+<div class="p-8 rounded-full bg-surface-container-low/50 backdrop-blur-sm">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-secondary">psychology</span>
+<h3 class="font-bold font-headline text-white">Cognitive Bounds</h3>
+</div>
+<div class="space-y-6">
+<div class="space-y-3">
+<div class="flex justify-between items-center text-xs">
+<span class="text-on-surface-variant">Creativity / Temperature</span>
+<span class="text-secondary font-mono">0.72</span>
+</div>
+<input class="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-secondary" type="range"/>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between items-center text-xs">
+<span class="text-on-surface-variant">Reasoning Depth</span>
+<span class="text-secondary font-mono">High</span>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-surface-container-highest text-on-surface-variant uppercase">Fast</button>
+<button class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-secondary/20 text-secondary border border-secondary/30 uppercase">Balanced</button>
+<button class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-surface-container-highest text-on-surface-variant uppercase">Thorough</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Tool Access -->
+<div class="p-8 rounded-full bg-surface-container-low/50 backdrop-blur-sm">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-tertiary">construction</span>
+<h3 class="font-bold font-headline text-white">Tool Integration</h3>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-lowest">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-tertiary">code</span>
+<span class="text-xs font-medium">Python Sandbox</span>
+</div>
+<div class="w-8 h-4 bg-tertiary/20 rounded-full relative">
+<div class="absolute right-0.5 top-0.5 w-3 h-3 bg-tertiary rounded-full"></div>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-lowest opacity-50">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-slate-500">language</span>
+<span class="text-xs font-medium">Live Web Search</span>
+</div>
+<div class="w-8 h-4 bg-slate-700 rounded-full relative">
+<div class="absolute left-0.5 top-0.5 w-3 h-3 bg-slate-500 rounded-full"></div>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-lowest">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-tertiary">database</span>
+<span class="text-xs font-medium">Vector Memory Access</span>
+</div>
+<div class="w-8 h-4 bg-tertiary/20 rounded-full relative">
+<div class="absolute right-0.5 top-0.5 w-3 h-3 bg-tertiary rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Memory Configuration -->
+<div class="p-8 rounded-full bg-surface-container-low/50 backdrop-blur-sm">
+<div class="flex items-center gap-4 mb-8">
+<span class="material-symbols-outlined text-primary">memory</span>
+<h3 class="text-xl font-bold font-headline text-white tracking-tight">Memory Architecture</h3>
+</div>
+<div class="grid grid-cols-3 gap-6">
+<div class="p-4 rounded-xl bg-surface-container-highest border border-outline-variant/10">
+<span class="text-[10px] font-bold text-on-surface-variant uppercase mb-4 block">Short-Term Buffer</span>
+<div class="text-2xl font-black text-white headline">128k <span class="text-xs font-normal text-slate-500">tokens</span></div>
+</div>
+<div class="p-4 rounded-xl bg-surface-container-highest border border-outline-variant/10">
+<span class="text-[10px] font-bold text-on-surface-variant uppercase mb-4 block">Long-Term Sync</span>
+<div class="text-2xl font-black text-white headline">Active <span class="text-xs font-normal text-tertiary ml-2">●</span></div>
+</div>
+<div class="p-4 rounded-xl bg-surface-container-highest border border-outline-variant/10">
+<span class="text-[10px] font-bold text-on-surface-variant uppercase mb-4 block">Context Window</span>
+<div class="text-2xl font-black text-white headline">Adaptive</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Live Preview & Metadata -->
+<div class="col-span-4 space-y-6">
+<!-- Agent Preview HUD -->
+<div class="rounded-full bg-surface-container-high p-1 relative overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 pointer-events-none"></div>
+<div class="p-6 rounded-full bg-surface-container-high backdrop-blur-xl border border-white/5 relative z-10">
+<div class="flex items-center justify-between mb-8">
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Persona Preview</span>
+<div class="px-2 py-1 rounded-full bg-tertiary-container/30 text-tertiary text-[10px] font-bold uppercase tracking-tighter">Live Syncing</div>
+</div>
+<div class="flex flex-col items-center mb-8">
+<div class="relative mb-4">
+<div class="w-24 h-24 rounded-full p-1 bg-gradient-to-tr from-primary via-secondary to-tertiary">
+<div class="w-full h-full rounded-full bg-surface-container-high overflow-hidden border-2 border-surface-container-high">
+<img alt="Agent Avatar Preview" class="w-full h-full object-cover grayscale brightness-125" data-alt="Abstract digital artwork of a neural network core glowing with iridescent colors in a dark void." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAiRSJMIjNaRZBmKo5J7xT3iZQEK3efUX6ANtfOEtKgAzQVbbJq4174fIjwWRZ6_xDWmYWSh-odUXPNUfhL8GBaLK55065X-u5QTL_n2S_GxIkbDl6T9W6YQQTu8DC1P-igFCaZAcSHSf1W0N3-MFuqReCYelyQmXr6QE9XFUgOk4dERfuiYHcWAOLse8TKwdLXJNx2kn91V1b1FTaw61LKLCm4yallf1ck2wEOgqZY0teqAzN5ZiUauOZt2kp_LO_YTjghxPI7vS_M"/>
+</div>
+</div>
+<div class="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center border border-white/10 shadow-lg">
+<span class="material-symbols-outlined text-[12px] text-primary">auto_awesome</span>
+</div>
+</div>
+<h4 class="text-2xl font-black font-headline text-white">Nexus-7 Architect</h4>
+<p class="text-xs text-on-surface-variant mt-1">Multi-Domain Problem Solver</p>
+</div>
+<div class="space-y-4">
+<div class="p-4 rounded-xl bg-surface-container-lowest/50 text-[11px] leading-relaxed italic text-on-surface-variant">
+                                    "I am configured to analyze complex architectural patterns across decentralized networks. My operational focus is high-fidelity orchestration and autonomous node resolution..."
+                                </div>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1 rounded-full bg-surface-container-highest text-[10px] text-on-surface font-medium">Analytical</span>
+<span class="px-3 py-1 rounded-full bg-surface-container-highest text-[10px] text-on-surface font-medium">Formal</span>
+<span class="px-3 py-1 rounded-full bg-surface-container-highest text-[10px] text-on-surface font-medium">Precision-Oriented</span>
+</div>
+</div>
+</div>
+</div>
+<!-- System Statistics -->
+<div class="p-6 rounded-full bg-surface-container-low border border-white/5">
+<h4 class="text-xs font-bold text-white uppercase tracking-widest mb-6">Deployment Specs</h4>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-xs">
+<span class="text-on-surface-variant">Est. Latency</span>
+<span class="text-white font-mono">140ms</span>
+</div>
+<div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="w-[30%] h-full bg-primary"></div>
+</div>
+<div class="flex justify-between items-center text-xs pt-2">
+<span class="text-on-surface-variant">Token Cost Tier</span>
+<span class="text-white font-mono">Premium (L4)</span>
+</div>
+<div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="w-[85%] h-full bg-secondary"></div>
+</div>
+<div class="flex justify-between items-center text-xs pt-2">
+<span class="text-on-surface-variant">Compute Allocation</span>
+<span class="text-white font-mono">Dedicated</span>
+</div>
+</div>
+</div>
+<!-- Security Clearances -->
+<div class="p-6 rounded-full bg-surface-container-low border border-white/5">
+<h4 class="text-xs font-bold text-white uppercase tracking-widest mb-4">Guardrail Protocol</h4>
+<div class="flex items-center gap-3 p-3 rounded-xl bg-error-container/10 border border-error/20">
+<span class="material-symbols-outlined text-error text-lg" data-weight="fill">shield_lock</span>
+<div>
+<p class="text-[10px] font-bold text-error uppercase">Strict Safety Active</p>
+<p class="text-[9px] text-error/60 mt-0.5">Automated refusal of high-risk operational prompts.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB Action (Contextual Suppression Rule: Hidden on Config Screen normally, but useful for 'Ask AI for Help') -->
+<div class="fixed bottom-8 right-8 flex flex-col gap-4">
+<div class="bg-surface-container-highest/80 backdrop-blur-md p-4 rounded-2xl shadow-2xl border border-white/5 max-w-[280px] hidden">
+<p class="text-[11px] text-on-surface">Need help defining the agent's persona? I can generate a template based on your project goals.</p>
+</div>
+<button class="h-14 w-14 rounded-full bg-gradient-to-tr from-secondary to-secondary-container text-on-secondary shadow-xl shadow-secondary/20 flex items-center justify-center hover:scale-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined">auto_fix_high</span>
+</button>
+</div>
+</body></html>

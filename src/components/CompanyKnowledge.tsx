@@ -131,12 +131,12 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-50/30 overflow-hidden">
+    <div className="flex-1 flex flex-col bg-warm-50/30 overflow-hidden">
       {/* Header */}
-      <div className="px-4 md:px-8 py-4 md:py-6 bg-white border-b border-slate-100 flex items-center justify-between gap-4">
+      <div className="px-4 md:px-8 py-4 md:py-6 bg-white border-b border-warm-200 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Knowledge</h1>
-          <p className="text-xs md:text-sm text-slate-500 mt-1 hidden sm:block">
+          <h1 className="text-xl md:text-2xl font-bold text-stone-900">Knowledge</h1>
+          <p className="text-xs md:text-sm text-stone-500 mt-1 hidden sm:block">
             General information about your business that all agents use.
           </p>
         </div>
@@ -164,7 +164,7 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
                 onChange={handleLogoChange}
                 accept="image/*"
               />
-              <div className="w-24 h-24 md:w-32 md:h-32 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center p-4 md:p-6 overflow-hidden">
+              <div className="w-24 h-24 md:w-32 md:h-32 bg-white rounded-2xl border border-warm-200 shadow-sm flex items-center justify-center p-4 md:p-6 overflow-hidden">
                 <img 
                   src={workspace?.logo || "https://ais-pre-ozn6jhe7zcj3cdiobiz65k-153562024476.us-west2.run.app/logo.png"} 
                   alt="Company Logo" 
@@ -174,9 +174,9 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
               </div>
               <button 
                 onClick={handleLogoClick}
-                className="absolute -bottom-2 -right-2 p-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 transition-colors"
+                className="absolute -bottom-2 -right-2 p-2 bg-white border border-warm-200 rounded-xl shadow-sm hover:bg-warm-50 transition-colors"
               >
-                <Edit2 className="w-4 h-4 text-slate-400" />
+                <Edit2 className="w-4 h-4 text-stone-400" />
               </button>
             </div>
 
@@ -188,14 +188,14 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
                   onChange={(e) => setCompanyName(e.target.value)}
                   onBlur={() => setIsEditingName(false)}
                   onKeyDown={(e) => e.key === 'Enter' && setIsEditingName(false)}
-                  className="text-xl md:text-2xl font-bold text-slate-900 bg-transparent border-b-2 border-brand-500 outline-none text-center"
+                  className="text-xl md:text-2xl font-bold text-stone-900 bg-transparent border-b-2 border-brand-500 outline-none text-center"
                 />
               ) : (
                 <>
-                  <h2 className="text-xl md:text-2xl font-bold text-slate-900">{companyName}</h2>
+                  <h2 className="text-xl md:text-2xl font-bold text-stone-900">{companyName}</h2>
                   <button 
                     onClick={() => setIsEditingName(true)}
-                    className="p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-slate-600"
+                    className="p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity text-stone-400 hover:text-stone-600"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
@@ -210,21 +210,21 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white border border-slate-200 rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm"
+              className="bg-white border border-warm-200 rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm"
             >
               <div className="flex items-center gap-3 mb-4 md:mb-6">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">
+                <div className="w-10 h-10 rounded-xl bg-warm-50 flex items-center justify-center text-stone-400">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900">Company Description</h3>
-                  <p className="text-[10px] md:text-xs text-slate-400 font-medium uppercase tracking-wider mt-0.5">Help your AI understand and represent your business accurately</p>
+                  <h3 className="font-bold text-stone-900">Company Description</h3>
+                  <p className="text-[10px] md:text-xs text-stone-400 font-medium uppercase tracking-wider mt-0.5">Help your AI understand and represent your business accurately</p>
                 </div>
               </div>
               <textarea 
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full h-48 p-4 md:p-6 bg-slate-50 border border-slate-100 rounded-xl md:rounded-2xl text-sm md:text-[15px] text-slate-700 leading-relaxed focus:ring-2 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all resize-none"
+                className="w-full h-48 p-4 md:p-6 bg-warm-50 border border-warm-200 rounded-xl md:rounded-2xl text-sm md:text-[15px] text-stone-700 leading-relaxed focus:ring-2 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all resize-none"
                 placeholder="Describe what your company does..."
               />
             </motion.div>
@@ -234,21 +234,21 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-white border border-slate-200 rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm"
+              className="bg-white border border-warm-200 rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm"
             >
               <div className="flex items-center gap-3 mb-4 md:mb-6">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">
+                <div className="w-10 h-10 rounded-xl bg-warm-50 flex items-center justify-center text-stone-400">
                   <Users className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900">Target Customers</h3>
-                  <p className="text-[10px] md:text-xs text-slate-400 font-medium uppercase tracking-wider mt-0.5">Describe your ideal customers and target audience</p>
+                  <h3 className="font-bold text-stone-900">Target Customers</h3>
+                  <p className="text-[10px] md:text-xs text-stone-400 font-medium uppercase tracking-wider mt-0.5">Describe your ideal customers and target audience</p>
                 </div>
               </div>
               <textarea 
                 value={targetCustomers}
                 onChange={(e) => setTargetCustomers(e.target.value)}
-                className="w-full h-32 p-4 md:p-6 bg-slate-50 border border-slate-100 rounded-xl md:rounded-2xl text-sm md:text-[15px] text-slate-700 leading-relaxed focus:ring-2 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all resize-none"
+                className="w-full h-32 p-4 md:p-6 bg-warm-50 border border-warm-200 rounded-xl md:rounded-2xl text-sm md:text-[15px] text-stone-700 leading-relaxed focus:ring-2 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all resize-none"
                 placeholder="Who are your customers?"
               />
             </motion.div>
@@ -258,67 +258,67 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="bg-white border border-slate-200 rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm flex flex-col"
+              className="bg-white border border-warm-200 rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm flex flex-col"
             >
               <div className="flex items-center justify-between mb-4 md:mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">
+                  <div className="w-10 h-10 rounded-xl bg-warm-50 flex items-center justify-center text-stone-400">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900">Global Playbooks & Guidelines</h3>
-                    <p className="text-[10px] md:text-xs text-slate-400 font-medium uppercase tracking-wider mt-0.5">Embed Markdown rulebooks natively into all Agents</p>
+                    <h3 className="font-bold text-stone-900">Company Instructions</h3>
+                    <p className="text-[10px] md:text-xs text-stone-400 font-medium uppercase tracking-wider mt-0.5">Provide general instructions that all agents should follow</p>
                   </div>
                 </div>
                 {!isEditingDoc && (
                   <button onClick={handleCreateDoc} className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-lg md:rounded-xl text-xs md:text-sm font-bold transition-colors">
                     <Plus className="w-4 h-4" />
-                    <span className="hidden md:inline">New Playbook</span>
+                    <span className="hidden md:inline">New Instructions</span>
                     <span className="md:hidden">New</span>
                   </button>
                 )}
               </div>
 
               {isEditingDoc ? (
-                <div className="bg-slate-50 border border-slate-200 p-4 md:p-6 rounded-2xl">
+                <div className="bg-warm-50 border border-warm-200 p-4 md:p-6 rounded-2xl">
                   <input
                     type="text"
                     value={docDraft.title}
                     onChange={(e) => setDocDraft({ ...docDraft, title: e.target.value })}
-                    placeholder="Document Title (e.g. Brand Voice Guide)"
-                    className="w-full bg-white border border-slate-200 p-3 rounded-xl font-bold text-slate-800 mb-4 focus:ring-2 focus:ring-brand-500/20 outline-none"
+                    placeholder="Document Title (e.g. Tone of Voice)"
+                    className="w-full bg-white border border-warm-200 p-3 rounded-xl font-bold text-stone-800 mb-4 focus:ring-2 focus:ring-brand-500/20 outline-none"
                   />
                   <textarea
                     value={docDraft.content}
                     onChange={(e) => setDocDraft({ ...docDraft, content: e.target.value })}
-                    placeholder="Write or paste your markdown playbook here... Agents will memorize this!"
-                    className="w-full h-64 bg-white border border-slate-200 p-4 rounded-xl text-sm text-slate-700 leading-relaxed font-mono focus:ring-2 focus:ring-brand-500/20 outline-none resize-none"
+                    placeholder="Write your instructions here..."
+                    className="w-full h-64 bg-white border border-warm-200 p-4 rounded-xl text-sm text-stone-700 leading-relaxed focus:ring-2 focus:ring-brand-500/20 outline-none resize-none"
                   />
                   <div className="flex items-center gap-3 mt-4 justify-end">
-                    <button onClick={() => setIsEditingDoc(null)} className="px-5 py-2 font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 rounded-xl transition-all">Cancel</button>
-                    <button onClick={handleSaveDoc} className="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md transition-all">Save Playbook</button>
+                    <button onClick={() => setIsEditingDoc(null)} className="px-5 py-2 font-bold text-stone-500 hover:text-stone-700 hover:bg-warm-200/50 rounded-xl transition-all">Cancel</button>
+                    <button onClick={handleSaveDoc} className="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md transition-all">Save Instructions</button>
                   </div>
                 </div>
               ) : documents.length === 0 ? (
-                <div className="py-12 flex flex-col items-center justify-center bg-slate-50/50 border border-slate-100 rounded-2xl border-dashed">
-                  <p className="text-sm font-medium text-slate-500">No playbooks created yet.</p>
-                  <p className="text-xs text-slate-400 mt-1">Provide SOPs to train your autonomous agents.</p>
+                <div className="py-12 flex flex-col items-center justify-center bg-warm-50/50 border border-warm-200 rounded-2xl border-dashed">
+                  <p className="text-sm font-medium text-stone-500">No instructions created yet.</p>
+                  <p className="text-xs text-stone-400 mt-1">Provide instructions to train your agents.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
                   {documents.map((doc) => (
-                    <div key={doc.id} className="group relative bg-slate-50 hover:bg-white border border-slate-200 hover:border-brand-200 hover:shadow-sm rounded-xl p-4 md:p-5 flex items-center justify-between cursor-pointer transition-all"
+                    <div key={doc.id} className="group relative bg-warm-50 hover:bg-white border border-warm-200 hover:border-brand-200 hover:shadow-sm rounded-xl p-4 md:p-5 flex items-center justify-between cursor-pointer transition-all"
                          onClick={() => { setIsEditingDoc(doc.id); setDocDraft({ title: doc.title, content: doc.content }); }}>
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
                           <FileText className="w-5 h-5" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-slate-800 text-sm">{doc.title}</h4>
-                          <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{doc.content.substring(0, 80)}...</p>
+                          <h4 className="font-bold text-stone-800 text-sm">{doc.title}</h4>
+                          <p className="text-xs text-stone-400 mt-0.5 line-clamp-1">{doc.content.substring(0, 80)}...</p>
                         </div>
                       </div>
-                      <button onClick={(e) => handleDeleteDoc(doc.id, e)} className="p-2 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                      <button onClick={(e) => handleDeleteDoc(doc.id, e)} className="p-2 text-stone-300 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -344,18 +344,18 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
       </div>
       
       {docToDelete && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-xl max-w-sm w-full relative">
-            <button onClick={() => setDocToDelete(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+            <button onClick={() => setDocToDelete(null)} className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-600 hover:bg-warm-100 rounded-full transition-colors">
               <X className="w-5 h-5" />
             </button>
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-4">
               <Trash2 className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900">Delete playbook?</h3>
-            <p className="text-slate-500 mt-2 text-sm leading-relaxed">Are you sure you want to delete this playbook? This action cannot be undone and agents will immediately lose access to this knowledge.</p>
+            <h3 className="text-xl font-bold text-stone-900">Delete instructions?</h3>
+            <p className="text-stone-500 mt-2 text-sm leading-relaxed">Are you sure you want to delete these instructions? This action cannot be undone.</p>
             <div className="flex items-center gap-3 mt-8">
-              <button onClick={() => setDocToDelete(null)} className="flex-1 px-5 py-2.5 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all">Cancel</button>
+              <button onClick={() => setDocToDelete(null)} className="flex-1 px-5 py-2.5 font-bold text-stone-600 hover:bg-warm-100 rounded-xl transition-all">Cancel</button>
               <button 
                 onClick={() => { handleDeleteDocConfirm(docToDelete); setDocToDelete(null); }} 
                 className="flex-1 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md shadow-red-500/20 transition-all"

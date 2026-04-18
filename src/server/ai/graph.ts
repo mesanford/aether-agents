@@ -6,7 +6,25 @@ import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { AgentState, customMessagesReducer } from './state';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { allTools } from './tools';
+import { 
+  allTools,
+  queryBrainTool,
+  searchGoogleDriveTool,
+  draftEmailTool,
+  readGoogleChatTool,
+  searchWebTool,
+  generateImageTool,
+  scheduleSocialPostTool,
+  publishBlogPostTool,
+  updateCrmTool,
+  linkedinOutreachTool,
+  deleteTaskTool,
+  writeWorkspaceFileTool,
+  getWorkspaceTasksTool,
+  updateWorkspaceTaskTool,
+  createGenericTaskTool,
+  manageTaskStatusTool
+} from './tools';
 import { agentRegistry, agentIds } from './agents';
 
 // Initialize the LLM
@@ -97,10 +115,19 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
 }
 
 // Factory to create Tool-Calling Specialist Nodes
+const agentToolMapping: Record<string, any[]> = {
+  'executive-assistant': [queryBrainTool, getWorkspaceTasksTool, draftEmailTool, readGoogleChatTool, searchWebTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool],
+  'sales-associate': [queryBrainTool, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, searchWebTool],
+  'blog-writer': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, manageTaskStatusTool, deleteTaskTool],
+  'social-media-manager': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, scheduleSocialPostTool, searchWebTool, manageTaskStatusTool, deleteTaskTool],
+  'legal-associate': [queryBrainTool, getWorkspaceTasksTool, searchGoogleDriveTool, publishBlogPostTool, writeWorkspaceFileTool, searchWebTool],
+  'receptionist': [queryBrainTool, getWorkspaceTasksTool, searchWebTool],
+  'team-chat': [queryBrainTool, getWorkspaceTasksTool]
+};
+
 function createAgentNode(agentConfig: typeof agentRegistry[0]) {
-  // Instead of injecting 1000 bloated schemas via an agentToolsMap,
-  // EVERY agent simply receives the two Universal MCP Adapters from 'allTools'.
-  const agentLLM = llm.bindTools(allTools);
+  const agentTools = agentToolMapping[agentConfig.id] || allTools;
+  const agentLLM = llm.bindTools(agentTools);
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
     console.log(`[NODE: agent] specialist: ${agentConfig.name} (sender: ${agentConfig.id})`);

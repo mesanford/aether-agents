@@ -258,7 +258,7 @@ const getStatusBadge = (task: Task) => {
     default:
       return {
         label: 'To do',
-        className: 'bg-slate-100 text-slate-600',
+        className: 'bg-warm-100 text-stone-600',
       };
   }
 };
@@ -781,8 +781,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         <div className="px-4 md:px-8 py-6 md:py-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Tasks</h1>
-              <p className="text-xs md:text-sm text-slate-500 mt-1">View all tasks created by your AI employees</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-stone-900">Tasks</h1>
+              <p className="text-xs md:text-sm text-stone-500 mt-1">View all tasks created by your AI employees</p>
             </div>
             <button
               onClick={() => setIsCreating(true)}
@@ -801,14 +801,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 className={cn(
                   "px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                   filter === f
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                    ? "bg-stone-900 text-white"
+                    : "bg-warm-100 text-stone-500 hover:bg-warm-200"
                 )}
               >
                 <span className="capitalize">{f.replace('_', ' ')}</span>
                 <span className={cn(
                   "opacity-50",
-                  filter === f ? "text-white" : "text-slate-400"
+                  filter === f ? "text-white" : "text-stone-400"
                 )}>
                   {counts[f]}
                 </span>
@@ -826,7 +826,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 <div
                   key={task.id}
                   onClick={() => setSelectedTaskId(task.id)}
-                  className="w-full text-left py-6 border-b border-slate-100 transition-all group flex items-start gap-4 relative cursor-pointer hover:bg-slate-50/50"
+                  className="w-full text-left py-6 border-b border-warm-200 transition-all group flex items-start gap-4 relative cursor-pointer hover:bg-warm-50/50"
                   style={{ minHeight: '110px' }}
                 >
                   <div className="mt-0.5 flex-shrink-0">
@@ -837,24 +837,24 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </div>
                   <div className="flex-1 min-w-0 pr-4">
                     <h3 className={cn(
-                      "text-[15px] font-bold text-slate-900 truncate",
-                      task.status === 'done' && "text-slate-600 font-semibold"
+                      "text-[15px] font-bold text-stone-900 truncate",
+                      task.status === 'done' && "text-stone-600 font-semibold"
                     )}>
                       {task.title}
                     </h3>
                     <p className={cn(
                       'text-[13px] mt-1.5 truncate',
-                      task.lastError ? 'text-rose-500' : 'text-slate-400'
+                      task.lastError ? 'text-rose-500' : 'text-stone-400'
                     )}>
                       {secondaryText}
                     </p>
                     <div className="flex items-center gap-4 mt-3">
-                      <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-slate-400">
+                      <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-stone-400">
                         <Calendar className="w-4 h-4" />
                         {task.dueDate}
                       </div>
-                      <div className="flex items-center gap-1.5 text-[12.5px] text-slate-500">
-                        <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+                      <div className="flex items-center gap-1.5 text-[12.5px] text-stone-500">
+                        <div className="w-5 h-5 rounded-full bg-warm-100 overflow-hidden border border-warm-200">
                           <img src={agent?.avatar} alt={agent?.name} className="w-full h-full object-cover" />
                         </div>
                         <span className="font-medium truncate max-w-[100px] md:max-w-none">{agent?.name}</span>
@@ -881,18 +881,18 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedTaskId(null)}
-              className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 md:hidden"
+              className="fixed inset-0 bg-stone-900/20 backdrop-blur-sm z-40 md:hidden"
             />
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full sm:w-[400px] md:relative md:w-[400px] border-l border-slate-100 bg-white shadow-2xl z-50 md:z-20 flex flex-col"
+              className="fixed inset-y-0 right-0 w-full sm:w-[400px] md:relative md:w-[400px] border-l border-warm-200 bg-white shadow-2xl z-50 md:z-20 flex flex-col"
             >
-              <div className="p-4 md:p-6 flex items-center justify-between border-b border-slate-50">
+              <div className="p-4 md:p-6 flex items-center justify-between border-b border-warm-200">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-bold text-slate-900">Details</h2>
+                  <h2 className="text-lg font-bold text-stone-900">Details</h2>
                   <span className={cn(
                     'px-2 py-0.5 text-[10px] font-bold rounded-md flex items-center gap-1',
                     selectedTaskBadge?.className,
@@ -903,77 +903,77 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 </div>
                 <button
                   onClick={() => setSelectedTaskId(null)}
-                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                  className="p-2 hover:bg-warm-100 rounded-full transition-colors"
                 >
-                  <X className="w-5 h-5 text-slate-400" />
+                  <X className="w-5 h-5 text-stone-400" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 md:p-8">
-                <h1 className="text-xl md:text-2xl font-bold text-slate-900 leading-tight mb-6 md:mb-8">
+                <h1 className="text-xl md:text-2xl font-bold text-stone-900 leading-tight mb-6 md:mb-8">
                   {selectedTask.title}
                 </h1>
 
                 <div className="space-y-5 md:space-y-6">
                   <div className="grid grid-cols-[80px_1fr] md:grid-cols-[100px_1fr] items-center gap-4">
-                    <span className="text-[10px] md:text-xs font-medium text-slate-400 flex items-center gap-2">
+                    <span className="text-[10px] md:text-xs font-medium text-stone-400 flex items-center gap-2">
                       <User className="w-4 h-4" />
                       Assignee
                     </span>
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+                      <div className="w-6 h-6 rounded-full bg-warm-100 overflow-hidden border border-warm-200">
                         <img src={assignee?.avatar} alt={assignee?.name} />
                       </div>
-                      <span className="text-sm font-bold text-slate-700">{assignee?.name}</span>
+                      <span className="text-sm font-bold text-stone-700">{assignee?.name}</span>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-[80px_1fr] md:grid-cols-[100px_1fr] items-center gap-4">
-                    <span className="text-[10px] md:text-xs font-medium text-slate-400 flex items-center gap-2">
+                    <span className="text-[10px] md:text-xs font-medium text-stone-400 flex items-center gap-2">
                       <Clock className="w-4 h-4" />
                       Due date
                     </span>
-                    <span className="text-sm font-bold text-slate-700">{selectedTask.dueDate}</span>
+                    <span className="text-sm font-bold text-stone-700">{selectedTask.dueDate}</span>
                   </div>
 
                   {selectedTask.repeat && (
                     <div className="grid grid-cols-[80px_1fr] md:grid-cols-[100px_1fr] items-center gap-4">
-                      <span className="text-[10px] md:text-xs font-medium text-slate-400 flex items-center gap-2">
+                      <span className="text-[10px] md:text-xs font-medium text-stone-400 flex items-center gap-2">
                         <RefreshCw className="w-4 h-4" />
                         Repeat
                       </span>
-                      <span className="text-sm font-bold text-slate-700">{selectedTask.repeat}</span>
+                      <span className="text-sm font-bold text-stone-700">{selectedTask.repeat}</span>
                     </div>
                   )}
 
                   <div className="grid grid-cols-[80px_1fr] md:grid-cols-[100px_1fr] items-center gap-4">
-                    <span className="text-[10px] md:text-xs font-medium text-slate-400 flex items-center gap-2">
+                    <span className="text-[10px] md:text-xs font-medium text-stone-400 flex items-center gap-2">
                       <Sparkles className="w-4 h-4" />
                       Mode
                     </span>
-                    <span className="text-sm font-bold text-slate-700">{formatExecutionType(selectedTask.executionType)}</span>
+                    <span className="text-sm font-bold text-stone-700">{formatExecutionType(selectedTask.executionType)}</span>
                   </div>
 
-                  <div className="pt-6 border-t border-slate-50 space-y-4">
-                    <span className="text-[10px] md:text-xs font-medium text-slate-400 uppercase tracking-[0.16em]">Execution</span>
+                  <div className="pt-6 border-t border-warm-200 space-y-4">
+                    <span className="text-[10px] md:text-xs font-medium text-stone-400 uppercase tracking-[0.16em]">Execution</span>
                     <div className="grid grid-cols-[80px_1fr] md:grid-cols-[100px_1fr] items-center gap-4">
-                      <span className="text-[10px] md:text-xs font-medium text-slate-400">Last run</span>
-                      <span className="text-sm font-bold text-slate-700">{formatTimestamp(selectedTask.lastRunAt)}</span>
+                      <span className="text-[10px] md:text-xs font-medium text-stone-400">Last run</span>
+                      <span className="text-sm font-bold text-stone-700">{formatTimestamp(selectedTask.lastRunAt)}</span>
                     </div>
                     <div className="grid grid-cols-[80px_1fr] md:grid-cols-[100px_1fr] items-center gap-4">
-                      <span className="text-[10px] md:text-xs font-medium text-slate-400">Started</span>
-                      <span className="text-sm font-bold text-slate-700">{formatTimestamp(selectedTask.startedAt)}</span>
+                      <span className="text-[10px] md:text-xs font-medium text-stone-400">Started</span>
+                      <span className="text-sm font-bold text-stone-700">{formatTimestamp(selectedTask.startedAt)}</span>
                     </div>
                     <div className="grid grid-cols-[80px_1fr] md:grid-cols-[100px_1fr] items-center gap-4">
-                      <span className="text-[10px] md:text-xs font-medium text-slate-400">Completed</span>
-                      <span className="text-sm font-bold text-slate-700">{formatTimestamp(selectedTask.completedAt)}</span>
+                      <span className="text-[10px] md:text-xs font-medium text-stone-400">Completed</span>
+                      <span className="text-sm font-bold text-stone-700">{formatTimestamp(selectedTask.completedAt)}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] md:text-xs font-medium text-slate-400 flex items-center gap-2 mb-3">
+                      <span className="text-[10px] md:text-xs font-medium text-stone-400 flex items-center gap-2 mb-3">
                         <FileText className="w-4 h-4" />
                         Output summary
                       </span>
-                      <p className="text-sm text-slate-500 leading-relaxed">
+                      <p className="text-sm text-stone-500 leading-relaxed">
                         {selectedTask.outputSummary || 'No execution output recorded yet.'}
                       </p>
                     </div>
@@ -988,16 +988,16 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         </p>
                       </div>
                     )}
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 space-y-3">
-                      <span className="text-[10px] md:text-xs font-medium text-slate-400 uppercase tracking-[0.16em]">Automation logs</span>
+                    <div className="rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4 space-y-3">
+                      <span className="text-[10px] md:text-xs font-medium text-stone-400 uppercase tracking-[0.16em]">Automation logs</span>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs text-slate-500">Manual retry replays automation dispatch for the current artifact.</p>
+                        <p className="text-xs text-stone-500">Manual retry replays automation dispatch for the current artifact.</p>
                         {canRetryAutomation ? (
                           <button
                             type="button"
                             onClick={handleRetryAutomation}
                             disabled={!selectedTask.artifact || automationRetryState.status === 'saving'}
-                            className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 bg-white border border-warm-200 text-stone-700 rounded-lg text-xs font-bold hover:bg-warm-100 transition-all disabled:bg-warm-100 disabled:text-stone-400 disabled:cursor-not-allowed"
                           >
                             {automationRetryState.status === 'saving' ? 'Retrying...' : 'Retry automation'}
                           </button>
@@ -1012,18 +1012,18 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         </p>
                       )}
                       {automationLogs.length === 0 ? (
-                        <p className="text-sm text-slate-500">No automation events recorded for this task yet.</p>
+                        <p className="text-sm text-stone-500">No automation events recorded for this task yet.</p>
                       ) : (
                         <div className="space-y-2">
                           {automationLogs.map((log) => (
-                            <div key={log.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                              <p className="text-xs font-bold text-slate-700">{log.action}</p>
-                              <p className="text-[11px] text-slate-500 mt-1">
+                            <div key={log.id} className="rounded-xl border border-warm-200 bg-white px-3 py-2">
+                              <p className="text-xs font-bold text-stone-700">{log.action}</p>
+                              <p className="text-[11px] text-stone-500 mt-1">
                                 {log.details?.channel ? `${log.details.channel} · ` : ''}
                                 {log.details?.reason || log.details?.error || 'Event recorded'}
                               </p>
                               {log.createdAt && (
-                                <p className="text-[10px] text-slate-400 mt-1">{log.createdAt}</p>
+                                <p className="text-[10px] text-stone-400 mt-1">{log.createdAt}</p>
                               )}
                             </div>
                           ))}
@@ -1031,17 +1031,17 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       )}
                     </div>
                     {selectedTask.artifact && (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 space-y-3">
-                        <span className="text-[10px] md:text-xs font-medium text-slate-400 flex items-center gap-2">
+                      <div className="rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4 space-y-3">
+                        <span className="text-[10px] md:text-xs font-medium text-stone-400 flex items-center gap-2">
                           <Sparkles className="w-4 h-4" />
                           Artifact
                         </span>
                         <div>
-                          <h3 className="text-sm font-bold text-slate-800">{selectedTask.artifact.title}</h3>
-                          <p className="text-sm text-slate-600 leading-relaxed mt-2">{selectedTask.artifact.body}</p>
+                          <h3 className="text-sm font-bold text-stone-800">{selectedTask.artifact.title}</h3>
+                          <p className="text-sm text-stone-600 leading-relaxed mt-2">{selectedTask.artifact.body}</p>
                         </div>
                         {selectedTask.artifact.imageUrl && (
-                          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                          <div className="overflow-hidden rounded-2xl border border-warm-200 bg-white">
                             <img
                               src={selectedTask.artifact.imageUrl}
                               alt={selectedTask.artifact.title}
@@ -1053,20 +1053,20 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         {selectedTask.artifact.bullets.length > 0 && (
                           <ul className="space-y-2">
                             {selectedTask.artifact.bullets.map((bullet, index) => (
-                              <li key={`${selectedTask.id}-artifact-${index}`} className="text-sm text-slate-600 flex gap-2">
+                              <li key={`${selectedTask.id}-artifact-${index}`} className="text-sm text-stone-600 flex gap-2">
                                 <span className="text-brand-500 font-bold">•</span>
                                 <span>{bullet}</span>
                               </li>
                             ))}
                           </ul>
                         )}
-                        <div className="pt-3 border-t border-slate-200 space-y-3">
+                        <div className="pt-3 border-t border-warm-200 space-y-3">
                           <div className="flex flex-col gap-2 sm:flex-row">
                             <select
                               value={selectedLeadId}
                               onChange={(event) => setSelectedLeadId(event.target.value ? Number(event.target.value) : '')}
                               disabled={leads.length === 0 || promotionState.status === 'saving'}
-                              className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                              className="flex-1 px-3 py-2 bg-white border border-warm-200 rounded-xl text-sm text-stone-700 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:bg-warm-100 disabled:text-stone-400"
                             >
                               {leads.length === 0 ? (
                                 <option value="">No leads available</option>
@@ -1082,7 +1082,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                               type="button"
                               onClick={handlePromoteArtifact}
                               disabled={leads.length === 0 || selectedLeadId === '' || promotionState.status === 'saving'}
-                              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-stone-900 text-white rounded-xl text-sm font-bold hover:bg-stone-800 transition-all disabled:bg-warm-200 disabled:text-stone-400 disabled:cursor-not-allowed"
                             >
                               {promotionState.status === 'saving' ? 'Saving...' : 'Save to Lead'}
                             </button>
@@ -1092,11 +1092,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                               type="button"
                               onClick={handleOpenDraftComposer}
                               disabled={!gmailConnected || !selectedLead?.email}
-                              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-white border border-warm-200 text-stone-700 rounded-xl text-sm font-bold hover:bg-warm-100 transition-all disabled:bg-warm-100 disabled:text-stone-400 disabled:cursor-not-allowed"
                             >
                               Review Gmail Draft
                             </button>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-stone-500">
                               {selectedLead?.email
                                 ? `Uses ${selectedLead.email} as the recipient.`
                                 : 'Choose a lead with an email address to create a Gmail draft.'}
@@ -1107,11 +1107,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                               type="button"
                               onClick={handleCreateWordPressDraft}
                               disabled={!wordpressConnected || wordpressState.status === 'saving'}
-                              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-white border border-warm-200 text-stone-700 rounded-xl text-sm font-bold hover:bg-warm-100 transition-all disabled:bg-warm-100 disabled:text-stone-400 disabled:cursor-not-allowed"
                             >
                               {wordpressState.status === 'saving' ? 'Saving Draft...' : 'Create WordPress Draft'}
                             </button>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-stone-500">
                               {wordpressConnected
                                 ? 'Saves this artifact as a draft post in WordPress.'
                                 : 'Connect WordPress in Settings to publish blog drafts.'}
@@ -1124,7 +1124,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                                   value={selectedMediaId ?? ''}
                                   onChange={(event) => handleSelectMedia(event.target.value ? Number(event.target.value) : null)}
                                   disabled={linkedinState.status === 'saving' || bufferState.status === 'saving'}
-                                  className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                                  className="flex-1 px-3 py-2 bg-white border border-warm-200 rounded-xl text-sm text-stone-700 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:bg-warm-100 disabled:text-stone-400"
                                 >
                                   <option value="">Use artifact/default image</option>
                                   {socialMediaItems.map((item) => (
@@ -1137,17 +1137,17 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleSelectMedia(null)}
-                                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all"
+                                    className="px-4 py-2 bg-white border border-warm-200 text-stone-700 rounded-xl text-sm font-bold hover:bg-warm-100 transition-all"
                                   >
                                     Clear Media
                                   </button>
                                 )}
                               </div>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs text-stone-500">
                                 Optional: select an image from Media to override the artifact image for LinkedIn and Buffer publishing.
                               </p>
                               {selectedMediaItem?.thumbnail && (
-                                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                <div className="overflow-hidden rounded-2xl border border-warm-200 bg-white">
                                   <img
                                     src={selectedMediaItem.thumbnail}
                                     alt={selectedMediaItem.name}
@@ -1163,11 +1163,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                               type="button"
                               onClick={handlePublishToLinkedIn}
                               disabled={!linkedinConnected || linkedinState.status === 'saving'}
-                              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-white border border-warm-200 text-stone-700 rounded-xl text-sm font-bold hover:bg-warm-100 transition-all disabled:bg-warm-100 disabled:text-stone-400 disabled:cursor-not-allowed"
                             >
                               {linkedinState.status === 'saving' ? 'Publishing...' : 'Publish to LinkedIn'}
                             </button>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-stone-500">
                               {linkedinConnected
                                 ? (selectedMediaUrl || selectedTask.artifact.imageUrl)
                                   ? 'Publishes this artifact as a LinkedIn post and uploads the attached image when supported.'
@@ -1181,7 +1181,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                                 value={selectedBufferProfileId}
                                 onChange={(event) => setSelectedBufferProfileId(event.target.value)}
                                 disabled={!bufferConnected || bufferProfiles.length === 0 || bufferState.status === 'saving'}
-                                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                                className="flex-1 px-3 py-2 bg-white border border-warm-200 rounded-xl text-sm text-stone-700 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none disabled:bg-warm-100 disabled:text-stone-400"
                               >
                                 {bufferProfiles.length === 0 ? (
                                   <option value="">No Buffer profiles available</option>
@@ -1197,12 +1197,12 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                                 type="button"
                                 onClick={handleQueueBufferPost}
                                 disabled={!bufferConnected || !selectedBufferProfileId || bufferState.status === 'saving'}
-                                className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                className="px-4 py-2 bg-white border border-warm-200 text-stone-700 rounded-xl text-sm font-bold hover:bg-warm-100 transition-all disabled:bg-warm-100 disabled:text-stone-400 disabled:cursor-not-allowed"
                               >
                                 {bufferState.status === 'saving' ? 'Queueing...' : 'Queue in Buffer'}
                               </button>
                             </div>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-stone-500">
                               {bufferConnected
                                 ? (selectedMediaUrl || selectedTask.artifact.imageUrl)
                                   ? 'Queues this artifact to the selected Buffer profile and includes the attached image when it is a public image URL.'
@@ -1215,11 +1215,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                               type="button"
                               onClick={handleSyncLeadToHubSpot}
                               disabled={!hubspotConnected || !selectedLead?.email || hubspotState.status === 'saving'}
-                              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-white border border-warm-200 text-stone-700 rounded-xl text-sm font-bold hover:bg-warm-100 transition-all disabled:bg-warm-100 disabled:text-stone-400 disabled:cursor-not-allowed"
                             >
                               {hubspotState.status === 'saving' ? 'Syncing...' : 'Sync Lead to HubSpot'}
                             </button>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-stone-500">
                               {selectedLead?.email
                                 ? hubspotConnected
                                   ? 'Creates or updates a HubSpot contact and attaches this artifact as a note.'
@@ -1280,23 +1280,23 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     )}
                   </div>
 
-                  <div className="pt-6 border-t border-slate-50">
-                    <span className="text-[10px] md:text-xs font-medium text-slate-400 flex items-center gap-2 mb-3 md:mb-4">
+                  <div className="pt-6 border-t border-warm-200">
+                    <span className="text-[10px] md:text-xs font-medium text-stone-400 flex items-center gap-2 mb-3 md:mb-4">
                       <FileText className="w-4 h-4" />
                       Description
                     </span>
-                    <p className="text-sm text-slate-500 leading-relaxed">
+                    <p className="text-sm text-stone-500 leading-relaxed">
                       {selectedTask.description}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 md:p-6 border-t border-slate-50 mt-auto">
+              <div className="p-4 md:p-6 border-t border-warm-200 mt-auto">
                 <button
                   disabled={selectedTask.status === 'running'}
                   onClick={() => onUpdateTask(selectedTask.id, selectedTask.status === 'done' ? 'todo' : 'done')}
-                  className="w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="w-full py-3 bg-stone-900 text-white rounded-xl text-sm font-bold hover:bg-stone-800 transition-all disabled:bg-warm-200 disabled:text-stone-400 disabled:cursor-not-allowed"
                 >
                   {selectedTask.status === 'running'
                     ? 'Task is currently running'
@@ -1315,7 +1315,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm"
             onClick={() => setDraftComposer(null)}
           >
             <motion.div
@@ -1325,14 +1325,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="p-6 border-b border-warm-200 flex items-center justify-between">
                 <div>
-                  <h2 className="font-bold text-slate-900">Review Gmail Draft</h2>
-                  <p className="text-sm text-slate-500 mt-1">Edit the generated email before saving it to Gmail.</p>
+                  <h2 className="font-bold text-stone-900">Review Gmail Draft</h2>
+                  <p className="text-sm text-stone-500 mt-1">Edit the generated email before saving it to Gmail.</p>
                 </div>
                 <button
                   onClick={() => setDraftComposer(null)}
-                  className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                  className="p-2 hover:bg-warm-100 rounded-full text-stone-400 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1340,30 +1340,30 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
               <div className="p-6 md:p-8 space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">To</label>
+                  <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">To</label>
                   <input
                     value={draftComposer.to}
                     onChange={(event) => setDraftComposer((current) => current ? { ...current, to: event.target.value } : current)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all"
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Subject</label>
+                  <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Subject</label>
                   <input
                     value={draftComposer.subject}
                     onChange={(event) => setDraftComposer((current) => current ? { ...current, subject: event.target.value } : current)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all"
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Body</label>
+                  <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Body</label>
                   <textarea
                     value={draftComposer.body}
                     onChange={(event) => setDraftComposer((current) => current ? { ...current, body: event.target.value } : current)}
                     rows={12}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm leading-relaxed focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all resize-none"
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-2xl text-sm leading-relaxed focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all resize-none"
                   />
                 </div>
 
@@ -1377,11 +1377,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 )}
               </div>
 
-              <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
+              <div className="p-6 border-t border-warm-200 bg-warm-50 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setDraftComposer(null)}
-                  className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all"
+                  className="flex-1 px-4 py-3 bg-white border border-warm-200 text-stone-700 rounded-xl text-sm font-bold hover:bg-warm-100 transition-all"
                 >
                   Cancel
                 </button>
@@ -1389,7 +1389,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   type="button"
                   onClick={handleCreateDraft}
                   disabled={draftState.status === 'saving' || !draftComposer.to.trim() || !draftComposer.subject.trim() || !draftComposer.body.trim()}
-                  className="flex-1 px-4 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-3 bg-stone-900 text-white rounded-xl text-sm font-bold hover:bg-stone-800 transition-all disabled:bg-warm-200 disabled:text-stone-400 disabled:cursor-not-allowed"
                 >
                   {draftState.status === 'saving' ? 'Creating draft...' : 'Create Draft in Gmail'}
                 </button>
@@ -1403,7 +1403,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm"
             onClick={() => setIsCreating(false)}
           >
             <motion.div
@@ -1413,27 +1413,27 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-bold text-slate-900">Create New Task</h2>
-                <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
+              <div className="p-6 border-b border-warm-200 flex items-center justify-between">
+                <h2 className="font-bold text-stone-900">Create New Task</h2>
+                <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-warm-100 rounded-full text-stone-400">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <form onSubmit={handleCreateSubmit} className="p-8 space-y-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Title</label>
+                  <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Title</label>
                   <input
                     required
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                     placeholder="Task title"
                     value={newTask.title}
                     onChange={e => setNewTask({ ...newTask, title: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Assignee</label>
+                  <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Assignee</label>
                   <select
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                     value={newTask.assigneeId}
                     onChange={e => setNewTask({ ...newTask, assigneeId: e.target.value })}
                   >
@@ -1444,18 +1444,18 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Due Date</label>
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Due Date</label>
                     <input
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                       placeholder="Tomorrow, 9:00 AM"
                       value={newTask.dueDate}
                       onChange={e => setNewTask({ ...newTask, dueDate: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Repeat</label>
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Repeat</label>
                     <input
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
                       placeholder="e.g. Every day"
                       value={newTask.repeat}
                       onChange={e => setNewTask({ ...newTask, repeat: e.target.value })}
@@ -1463,9 +1463,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Description</label>
+                  <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Description</label>
                   <textarea
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all min-h-[100px]"
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all min-h-[100px]"
                     placeholder="What needs to be done?"
                     value={newTask.description}
                     onChange={e => setNewTask({ ...newTask, description: e.target.value })}

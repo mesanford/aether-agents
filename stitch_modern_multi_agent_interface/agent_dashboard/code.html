@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#03b5d3",
+                        "secondary": "#4cd7f6",
+                        "surface-container-lowest": "#060e20",
+                        "outline-variant": "#464554",
+                        "on-tertiary": "#003824",
+                        "on-error": "#690005",
+                        "background": "#0b1326",
+                        "error": "#ffb4ab",
+                        "on-surface-variant": "#c7c4d7",
+                        "primary-fixed": "#e1e0ff",
+                        "on-tertiary-container": "#000703",
+                        "on-primary-fixed": "#07006c",
+                        "on-secondary-fixed": "#001f26",
+                        "outline": "#908fa0",
+                        "surface-tint": "#c0c1ff",
+                        "secondary-fixed": "#acedff",
+                        "primary": "#c0c1ff",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#00424e",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "on-secondary": "#003640",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "surface-container-high": "#222a3d",
+                        "on-tertiary-fixed": "#002113",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "primary-container": "#8083ff",
+                        "tertiary-fixed": "#6ffbbe",
+                        "error-container": "#93000a",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-primary-container": "#0d0096",
+                        "on-primary": "#1000a9",
+                        "secondary-fixed-dim": "#4cd7f6",
+                        "inverse-surface": "#dae2fd",
+                        "on-secondary-fixed-variant": "#004e5c",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "tertiary-container": "#00885d",
+                        "inverse-primary": "#494bd6",
+                        "tertiary": "#4edea3",
+                        "surface-bright": "#31394d",
+                        "surface-container-highest": "#2d3449",
+                        "on-surface": "#dae2fd",
+                        "on-background": "#dae2fd",
+                        "inverse-on-surface": "#283044",
+                        "surface-container": "#171f33",
+                        "surface-dim": "#0b1326",
+                        "surface-variant": "#2d3449"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #0b1326;
+            color: #dae2fd;
+        }
+    </style>
+</head>
+<body class="font-body selection:bg-primary/30">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 flex-col fixed left-0 top-0 bg-[#0b1326] dark:bg-[#0b1326] bg-slate-900/50 backdrop-blur-xl shadow-[20px_0_60px_-15px_rgba(218,226,253,0.06)] flex flex-col py-8 px-4 z-50">
+<div class="mb-12 px-2">
+<h1 class="text-xl font-black text-white tracking-tighter font-headline">Synthetic Architect</h1>
+<p class="text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1">Multi-Agent Core</p>
+</div>
+<nav class="flex-1 space-y-2">
+<div class="text-indigo-400 font-bold border-r-2 border-indigo-400 bg-indigo-500/5 cursor-pointer active:scale-95 transition-all duration-300 flex items-center gap-3 px-4 py-3 rounded-l-md font-manrope text-sm uppercase tracking-tight">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</div>
+<div class="text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-300 cursor-pointer active:scale-95 flex items-center gap-3 px-4 py-3 rounded-md font-manrope font-bold text-sm uppercase tracking-tight">
+<span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+<span>Agent Config</span>
+</div>
+<div class="text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-300 cursor-pointer active:scale-95 flex items-center gap-3 px-4 py-3 rounded-md font-manrope font-bold text-sm uppercase tracking-tight">
+<span class="material-symbols-outlined" data-icon="forum">forum</span>
+<span>Collab Chat</span>
+</div>
+<div class="text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-300 cursor-pointer active:scale-95 flex items-center gap-3 px-4 py-3 rounded-md font-manrope font-bold text-sm uppercase tracking-tight">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span>Analytics</span>
+</div>
+</nav>
+<div class="mt-auto space-y-6">
+<button class="w-full py-4 rounded-xl bg-gradient-to-br from-primary to-primary-container text-on-primary font-bold text-sm uppercase tracking-widest shadow-lg shadow-primary/20 hover:brightness-110 transition-all active:scale-95">
+                Deploy New Agent
+            </button>
+<div class="pt-6 border-t border-outline-variant/10 space-y-2">
+<div class="text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-300 cursor-pointer active:scale-95 flex items-center gap-3 px-4 py-2 rounded-md font-manrope font-bold text-xs uppercase tracking-tight">
+<span class="material-symbols-outlined text-sm" data-icon="dns">dns</span>
+<span>System Health</span>
+</div>
+<div class="text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-300 cursor-pointer active:scale-95 flex items-center gap-3 px-4 py-2 rounded-md font-manrope font-bold text-xs uppercase tracking-tight">
+<span class="material-symbols-outlined text-sm" data-icon="settings">settings</span>
+<span>Settings</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="w-full h-16 fixed top-0 z-40 bg-[#0b1326]/80 backdrop-blur-md bg-slate-900/30 flex items-center justify-between pl-72 pr-8">
+<div class="flex items-center gap-8">
+<span class="hidden md:block text-lg font-bold text-white font-headline">Architect OS</span>
+<nav class="flex items-center gap-6">
+<a class="text-indigo-300 border-b border-indigo-400 font-inter text-xs font-medium tracking-wide pb-1" href="#">Nodes</a>
+<a class="text-slate-500 hover:text-indigo-200 transition-colors font-inter text-xs font-medium tracking-wide pb-1" href="#">Registry</a>
+<a class="text-slate-500 hover:text-indigo-200 transition-colors font-inter text-xs font-medium tracking-wide pb-1" href="#">Logs</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg">search</span>
+<input class="bg-surface-container-lowest border-none rounded-full py-1.5 pl-10 pr-4 text-xs font-medium text-on-surface focus:ring-1 focus:ring-primary w-64 transition-all outline-none placeholder:text-slate-600" placeholder="Search cluster..." type="text"/>
+</div>
+<div class="flex items-center gap-4 text-slate-500">
+<span class="material-symbols-outlined cursor-pointer hover:text-indigo-400 transition-colors" data-icon="notifications_active">notifications_active</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-indigo-400 transition-colors" data-icon="bolt">bolt</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-indigo-400 transition-colors" data-icon="account_tree">account_tree</span>
+</div>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-primary/20 cursor-pointer hover:scale-105 transition-transform">
+<img alt="Administrator Avatar" class="w-full h-full object-cover" data-alt="Close-up portrait of a tech professional with a clean, minimalist aesthetic and cool studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCU2t9s2K2cETm2TcpTLIP-mrfVCW0EN0439zRdkntVzYuBe29oz7lqu0ZzCqalHeMACNkYE_F8X-Vs0QRGzim5meNCQNlNR_E8hj2IwtNgtmv86O1UGDGHgF1hMcDzs7l2T6lGn4Np3JFkgndCptsOEalzkUOO1wzbBLI-7CHjoWt-0qiaJ94KaLBYa-evtbPa8ZiKeEhMKvfBp2cEjoWCj_BOhvETmA_TLStYZw2xteVJSM894dkykbCABhCPK1gFJAB6XaqvFak_"/>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-64 pt-24 pb-12 px-8 min-h-screen">
+<!-- Header & Top Stats -->
+<div class="grid grid-cols-12 gap-6 mb-8">
+<div class="col-span-8">
+<h2 class="text-4xl font-headline font-extrabold tracking-tight text-white mb-2">Cluster Overview</h2>
+<p class="text-on-surface-variant font-body text-sm max-w-xl">Real-time orchestration of 14 localized agents across the distributed neural registry.</p>
+</div>
+<div class="col-span-4 flex justify-end items-end gap-3">
+<div class="px-4 py-2 bg-surface-container-low rounded-xl flex flex-col">
+<span class="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Latency</span>
+<span class="text-tertiary font-headline font-bold">14ms</span>
+</div>
+<div class="px-4 py-2 bg-surface-container-low rounded-xl flex flex-col">
+<span class="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Uptime</span>
+<span class="text-secondary font-headline font-bold">99.98%</span>
+</div>
+</div>
+</div>
+<!-- Resource Bento Grid -->
+<div class="grid grid-cols-12 gap-6 mb-12">
+<!-- Main Resource Allocation -->
+<div class="col-span-12 lg:col-span-8 bg-surface-container-low rounded-xl p-6 relative overflow-hidden">
+<div class="flex justify-between items-start mb-8 relative z-10">
+<div>
+<h3 class="text-lg font-headline font-bold text-white">System Resource Allocation</h3>
+<p class="text-xs text-slate-500">Live compute distribution across active kernels</p>
+</div>
+<span class="material-symbols-outlined text-indigo-400">query_stats</span>
+</div>
+<div class="space-y-6 relative z-10">
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-bold uppercase tracking-tighter">
+<span class="text-slate-400">Neural Compute (GPU)</span>
+<span class="text-primary">78%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-primary to-primary-container" style="width: 78%"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-bold uppercase tracking-tighter">
+<span class="text-slate-400">Memory Cluster (RAM)</span>
+<span class="text-secondary">42%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-secondary to-secondary-container" style="width: 42%"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-bold uppercase tracking-tighter">
+<span class="text-slate-400">Context Window Throughput</span>
+<span class="text-tertiary">91%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-tertiary to-tertiary-container" style="width: 91%"></div>
+</div>
+</div>
+</div>
+<!-- Background visual noise -->
+<div class="absolute -right-20 -bottom-20 w-64 h-64 bg-primary/5 blur-[80px] rounded-full"></div>
+</div>
+<!-- Side Activity Metric -->
+<div class="col-span-12 lg:col-span-4 grid grid-rows-2 gap-6">
+<div class="bg-surface-container-high rounded-xl p-6 flex flex-col justify-between border-l-2 border-primary/20">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary-fixed" data-icon="rocket_launch">rocket_launch</span>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">BURST MODE</span>
+</div>
+<div>
+<div class="text-3xl font-headline font-black text-white">4.2k</div>
+<div class="text-xs text-slate-400 font-medium">Operations per second</div>
+</div>
+</div>
+<div class="bg-surface-container-high rounded-xl p-6 flex flex-col justify-between border-l-2 border-tertiary/20">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-tertiary" data-icon="security">security</span>
+<span class="text-[10px] bg-tertiary/10 text-tertiary px-2 py-0.5 rounded-full font-bold">SECURED</span>
+</div>
+<div>
+<div class="text-3xl font-headline font-black text-white">0</div>
+<div class="text-xs text-slate-400 font-medium">Security Interventions</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Agent Grid Section -->
+<div class="mb-6 flex items-center justify-between">
+<h3 class="text-xl font-headline font-bold text-white">Active Core Agents</h3>
+<div class="flex gap-2">
+<button class="px-3 py-1.5 bg-surface-container-highest rounded-lg text-xs font-bold text-on-surface-variant hover:text-white transition-colors">Sort by Task</button>
+<button class="px-3 py-1.5 bg-surface-container-highest rounded-lg text-xs font-bold text-on-surface-variant hover:text-white transition-colors">Filter Active</button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+<!-- Agent Card 1 - Active -->
+<div class="bg-surface-container-high p-5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/5 group">
+<div class="flex items-center justify-between mb-4">
+<div class="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">neurology</span>
+</div>
+<div class="px-2 py-0.5 bg-tertiary-container/20 text-tertiary text-[10px] font-black rounded-full tracking-wider flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span>
+                        ACTIVE
+                    </div>
+</div>
+<h4 class="text-white font-headline font-bold mb-1">Aura-7</h4>
+<p class="text-xs text-slate-500 mb-4 font-medium">Linguistic Logic Engine</p>
+<div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/10 mb-4">
+<p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Current Task</p>
+<p class="text-xs text-on-surface leading-snug">Optimizing high-frequency trading algorithm context.</p>
+</div>
+<div class="flex justify-between items-center text-[10px] font-bold text-slate-500">
+<span>CPU: 12%</span>
+<span>MEM: 1.2GB</span>
+</div>
+</div>
+<!-- Agent Card 2 - Thinking -->
+<div class="bg-surface-container-high p-5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/5 group">
+<div class="flex items-center justify-between mb-4">
+<div class="h-10 w-10 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">data_object</span>
+</div>
+<div class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-black rounded-full tracking-wider flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                        THINKING
+                    </div>
+</div>
+<h4 class="text-white font-headline font-bold mb-1">Cortex-9</h4>
+<p class="text-xs text-slate-500 mb-4 font-medium">Strategic Synthesis Unit</p>
+<div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/10 mb-4">
+<p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Current Task</p>
+<p class="text-xs text-on-surface leading-snug">Simulating edge-case failures in Node Cluster 4.</p>
+</div>
+<div class="flex justify-between items-center text-[10px] font-bold text-slate-500">
+<span>CPU: 89%</span>
+<span>MEM: 4.8GB</span>
+</div>
+</div>
+<!-- Agent Card 3 - Idle -->
+<div class="bg-surface-container-high p-5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/5 group">
+<div class="flex items-center justify-between mb-4">
+<div class="h-10 w-10 rounded-lg bg-surface-container-highest flex items-center justify-center text-slate-500">
+<span class="material-symbols-outlined">terminal</span>
+</div>
+<div class="px-2 py-0.5 bg-surface-container-highest text-on-surface-variant text-[10px] font-black rounded-full tracking-wider flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                        IDLE
+                    </div>
+</div>
+<h4 class="text-white font-headline font-bold mb-1">Vector-0</h4>
+<p class="text-xs text-slate-500 mb-4 font-medium">Pattern Detection Hub</p>
+<div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/10 mb-4">
+<p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Status</p>
+<p class="text-xs text-slate-600 leading-snug">Awaiting instruction from primary scheduler.</p>
+</div>
+<div class="flex justify-between items-center text-[10px] font-bold text-slate-500">
+<span>CPU: 0.2%</span>
+<span>MEM: 0.1GB</span>
+</div>
+</div>
+<!-- Agent Card 4 - Active -->
+<div class="bg-surface-container-high p-5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/5 group">
+<div class="flex items-center justify-between mb-4">
+<div class="h-10 w-10 rounded-lg bg-tertiary/10 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">psychology</span>
+</div>
+<div class="px-2 py-0.5 bg-tertiary-container/20 text-tertiary text-[10px] font-black rounded-full tracking-wider flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span>
+                        ACTIVE
+                    </div>
+</div>
+<h4 class="text-white font-headline font-bold mb-1">Nova-S</h4>
+<p class="text-xs text-slate-500 mb-4 font-medium">Recursive Learning Agent</p>
+<div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/10 mb-4">
+<p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Current Task</p>
+<p class="text-xs text-on-surface leading-snug">Indexing new training datasets for Cortex-9.</p>
+</div>
+<div class="flex justify-between items-center text-[10px] font-bold text-slate-500">
+<span>CPU: 45%</span>
+<span>MEM: 2.1GB</span>
+</div>
+</div>
+</div>
+<!-- Bottom Layout: Activity Feed & System Log -->
+<div class="grid grid-cols-12 gap-8">
+<!-- Live Activity Feed -->
+<div class="col-span-12 lg:col-span-7 bg-surface-container rounded-xl p-8 shadow-2xl relative overflow-hidden">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-xl font-headline font-bold text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">dataset</span>
+                        Live Activity Feed
+                    </h3>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="text-[10px] font-bold text-tertiary uppercase tracking-widest">Connected</span>
+</div>
+</div>
+<div class="space-y-6">
+<div class="flex gap-4">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-primary mt-1.5"></div>
+<div class="w-[1px] h-full bg-outline-variant/20 my-2"></div>
+</div>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<span class="text-xs font-bold text-white">Aura-7 Completed Sync</span>
+<span class="text-[10px] text-slate-500 font-medium">12:44:02 PM</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-relaxed">Successfully pushed optimized trading weights to Registry Node #441. Validation score: 0.992.</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-secondary mt-1.5"></div>
+<div class="w-[1px] h-full bg-outline-variant/20 my-2"></div>
+</div>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<span class="text-xs font-bold text-white">Cortex-9 Initialized Simulation</span>
+<span class="text-[10px] text-slate-500 font-medium">12:43:15 PM</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-relaxed">Recursive simulation started for cluster failure scenarios. Expected completion in 450ms.</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex flex-col items-center">
+<div class="w-2 h-2 rounded-full bg-error mt-1.5"></div>
+</div>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<span class="text-xs font-bold text-error">System Alert: Latency Spike</span>
+<span class="text-[10px] text-slate-500 font-medium">12:42:01 PM</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-relaxed">Detected 40ms spike in intra-cluster communication. Nova-S redirected to compensate.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Agent Collaboration HUD -->
+<div class="col-span-12 lg:col-span-5 flex flex-col gap-6">
+<div class="bg-surface-container-high rounded-xl p-6 border border-outline-variant/5">
+<h4 class="text-sm font-headline font-bold text-white mb-4 uppercase tracking-wider">Agent Health Distribution</h4>
+<div class="flex items-center gap-4 mb-6">
+<div class="w-24 h-24 relative">
+<!-- SVG Donut Chart Simulation -->
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<path class="text-surface-container-highest" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+<path class="text-primary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="70, 100" stroke-linecap="round" stroke-width="3"></path>
+<path class="text-tertiary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="30, 100" stroke-dashoffset="-70" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center flex-col">
+<span class="text-lg font-headline font-black text-white">14</span>
+<span class="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">Total</span>
+</div>
+</div>
+<div class="flex-1 space-y-2">
+<div class="flex justify-between items-center text-[10px] font-bold">
+<span class="flex items-center gap-1.5 text-slate-400"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> ACTIVE</span>
+<span class="text-white">8</span>
+</div>
+<div class="flex justify-between items-center text-[10px] font-bold">
+<span class="flex items-center gap-1.5 text-slate-400"><span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span> THINKING</span>
+<span class="text-white">4</span>
+</div>
+<div class="flex justify-between items-center text-[10px] font-bold">
+<span class="flex items-center gap-1.5 text-slate-400"><span class="w-1.5 h-1.5 rounded-full bg-surface-container-highest"></span> IDLE</span>
+<span class="text-white">2</span>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-gradient-to-br from-primary-container to-primary rounded-xl p-6 shadow-xl shadow-primary/10 group cursor-pointer relative overflow-hidden">
+<div class="relative z-10">
+<div class="flex justify-between items-start mb-6">
+<span class="material-symbols-outlined text-white text-3xl" data-weight="fill">hub</span>
+<span class="material-symbols-outlined text-white/50 group-hover:text-white transition-colors">arrow_outward</span>
+</div>
+<h4 class="text-on-primary font-headline font-black text-xl mb-1">Collaboration Hub</h4>
+<p class="text-on-primary/70 text-xs font-medium">Join the multi-agent hive mind session for complex problem solving.</p>
+</div>
+<!-- Decorative element -->
+<div class="absolute right-[-10%] bottom-[-20%] opacity-10">
+<span class="material-symbols-outlined text-[120px]" data-weight="fill">group_work</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

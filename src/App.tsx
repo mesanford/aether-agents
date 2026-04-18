@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
+import { TEAM_CHAT_AGENT_ID } from './constants';
 
 // Display names for the hardcoded agent registry — used when a workspace has no
 // custom agent profiles configured in the database.
@@ -23,6 +24,7 @@ import {
   ChevronLeft,
   Menu,
   ClipboardCheck,
+  Settings,
 } from 'lucide-react';
 import { Agent, AgentPersonality, AgentRole, AgentStatus, Message, Task, Workspace } from './types';
 import { AgentCard } from './components/AgentCard';
@@ -93,12 +95,10 @@ export default function App() {
         personality: normalizeAgentPersonality(a.personality),
       }));
       setAgents(agentsList);
-      if (agentsList.length > 0 && !activeAgentId) {
-        setActiveAgentId(agentsList[0].id);
-      } else if (agentsList.length > 0) {
-        // keep active agent valid after workspace switch
-        const stillValid = agentsList.find(a => a.id === activeAgentId);
-        if (!stillValid) setActiveAgentId(agentsList[0].id);
+      if (agentsList.length > 0) {
+        const firstVisible = agentsList.find(a => a.id !== TEAM_CHAT_AGENT_ID) || agentsList[0];
+        const stillValid = agentsList.find(a => a.id === activeAgentId && a.id !== TEAM_CHAT_AGENT_ID);
+        if (!stillValid) setActiveAgentId(firstVisible.id);
       }
 
       setTasks(tasksData || []);
@@ -259,7 +259,7 @@ export default function App() {
           id: `hist_${i}`,
           senderId: m.role === 'user' ? 'user' : m.sender,
           senderName: m.role === 'user' ? user.name : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.name || DEFAULT_AGENT_NAMES[m.sender] || 'System'),
-          senderAvatar: m.role === 'user' ? (user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`) : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${m.sender}`),
+          senderAvatar: m.role === 'user' ? (user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.email}`) : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.sender}`),
           content: m.content,
           timestamp: Date.now(),
           type: m.role === 'user' ? 'user' : 'agent'
@@ -505,8 +505,8 @@ export default function App() {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-brand-500 rounded-full animate-spin" />
-          <p className="text-sm text-slate-400 font-medium">Loading workspace...</p>
+          <div className="w-8 h-8 border-4 border-warm-200 border-t-brand-500 rounded-full animate-spin" />
+          <p className="text-sm text-stone-400 font-medium">Loading workspace...</p>
         </div>
       </div>
     );
@@ -523,7 +523,7 @@ export default function App() {
       id: Date.now().toString(),
       senderId: 'user',
       senderName: user.name,
-      senderAvatar: user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
+      senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.email}`,
       content,
       timestamp: Date.now(),
       type: 'user'
@@ -562,7 +562,7 @@ export default function App() {
       id: (Date.now() + 1).toString(),
       senderId: sender || 'system',
       senderName: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.name || DEFAULT_AGENT_NAMES[sender || ''] || 'System',
-      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
+      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system',
       content: stripAgentJson(text),
       timestamp: Date.now(),
       type: 'agent'
@@ -584,7 +584,7 @@ export default function App() {
 
   if (activeWorkspace && !activeWorkspace.is_onboarded) {
     return (
-      <div className="flex relative h-[100dvh] bg-white overflow-hidden text-slate-800">
+      <div className="flex relative h-[100dvh] bg-white overflow-hidden text-stone-800">
         <Toaster 
           position="top-center" 
           toastOptions={{
@@ -605,8 +605,8 @@ export default function App() {
   }
 
   return (
-    <div className="flex relative h-[100dvh] bg-white overflow-hidden text-slate-800">
-      <Toaster 
+    <div className="flex relative h-[100dvh] bg-warm-50 overflow-hidden text-stone-800">
+      <Toaster
         position="top-center" 
         toastOptions={{
           style: {
@@ -618,22 +618,22 @@ export default function App() {
         }}
       />
       {/* Mobile Sidebar Overlay */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-100 z-40 flex items-center justify-between px-4">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-warm-100 border-b border-warm-200 z-40 flex items-center justify-between px-4">
         <button
           onClick={() => setIsMobileMenuOpen(true)}
-          className="p-2 text-slate-500"
+          className="p-2 text-stone-500"
         >
           <Menu className="w-6 h-6" />
         </button>
-        <div className="font-bold text-slate-900">Sanford AI</div>
-        <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
-          <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} alt="User" />
+        <div className="font-display font-bold text-stone-900">Sanford AI</div>
+        <div className="w-10 h-10 rounded-full bg-warm-100 overflow-hidden border border-warm-200">
+          <img src={user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.email}`} alt="User" />
         </div>
       </div>
 
       {/* Sidebar Rail */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-[72px] bg-white border-r border-slate-100 flex flex-col items-center py-6 gap-8 transition-transform md:relative md:translate-x-0",
+        "fixed inset-y-0 left-0 z-50 w-[72px] bg-warm-100 border-r border-warm-200 flex flex-col items-center py-6 gap-8 transition-transform md:relative md:translate-x-0",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="w-10 h-10 flex items-center justify-center">
@@ -650,7 +650,7 @@ export default function App() {
                 "w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold transition-all border-2",
                 activeWorkspaceId === ws.id
                   ? "bg-brand-500 text-white border-brand-500 shadow-lg shadow-brand-500/20"
-                  : "bg-slate-50 text-slate-400 border-slate-100 hover:border-slate-200"
+                  : "bg-warm-50 text-stone-400 border-warm-200 hover:border-warm-300"
               )}
               title={ws.name}
             >
@@ -662,7 +662,7 @@ export default function App() {
               setWorkspaceNameDraft('');
               setShowWorkspacePrompt(true);
             }}
-            className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 border-2 border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-all"
+            className="w-10 h-10 rounded-xl flex items-center justify-center bg-warm-50 text-stone-400 border-2 border-dashed border-warm-200 hover:border-warm-300 hover:text-stone-600 transition-all"
             title="Add Workspace"
           >
             +
@@ -688,7 +688,7 @@ export default function App() {
               }}
               className={cn(
                 "p-2 rounded-lg transition-colors relative group",
-                activeView === item.id ? "text-slate-900 bg-slate-50" : "text-slate-400 hover:text-slate-600"
+                activeView === item.id ? "text-stone-900 bg-warm-100" : "text-stone-400 hover:text-stone-600"
               )}
               title={item.id.charAt(0).toUpperCase() + item.id.slice(1)}
             >
@@ -707,7 +707,7 @@ export default function App() {
             }}
             className={cn(
               "p-2 rounded-lg transition-colors relative group",
-              activeView === 'approvals' ? "text-slate-900 bg-slate-50" : "text-slate-400 hover:text-slate-600"
+              activeView === 'approvals' ? "text-stone-900 bg-warm-100" : "text-stone-400 hover:text-stone-600"
             )}
             title="Approvals"
           >
@@ -731,11 +731,11 @@ export default function App() {
               setIsMobileMenuOpen(false);
             }}
             className={cn(
-              "w-10 h-10 rounded-full bg-slate-100 overflow-hidden border-2 transition-all",
-              activeView === 'settings' ? "border-brand-500 scale-110" : "border-slate-200 hover:border-slate-300"
+              "w-10 h-10 rounded-full bg-warm-100 overflow-hidden border-2 transition-all",
+              activeView === 'settings' ? "border-brand-500 scale-110" : "border-warm-200 hover:border-warm-300"
             )}
           >
-            <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} alt="User" />
+            <img src={user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.email}`} alt="User" />
           </button>
         </div>
       </aside>
@@ -748,21 +748,21 @@ export default function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsMobileMenuOpen(false)}
-            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 md:hidden"
+            className="fixed inset-0 bg-stone-900/20 backdrop-blur-sm z-40 md:hidden"
           />
         )}
       </AnimatePresence>
 
       {/* Agent List Column */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 md:relative z-30 w-full md:w-[340px] border-r border-slate-100 flex flex-col bg-white transition-transform md:translate-x-0",
+        "fixed inset-y-0 left-0 md:relative z-30 w-full md:w-[340px] border-r border-warm-200 flex flex-col bg-warm-50 transition-transform md:translate-x-0",
         showAgentList ? "translate-x-0" : "-translate-x-full",
         "pt-16 md:pt-0"
       )}>
         <div className="p-6 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-900">Agents</h1>
+          <h1 className="font-display text-xl font-bold text-stone-900">Agents</h1>
           <button
-            className="md:hidden p-2 text-slate-400"
+            className="md:hidden p-2 text-stone-400"
             onClick={() => setShowAgentList(false)}
           >
             <ChevronLeft className="w-6 h-6" />
@@ -770,7 +770,7 @@ export default function App() {
         </div>
         <div className="flex-1 overflow-y-auto">
 
-          {agents.map((agent) => {
+          {agents.filter(a => a.id !== TEAM_CHAT_AGENT_ID).map((agent) => {
             const agentMessages = messages[agent.id] || [];
             const lastAgentMessage = [...agentMessages].reverse().find(m => m.type === 'agent');
 
@@ -799,7 +799,7 @@ export default function App() {
 
       {/* Main Area */}
       <main className={cn(
-        "flex-1 min-w-0 flex flex-col bg-white pt-16 md:pt-0 transition-transform",
+        "flex-1 min-w-0 flex flex-col bg-warm-50 pt-16 md:pt-0 transition-transform",
         !showAgentList ? "translate-x-0" : "translate-x-full md:translate-x-0"
       )}>
         {activeView === 'chat' ? (
@@ -825,8 +825,8 @@ export default function App() {
           ) : (
             <div className="flex-1 flex items-center justify-center px-6">
               <div className="max-w-md text-center">
-                <h2 className="text-2xl font-bold text-slate-900">No agents in this workspace yet</h2>
-                <p className="mt-2 text-slate-500">Create an agent from Team view or switch to a workspace that already has agents.</p>
+                <h2 className="font-display text-2xl font-bold text-stone-900">No agents in this workspace yet</h2>
+                <p className="mt-2 text-stone-500">Create an agent from Team view or switch to a workspace that already has agents.</p>
                 <button
                   onClick={() => setActiveView('team')}
                   className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 transition-colors"
@@ -838,11 +838,11 @@ export default function App() {
           )
         ) : (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="md:hidden px-6 py-4 border-b border-slate-100 flex items-center gap-4">
-              <button onClick={() => setShowAgentList(true)} className="p-2 -ml-2 text-slate-400">
+            <div className="md:hidden px-6 py-4 border-b border-warm-200 flex items-center gap-4">
+              <button onClick={() => setShowAgentList(true)} className="p-2 -ml-2 text-stone-400">
                 <ChevronLeft className="w-6 h-6" />
               </button>
-              <h2 className="font-bold text-slate-900 capitalize">{activeView}</h2>
+              <h2 className="font-display font-bold text-stone-900 capitalize">{activeView}</h2>
             </div>
             {activeView === 'approvals' ? (
               <ApprovalQueue
@@ -918,14 +918,36 @@ export default function App() {
         )}
       </main>
 
+      {/* Mobile bottom tab bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-warm-100 border-t border-warm-200 z-40 flex items-center justify-around px-2">
+        {[
+          { id: 'chat', icon: MessageSquare, label: 'Chat' },
+          { id: 'tasks', icon: CheckSquare, label: 'Tasks' },
+          { id: 'docs', icon: FileText, label: 'Files' },
+          { id: 'settings', icon: Settings, label: 'Settings' },
+        ].map((item) => (
+          <button
+            key={item.id}
+            onClick={() => { setActiveView(item.id as any); if (item.id !== 'chat') setShowAgentList(false); }}
+            className={cn(
+              "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-colors",
+              activeView === item.id ? "text-brand-600" : "text-stone-400"
+            )}
+          >
+            <item.icon className="w-5 h-5" />
+            <span className="text-[10px] font-medium">{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
       {showWorkspacePrompt && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-xl max-w-md w-full relative">
-            <button onClick={() => setShowWorkspacePrompt(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+            <button onClick={() => setShowWorkspacePrompt(false)} className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-600 hover:bg-warm-100 rounded-full transition-colors">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">Create Workspace</h3>
-            <p className="text-slate-500 text-sm mb-6">Enter a name for your new workspace.</p>
+            <h3 className="font-display text-xl font-bold text-stone-900 mb-2">Create Workspace</h3>
+            <p className="text-stone-500 text-sm mb-6">Enter a name for your new workspace.</p>
             <input
               type="text"
               autoFocus
@@ -946,12 +968,12 @@ export default function App() {
                 }
               }}
               placeholder="e.g. Acme Corp"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
+              className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
             />
             <div className="flex items-center gap-3 mt-8">
-              <button 
-                onClick={() => setShowWorkspacePrompt(false)} 
-                className="flex-1 px-5 py-2.5 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+              <button
+                onClick={() => setShowWorkspacePrompt(false)}
+                className="flex-1 px-5 py-2.5 font-bold text-stone-600 hover:bg-warm-100 rounded-xl transition-all"
               >
                 Cancel
               </button>

@@ -36,7 +36,7 @@ const PLATFORM_META: Record<string, { label: string; icon: React.ElementType; co
   linkedin_post: { label: 'LinkedIn', icon: Linkedin, color: 'text-blue-700', bg: 'bg-blue-50' },
   buffer_post:   { label: 'Buffer',   icon: Rss,      color: 'text-orange-600', bg: 'bg-orange-50' },
   instagram_post:{ label: 'Instagram',icon: Instagram, color: 'text-pink-600',  bg: 'bg-pink-50' },
-  twitter_post:  { label: 'X/Twitter',icon: Twitter,   color: 'text-slate-800', bg: 'bg-slate-100' },
+  twitter_post:  { label: 'X/Twitter',icon: Twitter,   color: 'text-stone-800', bg: 'bg-warm-100' },
   facebook_post: { label: 'Facebook', icon: Facebook,  color: 'text-blue-600',  bg: 'bg-blue-50' },
 };
 
@@ -74,8 +74,8 @@ function ApprovalCard({
   const meta = PLATFORM_META[approval.action_type] ?? {
     label: approval.action_type,
     icon: Rss,
-    color: 'text-slate-600',
-    bg: 'bg-slate-50',
+    color: 'text-stone-600',
+    bg: 'bg-warm-50',
   };
   const PlatformIcon = meta.icon;
   const text = approval.payload?.text || '';
@@ -106,15 +106,15 @@ function ApprovalCard({
   if (approval.status !== 'pending') return null;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+    <div className="bg-white border border-warm-200 rounded-xl overflow-hidden shadow-sm">
       {/* Card Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
-        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-warm-200">
+        <div className="w-8 h-8 rounded-full bg-warm-100 flex items-center justify-center text-xs font-bold text-stone-600 flex-shrink-0">
           {getAgentInitials(approval.agent_id, approval.agent_name)}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm text-slate-800">
+            <span className="font-medium text-sm text-stone-800">
               {approval.agent_name || approval.agent_id.split(':')[0]}
             </span>
             <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${meta.bg} ${meta.color}`}>
@@ -122,11 +122,11 @@ function ApprovalCard({
               {meta.label}
             </span>
           </div>
-          <p className="text-xs text-slate-400">{formatRelativeTime(approval.requested_at)}</p>
+          <p className="text-xs text-stone-400">{formatRelativeTime(approval.requested_at)}</p>
         </div>
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="p-1 text-slate-400 hover:text-slate-600"
+          className="p-1 text-stone-400 hover:text-stone-600"
         >
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -139,10 +139,10 @@ function ApprovalCard({
             <img
               src={imageUrl}
               alt="Post media"
-              className="w-full max-h-48 object-cover rounded-lg border border-slate-100"
+              className="w-full max-h-48 object-cover rounded-lg border border-warm-200"
             />
           )}
-          <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+          <p className="text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">
             {text.length > 400 ? `${text.slice(0, 400)}…` : text}
           </p>
           {approval.payload?.link && (
@@ -172,7 +172,7 @@ function ApprovalCard({
         <button
           onClick={() => setShowRejectModal(true)}
           disabled={isSubmitting}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-100 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 text-slate-600 text-sm font-medium rounded-lg transition-colors min-h-[44px]"
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-warm-100 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 text-stone-600 text-sm font-medium rounded-lg transition-colors min-h-[44px]"
         >
           <XCircle className="w-4 h-4" />
           Reject
@@ -183,18 +183,18 @@ function ApprovalCard({
       {showRejectModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
-            <h3 className="font-semibold text-slate-900">Reject post?</h3>
+            <h3 className="font-semibold text-stone-900">Reject post?</h3>
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Reason (optional)"
               rows={3}
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-slate-300"
+              className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-slate-300"
             />
             <div className="flex gap-2">
               <button
                 onClick={() => setShowRejectModal(false)}
-                className="flex-1 py-2.5 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                className="flex-1 py-2.5 text-sm text-stone-600 bg-warm-100 hover:bg-warm-200 rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -247,12 +247,12 @@ export function ApprovalQueue({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-5 border-b border-slate-100">
+      <div className="flex-shrink-0 px-6 py-5 border-b border-warm-200">
         <div className="flex items-center gap-3">
           <Clock className="w-5 h-5 text-amber-500" />
           <div>
-            <h2 className="font-semibold text-slate-900">Approval Queue</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="font-semibold text-stone-900">Approval Queue</h2>
+            <p className="text-xs text-stone-400 mt-0.5">
               {pending.length === 0
                 ? 'All caught up'
                 : `${pending.length} post${pending.length === 1 ? '' : 's'} waiting for review`}
@@ -266,8 +266,8 @@ export function ApprovalQueue({
         {pending.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center">
             <CheckCircle className="w-10 h-10 text-emerald-400 mb-3" />
-            <p className="font-medium text-slate-600">Nothing to review</p>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="font-medium text-stone-600">Nothing to review</p>
+            <p className="text-sm text-stone-400 mt-1">
               Agent posts set to "Require Approval" will appear here.
             </p>
           </div>

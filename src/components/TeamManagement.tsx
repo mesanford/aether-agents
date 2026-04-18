@@ -43,7 +43,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
       ]);
       setMembers(membersData.map((m: any) => ({
         ...m,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.email}`
+        avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${m.email}`
       })));
       setInvites(invitesData);
     } catch (err) {
@@ -131,13 +131,13 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
       {/* Header */}
       <div className="px-4 md:px-8 py-6 md:py-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Team</h1>
-          <p className="text-xs md:text-sm text-slate-500 mt-1 md:mt-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-stone-900">Team</h1>
+          <p className="text-xs md:text-sm text-stone-500 mt-1 md:mt-2">
             {isLoading ? (
               <span className="animate-pulse">Loading members...</span>
             ) : (
               <>
-                <span className="font-bold text-slate-700">{members.length} / 5 seats</span> • 
+                <span className="font-bold text-stone-700">{members.length} / 5 seats</span> • 
                 <button className="text-brand-600 hover:underline ml-1">Add Seats</button>
               </>
             )}
@@ -145,7 +145,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
         </div>
         <button 
           onClick={() => setIsInviteModalOpen(true)}
-          className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200"
+          className="px-6 py-2.5 bg-stone-900 text-white rounded-xl text-sm font-bold hover:bg-stone-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200"
         >
           <UserPlus className="w-4 h-4" />
           Invite Member
@@ -154,27 +154,27 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
 
       {/* Table */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8">
-        <div className="bg-white border border-slate-100 rounded-2xl md:rounded-3xl overflow-x-auto shadow-sm">
+        <div className="bg-white border border-warm-200 rounded-2xl md:rounded-3xl overflow-x-auto shadow-sm">
           <table className="w-full text-left border-collapse min-w-[600px] md:min-w-0">
             <thead>
-              <tr className="border-b border-slate-50">
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-slate-400">Member</th>
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-slate-400">Role</th>
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-slate-400">Status</th>
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-slate-400 text-right">Actions</th>
+              <tr className="border-b border-warm-200">
+                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-stone-400">Member</th>
+                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-stone-400">Role</th>
+                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-stone-400">Status</th>
+                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-stone-400 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {members.map((member) => (
-                <tr key={member.id} className="group hover:bg-slate-50/50 transition-colors">
+                <tr key={member.id} className="group hover:bg-warm-50/50 transition-colors">
                   <td className="px-6 md:px-8 py-4 md:py-5">
                     <div className="flex items-center gap-3 md:gap-4">
-                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200 flex-shrink-0">
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-warm-100 overflow-hidden border border-warm-200 flex-shrink-0">
                         <img src={member.avatar} alt={member.name} />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-900 truncate capitalize">{member.name}</p>
-                        <p className="text-xs text-slate-500 font-medium truncate">{member.email}</p>
+                        <p className="text-sm font-bold text-stone-900 truncate capitalize">{member.name}</p>
+                        <p className="text-xs text-stone-500 font-medium truncate">{member.email}</p>
                       </div>
                     </div>
                   </td>
@@ -183,9 +183,9 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                       {member.role === 'owner' ? (
                         <ShieldCheck className="w-4 h-4 text-brand-600" />
                       ) : (
-                        <Shield className="w-4 h-4 text-slate-400" />
+                        <Shield className="w-4 h-4 text-stone-400" />
                       )}
-                      <span className="text-sm font-medium text-slate-700 capitalize">{member.role}</span>
+                      <span className="text-sm font-medium text-stone-700 capitalize">{member.role}</span>
                     </div>
                   </td>
                   <td className="px-6 md:px-8 py-4 md:py-5">
@@ -197,7 +197,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                     {member.role !== 'owner' && (
                       <button 
                         onClick={() => removeMember(member.id)}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -206,22 +206,22 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                 </tr>
               ))}
               {invites.filter(i => i.status === 'pending').map((invite) => (
-                <tr key={invite.id} className="group hover:bg-slate-50/50 transition-colors bg-slate-50/20">
+                <tr key={invite.id} className="group hover:bg-warm-50/50 transition-colors bg-warm-50/20">
                   <td className="px-6 md:px-8 py-4 md:py-5">
                     <div className="flex items-center gap-3 md:gap-4 opacity-60">
-                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200 border-dashed flex-shrink-0 flex items-center justify-center text-slate-400">
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-warm-100 overflow-hidden border border-warm-200 border-dashed flex-shrink-0 flex items-center justify-center text-stone-400">
                         <Mail className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-500 truncate capitalize">{invite.email.split('@')[0]}</p>
-                        <p className="text-xs text-slate-400 font-medium truncate">{invite.email}</p>
+                        <p className="text-sm font-bold text-stone-500 truncate capitalize">{invite.email.split('@')[0]}</p>
+                        <p className="text-xs text-stone-400 font-medium truncate">{invite.email}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 md:px-8 py-4 md:py-5">
                     <div className="flex items-center gap-2 opacity-60">
-                      <Shield className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm font-medium text-slate-500 capitalize">{invite.role}</span>
+                      <Shield className="w-4 h-4 text-stone-400" />
+                      <span className="text-sm font-medium text-stone-500 capitalize">{invite.role}</span>
                     </div>
                   </td>
                   <td className="px-6 md:px-8 py-4 md:py-5">
@@ -234,14 +234,14 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                       <button 
                         onClick={() => resendInvite(invite.id)}
                         title="Resend Invite"
-                        className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
+                        className="p-2 text-stone-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
                       >
                         <Send className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => revokeInvite(invite.id)}
                         title="Revoke Invite"
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -263,7 +263,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsInviteModalOpen(false)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -276,28 +276,28 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ activeWorkspaceI
                   <Mail className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900">Invite Team Member</h3>
-                  <p className="text-sm text-slate-500">Add a new user to your workspace</p>
+                  <h3 className="text-xl font-bold text-stone-900">Invite Team Member</h3>
+                  <p className="text-sm text-stone-500">Add a new user to your workspace</p>
                 </div>
               </div>
 
               <form onSubmit={handleInvite} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Email Address</label>
+                  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">Email Address</label>
                   <input 
                     autoFocus
                     type="email" 
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     placeholder="colleague@company.com"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
                   />
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button 
                     type="button"
                     onClick={() => setIsInviteModalOpen(false)}
-                    className="flex-1 px-4 py-3 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all"
+                    className="flex-1 px-4 py-3 bg-warm-100 text-stone-600 rounded-xl text-sm font-bold hover:bg-warm-200 transition-all"
                   >
                     Cancel
                   </button>

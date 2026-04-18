@@ -182,6 +182,14 @@ interface IntegrationHealth {
   };
 }
 
+const PREBUILT_AVATARS = [
+  "https://api.dicebear.com/9.x/avataaars/svg?seed=marcus",
+  "https://api.dicebear.com/9.x/avataaars/svg?seed=sarah&style=circle",
+  "https://api.dicebear.com/9.x/avataaars/svg?seed=alex&backgroundColor=b6e3f4",
+  "https://api.dicebear.com/9.x/avataaars/svg?seed=jessica&backgroundColor=c0aede",
+  "https://api.dicebear.com/9.x/avataaars/svg?seed=david&backgroundColor=ffdfbf",
+];
+
 export const SettingsView: React.FC<SettingsViewProps> = ({
   user,
   token,
@@ -198,16 +206,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showDeleteWorkspaceModal, setShowDeleteWorkspaceModal] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'marcus'}`);
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.name || 'marcus'}`);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
-  
-  const PREBUILT_AVATARS = [
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=marcus",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah&style=circle",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=alex&backgroundColor=b6e3f4",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=jessica&backgroundColor=c0aede",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=david&backgroundColor=ffdfbf"
-  ];
 
   const handleAvatarSelect = async (url: string) => {
     setAvatarUrl(url);
@@ -928,6 +928,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const integrations = [
     {
       id: 'google-workspace',
+      category: 'Team & Productivity',
       name: 'Google Workspace',
       icon: Layout,
       description: 'Gmail, Calendar, Drive, Docs & Slides',
@@ -946,6 +947,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'knowledge-drive',
+      category: 'Team & Productivity',
       name: 'AgencyOS Knowledge Drive',
       icon: Folder,
       description: 'Auto-syncs a shared Google Drive folder for Agent search access',
@@ -958,6 +960,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'linkedin',
+      category: 'Social & Content',
       name: 'LinkedIn',
       icon: Linkedin,
       description: 'Publish artifact copy directly to LinkedIn',
@@ -973,6 +976,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'buffer',
+      category: 'Social & Content',
       name: 'Buffer',
       icon: ExternalLink,
       description: 'Queue social posts to your connected Buffer channels',
@@ -988,6 +992,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'slack',
+      category: 'Team & Productivity',
       name: 'Slack',
       icon: MessageSquare,
       description: 'Send workspace updates to Slack channels',
@@ -1003,6 +1008,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'teams',
+      category: 'Team & Productivity',
       name: 'Microsoft Teams',
       icon: MessageSquare,
       description: 'Send workspace updates to a Teams incoming webhook',
@@ -1017,6 +1023,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'notion',
+      category: 'Team & Productivity',
       name: 'Notion',
       icon: FileText,
       description: 'Save updates and artifacts to Notion pages',
@@ -1032,6 +1039,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'hubspot',
+      category: 'CRM & Communications',
       name: 'HubSpot',
       icon: Building2,
       description: 'Sync leads into your CRM',
@@ -1048,6 +1056,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'twilio',
+      category: 'CRM & Communications',
       name: 'Twilio SMS',
       icon: Mail,
       description: 'Send SMS updates and notifications from agent workflows',
@@ -1063,6 +1072,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'googlevoice',
+      category: 'CRM & Communications',
       name: 'Google Voice',
       icon: Phone,
       description: 'Select a Google Voice number for your Receptionist agent',
@@ -1075,6 +1085,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     {
       id: 'wordpress',
+      category: 'Social & Content',
       name: 'WordPress',
       icon: Globe,
       description: 'Post blogs directly to your site',
@@ -1088,22 +1099,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-50/50 overflow-hidden">
-      <div className="px-8 py-6 bg-white border-b border-slate-100">
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 text-sm mt-1">Manage your account and connected services</p>
+    <div className="flex-1 flex flex-col bg-warm-50/50 overflow-hidden">
+      <div className="px-8 py-6 bg-white border-b border-warm-200">
+        <h1 className="font-display text-2xl font-bold text-stone-900">Settings</h1>
+        <p className="text-stone-500 text-sm mt-1">Manage your account and connected services</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-4xl mx-auto space-y-8">
 
           {/* Tabs */}
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+          <div className="flex gap-1 bg-warm-100 p-1 rounded-xl w-fit">
             <button
               onClick={() => setActiveTab('account')}
               className={cn(
                 "px-6 py-2 rounded-lg text-sm font-medium transition-all",
-                activeTab === 'account' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                activeTab === 'account' ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
               )}
             >
               Account
@@ -1112,7 +1123,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={() => setActiveTab('integrations')}
               className={cn(
                 "px-6 py-2 rounded-lg text-sm font-medium transition-all",
-                activeTab === 'integrations' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                activeTab === 'integrations' ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
               )}
             >
               Integrations
@@ -1125,8 +1136,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
+                <h2 className="font-display text-lg font-bold text-stone-900 mb-6 flex items-center gap-2">
                   <User className="w-5 h-5 text-brand-500" />
                   Profile Information
                 </h2>
@@ -1134,16 +1145,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="flex flex-col md:flex-row gap-8 mb-8">
                   {/* Avatar Section */}
                   <div className="flex flex-col gap-4">
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Avatar</label>
+                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider">Avatar</label>
                     <div className="flex gap-4 items-start">
-                      <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border-2 border-slate-200 flex-shrink-0 relative group">
+                      <div className="w-20 h-20 rounded-full overflow-hidden bg-warm-100 border-2 border-warm-200 flex-shrink-0 relative group">
                         <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                         {isUpdatingAvatar && (
                           <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
                             <Loader className="w-5 h-5 text-brand-500 animate-spin" />
                           </div>
                         )}
-                        <label className="absolute inset-0 bg-slate-900/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                        <label className="absolute inset-0 bg-stone-900/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
                           <Plus className="w-6 h-6 text-white mb-1" />
                           <span className="text-[10px] text-white font-bold uppercase tracking-wider">Upload</span>
                           <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
@@ -1151,7 +1162,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </div>
                       
                       <div className="flex-1">
-                        <p className="text-xs text-slate-500 font-medium mb-2">Or choose a prebuilt avatar:</p>
+                        <p className="text-xs text-stone-500 font-medium mb-2">Or choose a prebuilt avatar:</p>
                         <div className="flex flex-wrap gap-2">
                           {PREBUILT_AVATARS.map((url, i) => (
                             <button
@@ -1159,7 +1170,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               onClick={() => handleAvatarSelect(url)}
                               className={cn(
                                 "w-10 h-10 rounded-full overflow-hidden border-2 transition-all hover:scale-105",
-                                avatarUrl === url ? "border-brand-500 scale-110 shadow-md" : "border-slate-200 hover:border-brand-300"
+                                avatarUrl === url ? "border-brand-500 scale-110 shadow-md" : "border-warm-200 hover:border-brand-300"
                               )}
                             >
                               <img src={url} alt={`Prebuilt ${i}`} className="w-full h-full object-cover" />
@@ -1173,22 +1184,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Name</label>
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <span className="text-slate-900 font-medium">{user.name}</span>
+                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Name</label>
+                    <div className="flex items-center gap-3 p-3 bg-warm-50 rounded-xl border border-warm-200">
+                      <span className="text-stone-900 font-medium">{user.name}</span>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Email</label>
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <span className="text-slate-900 font-medium">{user.email}</span>
+                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Email</label>
+                    <div className="flex items-center gap-3 p-3 bg-warm-50 rounded-xl border border-warm-200">
+                      <span className="text-stone-900 font-medium">{user.email}</span>
                     </div>
                   </div>
 
                   <div className="pt-4">
                     <button
                       onClick={() => setShowPasswordModal(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-white border border-warm-200 rounded-xl text-sm font-medium text-stone-700 hover:bg-warm-50 transition-colors"
                     >
                       <Lock className="w-4 h-4" />
                       Change Password
@@ -1200,10 +1211,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <AnimatePresence>
                   {showPasswordModal && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowPasswordModal(false)} />
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setShowPasswordModal(false)} />
                       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                          <h3 className="font-bold text-slate-900">Change Password</h3>
+                        <div className="px-6 py-4 border-b border-warm-200 flex items-center justify-between">
+                          <h3 className="font-bold text-stone-900">Change Password</h3>
                         </div>
                         <form className="p-6 space-y-4" onSubmit={async (e) => {
                           e.preventDefault();
@@ -1225,19 +1236,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           }
                         }}>
                           <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Current Password</label>
-                            <input type="password" value={passwordData.current} onChange={e => setPasswordData({...passwordData, current: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:outline-none focus:border-brand-500" required />
+                            <label className="block text-xs font-bold text-stone-500 mb-1">Current Password</label>
+                            <input type="password" value={passwordData.current} onChange={e => setPasswordData({...passwordData, current: e.target.value})} className="w-full bg-warm-50 border border-warm-200 rounded-xl px-4 py-2 text-stone-900 focus:outline-none focus:border-brand-500" required />
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">New Password</label>
-                            <input type="password" value={passwordData.new} onChange={e => setPasswordData({...passwordData, new: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:outline-none focus:border-brand-500" required />
+                            <label className="block text-xs font-bold text-stone-500 mb-1">New Password</label>
+                            <input type="password" value={passwordData.new} onChange={e => setPasswordData({...passwordData, new: e.target.value})} className="w-full bg-warm-50 border border-warm-200 rounded-xl px-4 py-2 text-stone-900 focus:outline-none focus:border-brand-500" required />
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Confirm New Password</label>
-                            <input type="password" value={passwordData.confirm} onChange={e => setPasswordData({...passwordData, confirm: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 focus:outline-none focus:border-brand-500" required />
+                            <label className="block text-xs font-bold text-stone-500 mb-1">Confirm New Password</label>
+                            <input type="password" value={passwordData.confirm} onChange={e => setPasswordData({...passwordData, confirm: e.target.value})} className="w-full bg-warm-50 border border-warm-200 rounded-xl px-4 py-2 text-stone-900 focus:outline-none focus:border-brand-500" required />
                           </div>
                           <div className="pt-4 flex justify-end gap-3">
-                            <button type="button" onClick={() => setShowPasswordModal(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-xl font-bold">Cancel</button>
+                            <button type="button" onClick={() => setShowPasswordModal(false)} className="px-4 py-2 text-stone-500 hover:bg-warm-50 rounded-xl font-bold">Cancel</button>
                             <button type="submit" className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold">Update</button>
                           </div>
                         </form>
@@ -1247,9 +1258,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </AnimatePresence>
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900 mb-4">Session</h2>
-                <p className="text-slate-500 text-sm mb-6">Manage your active session and security</p>
+              <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
+                <h2 className="font-display text-lg font-bold text-stone-900 mb-4">Session</h2>
+                <p className="text-stone-500 text-sm mb-6">Manage your active session and security</p>
 
                 <button
                   onClick={onLogout}
@@ -1263,7 +1274,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {activeWorkspaceRole === 'owner' && (
                 <div className="bg-white rounded-2xl border border-red-200 p-6 shadow-sm">
                   <h2 className="text-lg font-bold text-red-600 mb-4">Danger Zone</h2>
-                  <p className="text-slate-500 text-sm mb-6">Permanently delete this workspace and all of its associated data including agents, tasks, integrations, and leads. This action cannot be undone.</p>
+                  <p className="text-stone-500 text-sm mb-6">Permanently delete this workspace and all of its associated data including agents, tasks, integrations, and leads. This action cannot be undone.</p>
                   
                   <button
                     onClick={() => setShowDeleteWorkspaceModal(true)}
@@ -1275,7 +1286,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                   <AnimatePresence>
                     {showDeleteWorkspaceModal && (
-                      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+                      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
                         <motion.div
                           initial={{ scale: 0.9, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
@@ -1283,14 +1294,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden p-6"
                         >
                           <h3 className="text-xl font-bold text-red-600 mb-2">Delete Workspace?</h3>
-                          <p className="text-slate-600 mb-6 font-medium leading-relaxed">
+                          <p className="text-stone-600 mb-6 font-medium leading-relaxed">
                             Are you absolutely sure you want to delete this workspace? All data will be permanently wiped.
                           </p>
-                          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                          <div className="flex justify-end gap-3 pt-4 border-t border-warm-200">
                             <button 
                               onClick={() => setShowDeleteWorkspaceModal(false)}
                               disabled={isDeletingWorkspace}
-                              className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-xl font-bold transition-colors"
+                              className="px-4 py-2 text-stone-500 hover:bg-warm-50 rounded-xl font-bold transition-colors"
                             >
                               Cancel
                             </button>
@@ -1330,203 +1341,110 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              {integrationsHealth && (
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                  <h3 className="text-base font-bold text-slate-900 mb-1">Integrations Health</h3>
-                  <p className="text-sm text-slate-500 mb-4">Live workspace integration status, queue pressure, and recent automation failures.</p>
+              <div className="space-y-8">
+                {['Social & Content', 'Team & Productivity', 'CRM & Communications'].map((category) => {
+                  const categoryIntegrations = integrations.filter(i => i.category === category);
+                  if (categoryIntegrations.length === 0) return null;
+                  
+                  return (
+                    <div key={category}>
+                      <h3 className="text-sm font-bold text-stone-400 uppercase tracking-wider mb-4">{category}</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {categoryIntegrations.map((integration) => (
+                          <div
+                            key={integration.id}
+                            className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm hover:border-brand-200 transition-all group"
+                          >
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="w-12 h-12 rounded-xl bg-warm-50 flex items-center justify-center text-stone-600 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
+                              <integration.icon className="w-6 h-6" />
+                            </div>
+                            {integration.connected ? (
+                              <span className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Connected
+                              </span>
+                            ) : (
+                              <button
+                                onClick={integration.onConnect}
+                                disabled={integration.isLoading}
+                                className="flex items-center gap-1 px-3 py-1 bg-stone-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-stone-800 transition-colors disabled:opacity-60"
+                              >
+                                {integration.isLoading ? (
+                                  <Loader className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Plus className="w-3 h-3" />
+                                )}
+                                {integration.isLoading ? 'Connecting...' : 'Connect'}
+                              </button>
+                            )}
+                          </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-                    {[
-                      ['LinkedIn', integrationsHealth.services.linkedin],
-                      ['Buffer', integrationsHealth.services.buffer],
-                      ['WordPress', integrationsHealth.services.wordpress],
-                      ['HubSpot', integrationsHealth.services.hubspot],
-                      ['Teams', integrationsHealth.services.teams],
-                      ['Notion', integrationsHealth.services.notion],
-                    ].map(([label, service]: [string, any]) => (
-                      <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                        <p className={cn(
-                          'text-[11px] font-semibold',
-                          service.connected ? 'text-emerald-700' : 'text-slate-500',
-                        )}>
-                          {label}: {service.connected ? 'Connected' : 'Disconnected'}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-1">
-                          Last success: {service.lastSuccessAt || 'n/a'}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          Last failure: {service.lastFailureAt || 'n/a'} · 24h failures: {service.failedCount24h}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                          <h3 className="font-bold text-stone-900 mb-1">{integration.name}</h3>
+                          <p className="text-stone-500 text-sm leading-relaxed mb-3">{integration.description}</p>
 
-                  <p className="text-xs text-slate-500 mb-3">
-                    Automation modes: LinkedIn {integrationsHealth.automation.linkedinMode} · Buffer {integrationsHealth.automation.bufferMode}
-                    {' · '}Teams {integrationsHealth.automation.teamsMode} · Notion {integrationsHealth.automation.notionMode}
-                    {integrationsHealth.automation.requireArtifactImage ? ' · Image required' : ''}
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-                    {[
-                      ['LinkedIn', integrationsHealth.providerTelemetry.linkedin],
-                      ['Buffer', integrationsHealth.providerTelemetry.buffer],
-                      ['WordPress', integrationsHealth.providerTelemetry.wordpress],
-                      ['HubSpot', integrationsHealth.providerTelemetry.hubspot],
-                      ['Teams', integrationsHealth.providerTelemetry.teams],
-                      ['Notion', integrationsHealth.providerTelemetry.notion],
-                    ].map(([label, telemetry]: [string, any]) => (
-                      <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                        <p className="text-[11px] font-semibold text-slate-700">{label} telemetry</p>
-                        <p className="text-[11px] text-slate-500 mt-1">
-                          24h rate-limited: {telemetry.rateLimited24h} · 24h auth errors: {telemetry.authErrors24h}
-                        </p>
-                        <p className="text-[11px] text-slate-500">Last error: {telemetry.lastError || 'n/a'}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <p className="text-xs text-slate-500 mb-3">
-                    Queue: queued {integrationsHealth.queue.queued} · running {integrationsHealth.queue.running} · retrying {integrationsHealth.queue.retrying} · dead-lettered {integrationsHealth.queue.deadLettered} · deduped (24h) {integrationsHealth.queue.deduped24h}
-                  </p>
-
-                  {integrationsHealth.automation.recentFailures.length > 0 ? (
-                    <div className="space-y-2">
-                      {integrationsHealth.automation.recentFailures.map((failure) => (
-                        <div key={failure.id} className="rounded-xl border border-rose-100 bg-rose-50/60 px-3 py-2">
-                          <p className="text-xs font-semibold text-rose-700">
-                            {failure.channel || 'automation'} failure · {failure.createdAt || 'unknown time'}
-                          </p>
-                          <p className="text-xs text-rose-600 mt-1">
-                            {failure.taskId ? `Task ${failure.taskId}: ` : ''}{failure.error || failure.action}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-500">No recent automation failures recorded.</p>
-                  )}
-                </div>
-              )}
-
-              <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                <h3 className="text-base font-bold text-slate-900 mb-1">Webhook Secrets</h3>
-                <p className="text-sm text-slate-500 mb-4">Rotate provider-scoped secrets used by inbound webhook endpoints.</p>
-
-                <div className="space-y-2">
-                  {webhookSecrets.map((entry) => (
-                    <div key={entry.provider} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{entry.provider}</p>
-                        <p className="text-xs text-slate-500">
-                          {entry.configured ? `Configured ${entry.secretPreview || ''}` : 'Not configured'}
-                          {entry.lastRotatedAt ? ` · Rotated ${entry.lastRotatedAt}` : ''}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRotateWebhookSecret(entry.provider)}
-                        className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        Rotate
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {integrations.map((integration) => (
-                  <div
-                    key={integration.id}
-                    className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm hover:border-brand-200 transition-all group"
-                  >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-600 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
-                      <integration.icon className="w-6 h-6" />
-                    </div>
-                    {integration.connected ? (
-                      <span className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                        <CheckCircle2 className="w-3 h-3" />
-                        Connected
-                      </span>
-                    ) : (
-                      <button
-                        onClick={integration.onConnect}
-                        disabled={integration.isLoading}
-                        className="flex items-center gap-1 px-3 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors disabled:opacity-60"
-                      >
-                        {integration.isLoading ? (
-                          <Loader className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Plus className="w-3 h-3" />
-                        )}
-                        {integration.isLoading ? 'Connecting...' : 'Connect'}
-                      </button>
-                    )}
-                  </div>
-
-                  <h3 className="font-bold text-slate-900 mb-1">{integration.name}</h3>
-                  <p className="text-slate-500 text-sm leading-relaxed mb-3">{integration.description}</p>
-
-                  {/* Show per-service status when connected */}
-                  {integration.connected && integration.services.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-4">
-                      {integration.services.map((svc) => (
-                        <span
-                          key={svc.name}
-                          className={cn(
-                            "text-[10px] font-medium px-2 py-0.5 rounded-full",
-                            svc.connected ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-400"
+                          {/* Show per-service status when connected */}
+                          {integration.connected && integration.services.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-4">
+                              {integration.services.map((svc) => (
+                                <span
+                                  key={svc.name}
+                                  className={cn(
+                                    "text-[10px] font-medium px-2 py-0.5 rounded-full",
+                                    svc.connected ? "bg-emerald-50 text-emerald-700" : "bg-warm-100 text-stone-400"
+                                  )}
+                                >
+                                  {svc.name}
+                                </span>
+                              ))}
+                            </div>
                           )}
-                        >
-                          {svc.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
 
-                  {integration.connected && (
-                    <div className="flex items-center gap-4">
-                      {integration.allowReconnect && (
-                        <button
-                          onClick={integration.onConnect}
-                          disabled={integration.isLoading}
-                          className="text-xs font-medium text-slate-400 hover:text-brand-600 flex items-center gap-1 transition-colors disabled:opacity-60"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          Update Credentials
-                        </button>
-                      )}
-                      <button
-                        onClick={integration.onDisconnect ?? undefined}
-                        disabled={integration.isLoading}
-                        className="text-xs font-medium text-red-400 hover:text-red-600 flex items-center gap-1 transition-colors disabled:opacity-60"
-                      >
-                        <Unplug className="w-3 h-3" />
-                        {integration.isLoading ? 'Disconnecting...' : 'Disconnect'}
-                      </button>
+                          {integration.connected && (
+                            <div className="flex items-center gap-4">
+                              {integration.allowReconnect && (
+                                <button
+                                  onClick={integration.onConnect}
+                                  disabled={integration.isLoading}
+                                  className="text-xs font-medium text-stone-400 hover:text-brand-600 flex items-center gap-1 transition-colors disabled:opacity-60"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                  Update Credentials
+                                </button>
+                              )}
+                              <button
+                                onClick={integration.onDisconnect ?? undefined}
+                                disabled={integration.isLoading}
+                                className="text-xs font-medium text-red-400 hover:text-red-600 flex items-center gap-1 transition-colors disabled:opacity-60"
+                              >
+                                <Unplug className="w-3 h-3" />
+                                {integration.isLoading ? 'Disconnecting...' : 'Disconnect'}
+                              </button>
+                            </div>
+                          )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {googleStatus.connected && (googleStatus.analytics || googleStatus.searchConsole) && (
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                  <h3 className="text-base font-bold text-slate-900 mb-1">Google Data Defaults</h3>
-                  <p className="text-sm text-slate-500 mb-4">Choose which GA4 property and Search Console site agents should use by default.</p>
+                <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
+                  <h3 className="text-base font-bold text-stone-900 mb-1">Google Data Defaults</h3>
+                  <p className="text-sm text-stone-500 mb-4">Choose which GA4 property and Search Console site agents should use by default.</p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Default GA4 Property</label>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default GA4 Property</label>
                       <select
                         value={googleDefaults.analyticsPropertyId || ''}
                         onChange={(event) => setGoogleDefaults((current) => ({
                           ...current,
                           analyticsPropertyId: event.target.value || null,
                         }))}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                        className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
                       >
                         <option value="">Auto-select first available property</option>
                         {analyticsProperties.map((property) => (
@@ -1538,14 +1456,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Default Search Console Site</label>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Search Console Site</label>
                       <select
                         value={googleDefaults.searchConsoleSiteUrl || ''}
                         onChange={(event) => setGoogleDefaults((current) => ({
                           ...current,
                           searchConsoleSiteUrl: event.target.value || null,
                         }))}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                        className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
                       >
                         <option value="">Auto-select first available site</option>
                         {searchConsoleSites.map((site) => (
@@ -1562,7 +1480,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       type="button"
                       onClick={handleSaveGoogleDefaults}
                       disabled={savingGoogleDefaults}
-                      className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                      className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                     >
                       {savingGoogleDefaults ? 'Saving...' : 'Save Defaults'}
                     </button>
@@ -1570,20 +1488,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               )}
 
-              <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                <h3 className="text-base font-bold text-slate-900 mb-1">Scheduled Social Automation</h3>
-                <p className="text-sm text-slate-500 mb-4">Automatically publish or queue social artifacts when scheduled tasks complete.</p>
+              <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-stone-900 mb-1">Scheduled Social Automation</h3>
+                <p className="text-sm text-stone-500 mb-4">Automatically publish or queue social artifacts when scheduled tasks complete.</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">LinkedIn Mode</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">LinkedIn Mode</label>
                     <select
                       value={automationSettings.linkedinMode}
                       onChange={(event) => setAutomationSettings((current) => ({
                         ...current,
                         linkedinMode: event.target.value === 'publish' ? 'publish' : 'off',
                       }))}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
                     >
                       <option value="off">Off</option>
                       <option value="publish">Auto publish</option>
@@ -1591,7 +1509,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">LinkedIn Approval</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">LinkedIn Approval</label>
                     <select
                       value={automationSettings.approvalModeLinkedin}
                       onChange={(event) => setAutomationSettings((current) => ({
@@ -1599,7 +1517,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         approvalModeLinkedin: event.target.value === 'approval' ? 'approval' : 'auto',
                       }))}
                       disabled={automationSettings.linkedinMode === 'off'}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
                     >
                       <option value="auto">Auto-publish (no review)</option>
                       <option value="approval">Require approval</option>
@@ -1607,14 +1525,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Buffer Mode</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Buffer Mode</label>
                     <select
                       value={automationSettings.bufferMode}
                       onChange={(event) => setAutomationSettings((current) => ({
                         ...current,
                         bufferMode: event.target.value === 'queue' ? 'queue' : 'off',
                       }))}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
                     >
                       <option value="off">Off</option>
                       <option value="queue">Auto queue</option>
@@ -1622,7 +1540,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Buffer Approval</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Buffer Approval</label>
                     <select
                       value={automationSettings.approvalModeBuffer}
                       onChange={(event) => setAutomationSettings((current) => ({
@@ -1630,7 +1548,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         approvalModeBuffer: event.target.value === 'approval' ? 'approval' : 'auto',
                       }))}
                       disabled={automationSettings.bufferMode === 'off'}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
                     >
                       <option value="auto">Auto-queue (no review)</option>
                       <option value="approval">Require approval</option>
@@ -1638,14 +1556,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Teams Mode</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Teams Mode</label>
                     <select
                       value={automationSettings.teamsMode}
                       onChange={(event) => setAutomationSettings((current) => ({
                         ...current,
                         teamsMode: event.target.value === 'send' ? 'send' : 'off',
                       }))}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
                     >
                       <option value="off">Off</option>
                       <option value="send">Auto send</option>
@@ -1653,14 +1571,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Notion Mode</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Notion Mode</label>
                     <select
                       value={automationSettings.notionMode}
                       onChange={(event) => setAutomationSettings((current) => ({
                         ...current,
                         notionMode: event.target.value === 'create' ? 'create' : 'off',
                       }))}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
                     >
                       <option value="off">Off</option>
                       <option value="create">Auto create page</option>
@@ -1668,14 +1586,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Default Buffer Profile</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Buffer Profile</label>
                     <select
                       value={automationSettings.bufferProfileId || ''}
                       onChange={(event) => setAutomationSettings((current) => ({
                         ...current,
                         bufferProfileId: event.target.value || null,
                       }))}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
                     >
                       <option value="">Use Buffer default profile</option>
                       {bufferStatus.profiles.map((profile) => (
@@ -1687,7 +1605,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Default Notion Parent Page ID</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Notion Parent Page ID</label>
                     <input
                       value={automationSettings.notionParentPageId || ''}
                       onChange={(event) => setAutomationSettings((current) => ({
@@ -1695,12 +1613,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         notionParentPageId: event.target.value || null,
                       }))}
                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
                     />
                   </div>
                 </div>
 
-                <label className="mt-4 inline-flex items-center gap-2 text-sm text-slate-600">
+                <label className="mt-4 inline-flex items-center gap-2 text-sm text-stone-600">
                   <input
                     type="checkbox"
                     checked={automationSettings.requireArtifactImage}
@@ -1708,7 +1626,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       ...current,
                       requireArtifactImage: event.target.checked,
                     }))}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                    className="h-4 w-4 rounded border-warm-300 text-brand-600 focus:ring-brand-500"
                   />
                   Only auto-dispatch artifacts that include an image.
                 </label>
@@ -1718,7 +1636,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     type="button"
                     onClick={handleSaveAutomationSettings}
                     disabled={savingAutomationSettings}
-                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                    className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                   >
                     {savingAutomationSettings ? 'Saving...' : 'Save Automation'}
                   </button>
@@ -1735,7 +1653,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
             onClick={() => !linkedinSaving && setIsLinkedInModalOpen(false)}
           >
             <motion.div
@@ -1746,27 +1664,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">{linkedinStatus.connected ? 'Update LinkedIn Credentials' : 'Connect LinkedIn'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{linkedinStatus.connected ? 'Replace the stored access token with a new one.' : 'Paste a LinkedIn member token with the Share on LinkedIn product and `w_member_social` scope.'}</p>
+                <h2 className="font-display text-xl font-bold text-stone-900">{linkedinStatus.connected ? 'Update LinkedIn Credentials' : 'Connect LinkedIn'}</h2>
+                <p className="mt-1 text-sm text-stone-500">{linkedinStatus.connected ? 'Replace the stored access token with a new one.' : 'Paste a LinkedIn member token with the Share on LinkedIn product and `w_member_social` scope.'}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Access Token</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Access Token</label>
                   <textarea
                     value={linkedinForm.accessToken}
                     onChange={(event) => setLinkedinForm((current) => ({ ...current, accessToken: event.target.value }))}
                     rows={4}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Author URN (optional)</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Author URN (optional)</label>
                   <input
                     value={linkedinForm.authorUrn}
                     onChange={(event) => setLinkedinForm((current) => ({ ...current, authorUrn: event.target.value }))}
                     placeholder="urn:li:person:abc123"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -1775,7 +1693,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsLinkedInModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
                 >
                   Cancel
                 </button>
@@ -1783,7 +1701,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleConnectLinkedIn}
                   disabled={linkedinSaving}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                 >
                   {linkedinSaving ? 'Saving...' : linkedinStatus.connected ? 'Update LinkedIn' : 'Connect LinkedIn'}
                 </button>
@@ -1796,7 +1714,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
             onClick={() => !bufferSaving && setIsBufferModalOpen(false)}
           >
             <motion.div
@@ -1807,17 +1725,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">{bufferStatus.connected ? 'Update Buffer Credentials' : 'Connect Buffer'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{bufferStatus.connected ? 'Replace the stored access token. Profiles will be refreshed.' : 'Paste a Buffer access token. We will load the connected publishing profiles for this workspace.'}</p>
+                <h2 className="font-display text-xl font-bold text-stone-900">{bufferStatus.connected ? 'Update Buffer Credentials' : 'Connect Buffer'}</h2>
+                <p className="mt-1 text-sm text-stone-500">{bufferStatus.connected ? 'Replace the stored access token. Profiles will be refreshed.' : 'Paste a Buffer access token. We will load the connected publishing profiles for this workspace.'}</p>
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Access Token</label>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Access Token</label>
                 <textarea
                   value={bufferAccessToken}
                   onChange={(event) => setBufferAccessToken(event.target.value)}
                   rows={4}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                  className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -1825,7 +1743,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsBufferModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
                 >
                   Cancel
                 </button>
@@ -1833,7 +1751,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleConnectBuffer}
                   disabled={bufferSaving}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                 >
                   {bufferSaving ? 'Saving...' : bufferStatus.connected ? 'Update Buffer' : 'Connect Buffer'}
                 </button>
@@ -1846,7 +1764,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
             onClick={() => !slackSaving && setIsSlackModalOpen(false)}
           >
             <motion.div
@@ -1857,27 +1775,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">{slackStatus.connected ? 'Update Slack Credentials' : 'Connect Slack'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{slackStatus.connected ? 'Replace the stored bot token and channel settings.' : 'Use a Slack bot token to allow agents to post channel updates.'}</p>
+                <h2 className="font-display text-xl font-bold text-stone-900">{slackStatus.connected ? 'Update Slack Credentials' : 'Connect Slack'}</h2>
+                <p className="mt-1 text-sm text-stone-500">{slackStatus.connected ? 'Replace the stored bot token and channel settings.' : 'Use a Slack bot token to allow agents to post channel updates.'}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Bot Token</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Bot Token</label>
                   <textarea
                     value={slackForm.botToken}
                     onChange={(event) => setSlackForm((current) => ({ ...current, botToken: event.target.value }))}
                     rows={4}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Default Channel (optional)</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Channel (optional)</label>
                   <input
                     value={slackForm.defaultChannel}
                     onChange={(event) => setSlackForm((current) => ({ ...current, defaultChannel: event.target.value }))}
                     placeholder="#notifications"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -1886,7 +1804,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsSlackModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
                 >
                   Cancel
                 </button>
@@ -1894,7 +1812,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleConnectSlack}
                   disabled={slackSaving}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                 >
                   {slackSaving ? 'Saving...' : slackStatus.connected ? 'Update Slack' : 'Connect Slack'}
                 </button>
@@ -1907,7 +1825,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
             onClick={() => !teamsSaving && setIsTeamsModalOpen(false)}
           >
             <motion.div
@@ -1918,27 +1836,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">{teamsStatus.connected ? 'Update Teams Credentials' : 'Connect Microsoft Teams'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{teamsStatus.connected ? 'Replace the incoming webhook URL and channel name.' : 'Paste an incoming webhook URL to let agents post updates in Teams.'}</p>
+                <h2 className="font-display text-xl font-bold text-stone-900">{teamsStatus.connected ? 'Update Teams Credentials' : 'Connect Microsoft Teams'}</h2>
+                <p className="mt-1 text-sm text-stone-500">{teamsStatus.connected ? 'Replace the incoming webhook URL and channel name.' : 'Paste an incoming webhook URL to let agents post updates in Teams.'}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Incoming Webhook URL</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Incoming Webhook URL</label>
                   <textarea
                     value={teamsForm.webhookUrl}
                     onChange={(event) => setTeamsForm((current) => ({ ...current, webhookUrl: event.target.value }))}
                     rows={4}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Channel Name (optional)</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Channel Name (optional)</label>
                   <input
                     value={teamsForm.defaultChannelName}
                     onChange={(event) => setTeamsForm((current) => ({ ...current, defaultChannelName: event.target.value }))}
                     placeholder="Marketing Alerts"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -1947,7 +1865,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsTeamsModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
                 >
                   Cancel
                 </button>
@@ -1955,7 +1873,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleConnectTeams}
                   disabled={teamsSaving}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                 >
                   {teamsSaving ? 'Saving...' : teamsStatus.connected ? 'Update Teams' : 'Connect Teams'}
                 </button>
@@ -1968,7 +1886,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
             onClick={() => !notionSaving && setIsNotionModalOpen(false)}
           >
             <motion.div
@@ -1979,27 +1897,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">{notionStatus.connected ? 'Update Notion Credentials' : 'Connect Notion'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{notionStatus.connected ? 'Replace the stored integration token and parent page settings.' : 'Use an internal integration token and optional default parent page ID.'}</p>
+                <h2 className="font-display text-xl font-bold text-stone-900">{notionStatus.connected ? 'Update Notion Credentials' : 'Connect Notion'}</h2>
+                <p className="mt-1 text-sm text-stone-500">{notionStatus.connected ? 'Replace the stored integration token and parent page settings.' : 'Use an internal integration token and optional default parent page ID.'}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Integration Token</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Integration Token</label>
                   <textarea
                     value={notionForm.integrationToken}
                     onChange={(event) => setNotionForm((current) => ({ ...current, integrationToken: event.target.value }))}
                     rows={4}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Default Parent Page ID (optional)</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Parent Page ID (optional)</label>
                   <input
                     value={notionForm.defaultParentPageId}
                     onChange={(event) => setNotionForm((current) => ({ ...current, defaultParentPageId: event.target.value }))}
                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -2008,7 +1926,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsNotionModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
                 >
                   Cancel
                 </button>
@@ -2016,7 +1934,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleConnectNotion}
                   disabled={notionSaving}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                 >
                   {notionSaving ? 'Saving...' : notionStatus.connected ? 'Update Notion' : 'Connect Notion'}
                 </button>
@@ -2029,7 +1947,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
             onClick={() => !hubspotSaving && setIsHubSpotModalOpen(false)}
           >
             <motion.div
@@ -2040,17 +1958,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">{hubspotStatus.connected ? 'Update HubSpot Credentials' : 'Connect HubSpot'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{hubspotStatus.connected ? 'Replace the stored private app token.' : 'Paste a private app token with CRM contacts write access.'}</p>
+                <h2 className="font-display text-xl font-bold text-stone-900">{hubspotStatus.connected ? 'Update HubSpot Credentials' : 'Connect HubSpot'}</h2>
+                <p className="mt-1 text-sm text-stone-500">{hubspotStatus.connected ? 'Replace the stored private app token.' : 'Paste a private app token with CRM contacts write access.'}</p>
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Private App Token</label>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Private App Token</label>
                 <textarea
                   value={hubspotToken}
                   onChange={(event) => setHubspotToken(event.target.value)}
                   rows={4}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                  className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -2058,7 +1976,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsHubSpotModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
                 >
                   Cancel
                 </button>
@@ -2066,7 +1984,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleConnectHubSpot}
                   disabled={hubspotSaving}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                 >
                   {hubspotSaving ? 'Saving...' : hubspotStatus.connected ? 'Update HubSpot' : 'Connect HubSpot'}
                 </button>
@@ -2079,7 +1997,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
             onClick={() => !twilioSaving && setIsTwilioModalOpen(false)}
           >
             <motion.div
@@ -2090,35 +2008,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">{twilioStatus.connected ? 'Update Twilio Credentials' : 'Connect Twilio SMS'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{twilioStatus.connected ? 'Replace the stored Twilio credentials for this workspace.' : 'Provide Twilio credentials to allow SMS notifications from this workspace.'}</p>
+                <h2 className="font-display text-xl font-bold text-stone-900">{twilioStatus.connected ? 'Update Twilio Credentials' : 'Connect Twilio SMS'}</h2>
+                <p className="mt-1 text-sm text-stone-500">{twilioStatus.connected ? 'Replace the stored Twilio credentials for this workspace.' : 'Provide Twilio credentials to allow SMS notifications from this workspace.'}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Account SID</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Account SID</label>
                   <input
                     value={twilioForm.accountSid}
                     onChange={(event) => setTwilioForm((current) => ({ ...current, accountSid: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Auth Token</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Auth Token</label>
                   <input
                     type="password"
                     value={twilioForm.authToken}
                     onChange={(event) => setTwilioForm((current) => ({ ...current, authToken: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">From Number</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">From Number</label>
                   <input
                     value={twilioForm.fromNumber}
                     onChange={(event) => setTwilioForm((current) => ({ ...current, fromNumber: event.target.value }))}
                     placeholder="+15555550123"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -2127,7 +2045,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsTwilioModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
                 >
                   Cancel
                 </button>
@@ -2135,7 +2053,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleConnectTwilio}
                   disabled={twilioSaving}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                 >
                   {twilioSaving ? 'Saving...' : twilioStatus.connected ? 'Update Twilio' : 'Connect Twilio'}
                 </button>
@@ -2148,7 +2066,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
             onClick={() => !wordpressSaving && setIsWordPressModalOpen(false)}
           >
             <motion.div
@@ -2159,35 +2077,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-900">{wordpressStatus.connected ? 'Update WordPress Credentials' : 'Connect WordPress'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{wordpressStatus.connected ? 'Replace the stored site credentials. The site URL must match the existing connection.' : 'Use a WordPress application password to let agents save blog drafts to your site.'}</p>
+                <h2 className="font-display text-xl font-bold text-stone-900">{wordpressStatus.connected ? 'Update WordPress Credentials' : 'Connect WordPress'}</h2>
+                <p className="mt-1 text-sm text-stone-500">{wordpressStatus.connected ? 'Replace the stored site credentials. The site URL must match the existing connection.' : 'Use a WordPress application password to let agents save blog drafts to your site.'}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Site URL</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Site URL</label>
                   <input
                     value={wordpressForm.siteUrl}
                     onChange={(event) => setWordpressForm((current) => ({ ...current, siteUrl: event.target.value }))}
                     placeholder="https://example.com"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Username</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Username</label>
                   <input
                     value={wordpressForm.username}
                     onChange={(event) => setWordpressForm((current) => ({ ...current, username: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">Application Password</label>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Application Password</label>
                   <input
                     type="password"
                     value={wordpressForm.appPassword}
                     onChange={(event) => setWordpressForm((current) => ({ ...current, appPassword: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -2196,7 +2114,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsWordPressModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
                 >
                   Cancel
                 </button>
@@ -2204,7 +2122,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleConnectWordPress}
                   disabled={wordpressSaving}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
                 >
                   {wordpressSaving ? 'Saving...' : wordpressStatus.connected ? 'Update WordPress' : 'Connect WordPress'}
                 </button>
@@ -2218,7 +2136,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -2226,20 +2144,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center gap-4">
+              <div className="p-6 border-b border-warm-200 flex items-center gap-4">
                 <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600 shrink-0">
                   <Phone className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Google Voice Number</h2>
-                  <p className="mt-1 text-sm text-slate-500">Select the number that the Receptionist agent should manage.</p>
+                  <h2 className="font-display text-xl font-bold text-stone-900">Google Voice Number</h2>
+                  <p className="mt-1 text-sm text-stone-500">Select the number that the Receptionist agent should manage.</p>
                 </div>
               </div>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Available Numbers</label>
+                  <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-2">Available Numbers</label>
                   <select
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all text-slate-700"
+                    className="w-full px-4 py-2 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all text-stone-700"
                     value={googleVoiceForm.phoneNumber}
                     onChange={(e) => setGoogleVoiceForm({ phoneNumber: e.target.value })}
                   >
@@ -2248,10 +2166,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </select>
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4">
+              <div className="p-6 bg-warm-50 border-t border-warm-200 flex gap-4">
                 <button
                   onClick={() => setIsGoogleVoiceModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
+                  className="flex-1 px-4 py-2 border border-warm-200 bg-white text-stone-600 rounded-xl text-sm font-bold hover:bg-warm-50 transition-all"
                 >
                   Cancel
                 </button>

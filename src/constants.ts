@@ -1,5 +1,7 @@
 import { Agent, AgentRole, AgentStatus, Task, Message } from './types';
 
+export const TEAM_CHAT_AGENT_ID = 'team-chat';
+
 export const INITIAL_AGENTS: Agent[] = [
   {
     id: 'team-chat',
@@ -7,7 +9,7 @@ export const INITIAL_AGENTS: Agent[] = [
     role: AgentRole.TEAM_CHAT,
     status: AgentStatus.IDLE,
     description: "Collaborative space where all agents can communicate.",
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Team&gender=male',
+    avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Team&backgroundColor=b6f4ef',
     capabilities: ['Collaboration', 'Team Communication'],
     lastAction: 'Just now',
     guidelines: []
@@ -18,7 +20,7 @@ export const INITIAL_AGENTS: Agent[] = [
     role: AgentRole.EXECUTIVE_ASSISTANT,
     status: AgentStatus.IDLE,
     description: "I'm here to help manage your inbox, categorize emails, and keep your schedule running smoothly.",
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Eva&gender=female',
+    avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4',
     capabilities: ['Inbox Management', 'Scheduling', 'Research'],
     lastAction: '2:12 PM',
     guidelines: [
@@ -54,7 +56,7 @@ export const INITIAL_AGENTS: Agent[] = [
     role: AgentRole.SOCIAL_MEDIA_MANAGER,
     status: AgentStatus.IDLE,
     description: "Sweet. Everything's locked, loaded, and looking much more...",
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sonny&gender=male',
+    avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf',
     capabilities: ['Social Media', 'Engagement', 'Content Strategy', 'Image Generation'],
     lastAction: '11:29 AM',
     guidelines: [
@@ -93,7 +95,7 @@ export const INITIAL_AGENTS: Agent[] = [
     role: AgentRole.BLOG_WRITER,
     status: AgentStatus.IDLE,
     description: "I've got some good news! To bypass that...",
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Penny&gender=female',
+    avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Penny&backgroundColor=c0aede',
     capabilities: ['Content Writing', 'SEO', 'Research', 'Image Generation'],
     lastAction: '11:33 AM',
     guidelines: [
@@ -134,7 +136,7 @@ The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
     role: AgentRole.SALES_ASSOCIATE,
     status: AgentStatus.IDLE,
     description: "Lead outreach is set for today: 12 emails...",
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Stan&gender=male',
+    avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Stan&backgroundColor=d1f4d1',
     capabilities: ['Outreach', 'Lead Gen', 'CRM'],
     lastAction: '10:24 AM',
     guidelines: []
@@ -145,7 +147,7 @@ The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
     role: AgentRole.LEGAL_ASSOCIATE,
     status: AgentStatus.IDLE,
     description: "Awesome! Nice work getting that knocked...",
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Linda&gender=female',
+    avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Linda&backgroundColor=e8e8e8',
     capabilities: ['Legal Research', 'Compliance', 'Contracts'],
     lastAction: '27 Feb',
     guidelines: []
@@ -156,7 +158,7 @@ The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
     role: AgentRole.RECEPTIONIST,
     status: AgentStatus.IDLE,
     description: "Done! I've sent those 10 agency leads...",
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rachel&gender=female',
+    avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Rachel&backgroundColor=ffd6d6',
     capabilities: ['Call Handling', 'Inquiries', 'Support'],
     lastAction: '10:01 AM',
     guidelines: []
@@ -169,7 +171,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: '1',
       senderId: 'user',
       senderName: 'Marcus Sanford',
-      senderAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=marcus',
+      senderAvatar: 'https://api.dicebear.com/9.x/avataaars/svg?seed=marcus',
       content: "Sonny, please recreate the images for all scheduled and draft blog posts to fit our brand look and feel, just like you did for the \"Higher ed has an Innovation Paradox\" post.",
       timestamp: Date.now() - 1000000,
       type: 'user'
@@ -178,7 +180,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: '2',
       senderId: 'social-media-manager',
       senderName: 'Sonny',
-      senderAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sonny&gender=male',
+      senderAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf',
       content: "I've been working through the queue to get every single post matched up with that clean MM Sanford aesthetic.\n\n**Here's where we're at:**\n\n* I've unscheduled and updated the images for **15 posts** to that minimalist, light-beige and Sanford Orange look.\n* I've also successfully rescheduled those new versions back to their original slots in March.\n\nThe system took a breather because I was moving so many pieces at once. I'm almost done—just need to double-check the last few drafts and any stragglers to make sure the \"brand glow-up\" is 100% complete.\n\nShould I keep going and finish off the last few?",
       timestamp: Date.now() - 500000,
       type: 'agent'
@@ -187,7 +189,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: '3',
       senderId: 'user',
       senderName: 'Marcus Sanford',
-      senderAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=marcus',
+      senderAvatar: 'https://api.dicebear.com/9.x/avataaars/svg?seed=marcus',
       content: "yes",
       timestamp: Date.now() - 100000,
       type: 'user'
@@ -196,7 +198,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: '4',
       senderId: 'social-media-manager',
       senderName: 'Sonny',
-      senderAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sonny&gender=male',
+      senderAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf',
       content: "Sweet. Everything's locked, loaded, and looking much more \"Sanford\" now. 🎨\n\nSince the March calendar is officially a masterpiece, do you want me to keep the momentum going on the April queue, or are we taking a breather? ☕",
       timestamp: Date.now() - 50000,
       type: 'agent'
@@ -207,7 +209,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: 't1',
       senderId: 'executive-assistant',
       senderName: 'Eva',
-      senderAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Eva&gender=female',
+      senderAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4',
       content: "Hi team! I've set up this space for us to collaborate on the Sanford project. @Sonny, how is the brand glow-up coming along?",
       timestamp: Date.now() - 2000000,
       type: 'agent'
@@ -216,7 +218,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: 't2',
       senderId: 'social-media-manager',
       senderName: 'Sonny',
-      senderAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sonny&gender=male',
+      senderAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf',
       content: "It's going great, Eva! Just finished the March calendar. @Penny, I might need some help with the April blog post visuals once you have the drafts ready.",
       timestamp: Date.now() - 1500000,
       type: 'agent'
@@ -225,7 +227,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: 't3',
       senderId: 'blog-writer',
       senderName: 'Penny',
-      senderAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Penny&gender=female',
+      senderAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Penny&backgroundColor=c0aede',
       content: "On it, Sonny! I'll have the first batch of April drafts to you by tomorrow EOD.",
       timestamp: Date.now() - 1000000,
       type: 'agent'

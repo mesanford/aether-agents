@@ -147,20 +147,20 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
   return (
     <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Header */}
-      <div className="px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="px-4 md:px-8 py-4 md:py-6 border-b border-warm-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Media</h1>
-          <p className="text-xs md:text-sm text-slate-500 mt-1">
-            Give access to your media files to your AI Employees. <span className="font-bold text-slate-700 hidden sm:inline">Only Penny and Sonny can use media files.</span>
+          <h1 className="text-xl md:text-2xl font-bold text-stone-900">Media</h1>
+          <p className="text-xs md:text-sm text-stone-500 mt-1">
+            Give access to your media files to your AI Employees. <span className="font-bold text-stone-700 hidden sm:inline">Only Penny and Sonny can use media files.</span>
           </p>
         </div>
         <div className="flex items-center gap-2 md:gap-4">
           <div className="relative flex-1 md:flex-none">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
             <input 
               type="text" 
               placeholder="Search..." 
-              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all w-full md:w-64"
+              className="pl-10 pr-4 py-2 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all w-full md:w-64"
             />
           </div>
           <input 
@@ -180,7 +180,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
       </div>
 
       {/* Category Tabs */}
-      <div className="px-4 md:px-8 border-b border-slate-100 flex gap-6 md:gap-8 overflow-x-auto no-scrollbar">
+      <div className="px-4 md:px-8 border-b border-warm-200 flex gap-6 md:gap-8 overflow-x-auto no-scrollbar">
         {(['all', 'uploads', 'generated'] as const).map(cat => (
           <button
             key={cat}
@@ -188,8 +188,8 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
             className={cn(
               "py-3 md:py-4 text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all border-b-2 whitespace-nowrap",
               activeCategory === cat 
-                ? "text-slate-900 border-brand-500" 
-                : "text-slate-400 border-transparent hover:text-slate-600"
+                ? "text-stone-900 border-brand-500" 
+                : "text-stone-400 border-transparent hover:text-stone-600"
             )}
           >
             {cat}
@@ -204,9 +204,9 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
           {activeCategory !== 'generated' && (
             <button 
               onClick={handleUploadClick}
-              className="aspect-square border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-3 text-slate-400 hover:text-brand-600 hover:border-brand-200 hover:bg-brand-50/50 transition-all group"
+              className="aspect-square border-2 border-dashed border-warm-200 rounded-3xl flex flex-col items-center justify-center gap-3 text-stone-400 hover:text-brand-600 hover:border-brand-200 hover:bg-brand-50/50 transition-all group"
             >
-              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center group-hover:bg-white transition-colors">
+              <div className="w-12 h-12 rounded-2xl bg-warm-50 flex items-center justify-center group-hover:bg-white transition-colors">
                 <Upload className="w-6 h-6" />
               </div>
               <span className="text-xs font-bold uppercase tracking-wider">Upload Media</span>
@@ -219,7 +219,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
               key={item.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="group relative aspect-square bg-white rounded-3xl overflow-hidden border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all cursor-pointer"
+              className="group relative aspect-square bg-white rounded-3xl overflow-hidden border border-warm-200 hover:shadow-xl hover:shadow-slate-200/50 transition-all cursor-pointer"
             >
               <img 
                 src={item.thumbnail} 
@@ -245,7 +245,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
                       event.stopPropagation();
                       setSelectedMedia(item);
                     }}
-                    className="p-1.5 bg-slate-900/40 backdrop-blur-md rounded-lg text-white hover:bg-slate-900/60 transition-colors shadow-sm"
+                    className="p-1.5 bg-stone-900/40 backdrop-blur-md rounded-lg text-white hover:bg-stone-900/60 transition-colors shadow-sm"
                     aria-label={`View details for ${item.name}`}
                   >
                     <MoreHorizontal className="w-4 h-4" />
@@ -255,9 +255,9 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
 
               {/* Type Icon Tag */}
               <div className="absolute top-4 left-4 p-2 bg-white/90 backdrop-blur-sm rounded-xl shadow-sm">
-                {item.type === 'image' && <ImageIcon className="w-4 h-4 text-slate-600" />}
-                {item.type === 'video' && <Video className="w-4 h-4 text-slate-600" />}
-                {item.type === 'file' && <FileText className="w-4 h-4 text-slate-600" />}
+                {item.type === 'image' && <ImageIcon className="w-4 h-4 text-stone-600" />}
+                {item.type === 'video' && <Video className="w-4 h-4 text-stone-600" />}
+                {item.type === 'file' && <FileText className="w-4 h-4 text-stone-600" />}
               </div>
             </motion.div>
           ))}
@@ -272,7 +272,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
+              className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" 
               onClick={() => setSelectedMedia(null)} 
             />
             <motion.div 
@@ -281,16 +281,16 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row"
             >
-              <div className="w-full md:w-1/2 bg-slate-100 flex items-center justify-center p-6 border-b md:border-b-0 md:border-r border-slate-200">
+              <div className="w-full md:w-1/2 bg-warm-100 flex items-center justify-center p-6 border-b md:border-b-0 md:border-r border-warm-200">
                 <img src={selectedMedia.thumbnail} alt={selectedMedia.name} className="max-w-full max-h-[40vh] md:max-h-[60vh] object-contain drop-shadow-md rounded-xl" />
               </div>
               <div className="w-full md:w-1/2 flex flex-col pt-4">
                  <div className="flex justify-between items-start px-6 mb-4">
                    <div>
-                     <h3 className="font-bold text-lg text-slate-900 break-all pr-4">{selectedMedia.name}</h3>
-                     <p className="text-sm text-slate-500">{selectedMedia.size || 'Unknown size'} • {formatDate(selectedMedia.created_at)}</p>
+                     <h3 className="font-bold text-lg text-stone-900 break-all pr-4">{selectedMedia.name}</h3>
+                     <p className="text-sm text-stone-500">{selectedMedia.size || 'Unknown size'} • {formatDate(selectedMedia.created_at)}</p>
                    </div>
-                   <button onClick={() => setSelectedMedia(null)} className="p-2 -mr-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                   <button onClick={() => setSelectedMedia(null)} className="p-2 -mr-2 bg-warm-50 hover:bg-warm-100 rounded-full text-stone-400 hover:text-stone-600 transition-colors">
                      <X className="w-5 h-5" />
                    </button>
                  </div>
@@ -298,20 +298,20 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({ activeWorkspaceId, t
                  <div className="px-6 flex-1">
                    <div className="space-y-4 mb-6">
                      <div>
-                       <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Asset Status</label>
+                       <label className="text-xs font-semibold text-stone-400 uppercase tracking-wider block mb-1">Asset Status</label>
                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-bold ring-1 ring-inset ring-emerald-600/20">Active</span>
                      </div>
                      <div>
-                       <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Source</label>
-                       <p className="text-sm text-slate-700 font-medium capitalize">{selectedMedia.category} {selectedMedia.author ? `by ${selectedMedia.author}` : ''}</p>
+                       <label className="text-xs font-semibold text-stone-400 uppercase tracking-wider block mb-1">Source</label>
+                       <p className="text-sm text-stone-700 font-medium capitalize">{selectedMedia.category} {selectedMedia.author ? `by ${selectedMedia.author}` : ''}</p>
                      </div>
                    </div>
                  </div>
                  
-                 <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3">
+                 <div className="p-4 bg-warm-50 border-t border-warm-200 flex items-center gap-3">
                    <button 
                      onClick={() => void navigator.clipboard.writeText(selectedMedia.thumbnail)}
-                     className="flex-1 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex justify-center items-center gap-2"
+                     className="flex-1 px-4 py-2 bg-white border border-warm-200 text-stone-700 rounded-xl text-sm font-bold hover:bg-warm-50 hover:border-warm-300 transition-all flex justify-center items-center gap-2"
                    >
                      <Copy className="w-4 h-4" /> Copy URL
                    </button>

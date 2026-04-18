@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aether Multi-Agent Dashboard</title>
+  <link rel="stylesheet" href="index.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="dashboard-container">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon"></div>
+        <h2>Aether UI</h2>
+      </div>
+      <nav class="nav-menu">
+        <a href="#" class="nav-item active">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          Screens
+        </a>
+        <a href="#" class="nav-item">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          Agents
+        </a>
+        <a href="#" class="nav-item">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          Projects
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      
+      <header class="top-header">
+        <div>
+          <h1>Screen Dashboard</h1>
+          <p>Project: 14792437948753399762</p>
+        </div>
+        <div class="header-actions">
+          <button class="primary-btn">Generate New Screen</button>
+        </div>
+      </header>
+
+      <!-- Stats row -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>Total Screens</h3>
+          <p class="stat-value">12</p>
+        </div>
+        <div class="stat-card">
+          <h3>Desktop Views</h3>
+          <p class="stat-value">5</p>
+        </div>
+        <div class="stat-card">
+          <h3>Mobile Views</h3>
+          <p class="stat-value">7</p>
+        </div>
+      </div>
+
+      <div class="gallery-section">
+        <h2 class="section-title">Generated Screens</h2>
+        
+        <div class="screens-grid">
+          
+          <!-- Desktop Screens -->
+          <div class="screen-card desktop">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0uje7v_dInA3LoPwzXmuLgu_ghHKT1vEoBHgGTPYdrqkLADyBJJx9cp5Gk5ZnivNrqgUPNzTwEaiqL0P3njml--WFRSAXbzqOymxpcNvM5YMf5v4IZXUA-FDDzK8pRRHK5oO1rupQiz99uY78oNQgehJF1hQASPkeA-sElx1kx9f-eviR8guFe5IfggG3I1VzbxhpbI8llPBSTT6S7A9iwNgPydDhRulm-ZqQBsFKpYMHT7QsR1Rh5Hgydta" alt="Sign-In Light Mode" loading="lazy">
+              <div class="overlay">
+                <span class="badge">Desktop</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>6e2bfb7a...d6aad</p>
+            </div>
+          </div>
+
+          <div class="screen-card desktop dark-mode-preview">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0uj3fUU7AGuRwHekC2VRwqqw5NqRSFNY8bDHOKkw9d8ylMTUr2CnjsQz_wucBDTccT1Tb0wCxc92nz_CtEehliVP7Igmp1VxBx0O8M6z5-9iB_EhPpA3gZoEu7GYkdwOSHMqsRtKWEctQXKkd4a0Y9zKzcTFy3uikbi_OyT0PsmTcHdhgInOehO_Wy2ozK9NgGSnFI1DAHcGp3vudEj4m8xF84E4MfZ03TD45yh1DGRkdb6R273Ywsw5CAFu" alt="AI Chat Dark Mode" loading="lazy">
+              <div class="overlay">
+                <span class="badge">Desktop</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly AI Chat Dark Mode</h4>
+              <p>6af23f4d...6ba6cb</p>
+            </div>
+          </div>
+
+          <!-- Mobile Screens -->
+          <div class="screen-card mobile">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0uhwmURwBIxtiO1yKZnyMlbJbheHEQop2BNQamtmz3dpKwwdvxZxZfWjjDDoCxLVDAPDW-Wd3_2S12lWTm4iUqMnJsVV0BcjVcTXeBIjUrHBMQykg3lNUBzV0ewKPJRMEA3WEJL_H7iYP1B5iAQzWv5a-8dDnmFWrbutb0iCuBhJmG83Kl-LIY9FPezTShfa6_j-BLSOVnaU0f3bnGKIOBO2F32EJGSb4c-td1oHK0kzU8q2gavB3qYCuXMQ" alt="Sign-In Mobile" loading="lazy">
+              <div class="overlay">
+                <span class="badge badge-mobile">Mobile</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>a76dd5ed...ae9d2aa</p>
+            </div>
+          </div>
+
+          <div class="screen-card mobile">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0uiFgBhTxg656uFQKkqOZkYtljx0yZZRo0DdHNH1bDzMUzIBmCckUU3aFmddZM9D4L_TmVTg9ULBSdL78zQzyoET4_yHwn_eyK384R7YkZyV0bzsw2J-oxwEWSxML8DjvJHOFxsLnWrId68NHFn4AO1a9C33ojJNUjvzH_1vPfMKvB1pdccspKPfFuQAX_DorMNdiaFU610GNZkTC4bnoWl3USzTdvMtuGW2nuH2ofDFACHZoSgUKeu2ouyw" alt="Sign-In Mobile" loading="lazy">
+              <div class="overlay">
+                <span class="badge badge-mobile">Mobile</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>8223a645...c81eca9</p>
+            </div>
+          </div>
+
+          <!-- Desktop -->
+          <div class="screen-card desktop">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0ujc1BCLM-9N5ueLLrCPq_5rM8nXlvsb1UbCi5Eev99DPZ8Hvdy5SflQUZ7mbB8jC4ygQg9cLFfQeQ8FAvGf9kn3Cs8Omweq2NFQ-EGr9bWIS9JNqF8Q7mkuWOpmgP7vfjdRWrDKS0yYMdFosgRzsiNahIMjdI_ljlYrgwlL6jrP2WcXmSdD3jyFdSGUT6CtFaeMctdqeotmlYokvFD80eNsYMsEO6FJjisuUfa7gQzmxh30XaS-k6qLEWly" alt="Sign-In Desktop" loading="lazy">
+              <div class="overlay">
+                <span class="badge">Desktop</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>091901e5...4f49efe3</p>
+            </div>
+          </div>
+
+          <!-- Mobile -->
+          <div class="screen-card mobile">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0ugYi9T3ZaSipBTkIwRdtsRuTxsrFW9EybxXVQWjpmzgCqINHKlivoQeo8J1E5fpzbnjzhtdvp3ZUqLGdy-rIDsdXslB3Ygd_FQFRyIO0KJNkmWe0Afl5gNW5VADMFNamCbSH865NBN1xnX9aEI0ktH5jfdHqtC9YTB5KJWK42WgHfIxw8nYAE9s-sx82OvNI23YT3h6pQ7p9BQ0WvtG_Pd58kisr5xSblw5AopGZ3ICNcnsEBsCDeAo4sc" alt="Sign-In Mobile" loading="lazy">
+              <div class="overlay">
+                <span class="badge badge-mobile">Mobile</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>d1c272f5...f7e979</p>
+            </div>
+          </div>
+          
+          <!-- Mobile -->
+          <div class="screen-card mobile">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0uiKIht4W1PVXCzaomlhI-3vOZGZXZwOMcYs6vLTqvw80nRPnMwmnNH0IHk2vAmsrcuX0CbzvffZKbocF7G93NqkZWDwoLu2_G6CdTqjk6zSGjPAU-3IRBYyn-Ohov9U8rmuM9-WO276uaNuuyWbp-OlJbWZjfz038G_6eFmIkqig98Y3Q0ISjk-xdWNXGSLAaJEteZlqtpYauS8XD84PXp9SrroHVivwdNytfy-Zi3ZQtxLrNnis-yP0JQ" alt="Sign-In Mobile" loading="lazy">
+              <div class="overlay">
+                <span class="badge badge-mobile">Mobile</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>42782b17...e28215</p>
+            </div>
+          </div>
+
+          <!-- Desktop Dark Mode -->
+          <div class="screen-card desktop dark-mode-preview">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0ujUxYh2BZFnil2DbJ297W-C3aorVDBhp30peuIIPVVnvVvMfFamiZEVF9QBLmFtqltQLHyq_G08rS163XyFt7WPjfA-NKY95YwBJgkGlyi8HpwCR4tAUPzV8VR52saZZu2fe3nbHzVBeUlPqJOuYnvRFBfH_hT1gn6RLlyGa85bqh847OjPLoxw_hefqfbrOEFQv0xdjnG9R-8u8Ndcutm4jSXf_pJIbwRQNM9LdUbB090LM__foriQ6Bce" alt="Sign-In Dark Mode" loading="lazy">
+              <div class="overlay">
+                <span class="badge">Desktop</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Dark Mode</h4>
+              <p>a301cbfb...907898</p>
+            </div>
+          </div>
+
+          <!-- Mobile -->
+          <div class="screen-card mobile">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0ujVemjl0iryLk6Mp_cehT6RpOKTEX3B7dMH4eSsUJBWB3a918aiZAQD6jQ5mPVKrpR3RrIyIzlnxXAuFLyXcwcz7JIHzNPQD9X0kinWjwYwRClD4r6QCKHgB8TRUELSNhkCRfe7b7lXggMiE6kUFGugzyEdnvTnvEML5nhqs4zAs8fkzf8I7ldqA3vKtIliFbGkWUuqmKyxZAJrnqVBACe24CZiLxy3QdezIwDyZ-Epk73CUqKgQdAtGlnt" alt="Sign-In Mobile" loading="lazy">
+              <div class="overlay">
+                <span class="badge badge-mobile">Mobile</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>c5e0e1bd...eb4d4</p>
+            </div>
+          </div>
+
+          <!-- Mobile -->
+          <div class="screen-card mobile">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0uhQoGhgRxWcBYvfMyfE-k6Hkl35zp56cspbaBN2m0gY5Ff9FXLWzC-Z1nJG13j6TZf0Id1Fca4FrFlfjFT0lqJRdKN57Y9VvRGwcQLLRFgAzgSAZETauBxgXJ66t2KUtSyMiPHepjgx8R04QGQMjSVmNQaD01Z8M18dvWgBNXXqm66P3M5gZePkA7YPL7pQBqLlf55vRAJ-1zZ1NEeL0m5YJ5qEuUKj5cnH_z2dzwyZ3db1Fz16TP02Zhxg" alt="Sign-In Mobile" loading="lazy">
+              <div class="overlay">
+                <span class="badge badge-mobile">Mobile</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>d8d1b14f...e8f1b</p>
+            </div>
+          </div>
+
+          <!-- Desktop -->
+          <div class="screen-card desktop">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0ui44AxETkqD3-BJ2CCsi27qB22wNGl04suZ6m4JW6XD_NX18PJ7r9I8dNoRmSTxy1YmCJiX2qe8zPtaqEGAu7BuYd0xs3V1QPxAkISO0QjFvLB9SCkuU5Y9h7UkpqtcU7DYLHJDD0oU-5-auLIg3kNXJXTfcpgMdRfnSOX-lV0ZjRih6HLDaa8bd9sW5GxCTvctaye3UPMRa0OO_-hDL0xLV3UzXj_fLHDL6ixkkiTihh_qCfuqmfh-8xc" alt="Sign-In Desktop" loading="lazy">
+              <div class="overlay">
+                <span class="badge">Desktop</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly Sign-In Light Mode</h4>
+              <p>d6a3a54b...152ed4</p>
+            </div>
+          </div>
+
+          <!-- Desktop -->
+          <div class="screen-card desktop">
+            <div class="image-wrapper">
+              <img src="https://lh3.googleusercontent.com/aida/ADBb0ui121ez1b1nrCS_S2GkFJRBBEYrSBxI0kACW4VasWAd5qLkQtUyjZs34UYCC5cK8Fro22ZabB2eRWqn6n5F1kBQ3TZDOZT1PW9OCTiSipXSp6FHRbSThwN3STEHc49quKyu28WI4iFg1o38-h1TRvogP34ayu_Ql9Iq_74m-wTKC5SUlp-6PkA7gpnLzXg60MzldezqXl301aLFrCu1FyMn3xbg_n7VQn8Gm7FARXJ3VjKGXi7KFfIBkmST" alt="AI Chat Light Mode" loading="lazy">
+              <div class="overlay">
+                <span class="badge">Desktop</span>
+              </div>
+            </div>
+            <div class="screen-info">
+              <h4>Friendly AI Chat Light Mode</h4>
+              <p>85063934...454a6</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

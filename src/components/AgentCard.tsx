@@ -33,30 +33,30 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent, isActive, onClick, 
       onClick={onClick}
       className={cn(
         "px-4 py-3 cursor-pointer transition-all duration-200 border-l-4",
-        isActive 
-          ? "bg-slate-50 border-brand-500" 
-          : "bg-white border-transparent hover:bg-slate-50/50"
+        isActive
+          ? "bg-warm-100 border-brand-500"
+          : "bg-transparent border-transparent hover:bg-warm-50"
       )}
     >
       <div className="flex items-center gap-3">
         <div className="relative flex-shrink-0">
-          <img 
-            src={agent.avatar} 
-            alt={agent.name} 
-            className="w-12 aspect-[5/7] rounded-lg bg-slate-100 object-cover"
+          <img
+            src={agent.avatar}
+            alt={agent.name}
+            className="w-12 aspect-[5/7] rounded-lg bg-warm-100 object-cover"
             referrerPolicy="no-referrer"
           />
         </div>
-        
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-0.5">
-            <h3 className="font-bold text-slate-900 text-[15px] truncate">{agent.role}</h3>
-            <span className="text-[11px] text-slate-400 font-medium">
+            <h3 className="font-bold text-stone-900 text-[15px] truncate">{agent.role}</h3>
+            <span className="text-[11px] text-stone-400 font-medium">
               {lastMessage ? formatTime(lastMessage.timestamp) : (agent.lastAction || 'Just now')}
             </span>
           </div>
-          <p className="text-[13px] text-slate-500 truncate leading-tight">
-            <span className="font-medium text-slate-700">
+          <p className="text-[13px] text-stone-500 truncate leading-tight">
+            <span className="font-medium text-stone-700">
               {lastMessage?.senderName || agent.name}:
             </span> {lastMessage ? lastMessage.content : agent.description}
           </p>

@@ -157,8 +157,13 @@ export const scheduleSocialPostTool = tool(
   },
   {
     name: "schedule_social_post",
-    description: "REQUIRED TOOL: You MUST use this tool to create drafts, plan, organize, or schedule a post. Do not output conversational drafts. Use this tool so the post physically saves to their calendar. Keywords: plan, draft, write, organize, queue, strategy, social. The 'content' field must be the COMPLETE, fully-written post text including all body copy, emojis, and hashtags exactly as it should appear when published. The 'mediaAssetId' field should be populated if you generated an image for this post.",
-    schema: z.object({ platform: z.string(), content: z.string(), date: z.string().optional(), mediaAssetId: z.number().optional() })
+    description: "REQUIRED TOOL: You MUST use this tool to create drafts, plan, organize, or schedule a post. Do not output conversational drafts. Use this tool so the post physically saves to their calendar. Keywords: plan, draft, write, organize, queue, strategy, social. The 'content' field must be the COMPLETE, fully-written post text including all body copy, emojis, and hashtags exactly as it should appear when published. The 'mediaAssetId' field should be populated if you generated an image for this post. The 'date' field MUST be in ISO 8601 format.",
+    schema: z.object({ 
+      platform: z.string(), 
+      content: z.string(), 
+      date: z.string().optional().describe("MUST use ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ). Use your system prompt LiveContext to calculate this."), 
+      mediaAssetId: z.number().optional() 
+    })
   }
 );
 
@@ -333,7 +338,7 @@ export const updateWorkspaceTaskTool = tool(
     schema: z.object({
       taskId: z.string().describe("The exact ID of the task to update."),
       repeat: z.string().optional().describe("The repeat string, e.g. 'Every 20 minutes', 'Daily', 'Weekly'. Pass an empty string to clear the schedule."),
-      dueDate: z.string().optional().describe("The specific due date/time if it's a one-off."),
+      dueDate: z.string().optional().describe("MUST use ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ). Use your system prompt LiveContext to calculate this."),
       title: z.string().optional(),
       description: z.string().optional()
     })
@@ -355,4 +360,84 @@ export const allTools = [
   writeWorkspaceFileTool,
   getWorkspaceTasksTool,
   updateWorkspaceTaskTool
+];
+
+export const createGenericTaskTool = tool(
+  async ({ title, description, dueDate }, config) => {
+    if (!config?.configurable?.thread_id) return `[FAILED] Missing conversation thread context.`;
+    const threadId = config.configurable.thread_id as string;
+    const workspaceId = config.configurable?.workspace_id || 1;
+    const assigneeId = threadId.replace('thread_', '').split('_')[1] || 'executive-assistant';
+
+    const taskId = `task-${Date.now()}`;
+    const draftArtifact = JSON.stringify({
+      title: title,
+      body: description,
+      bullets: [],
+      imageUrl: null
+    });
+
+    try {
+      await db.prepare(`
+        INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, artifact_payload, due_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(taskId, workspaceId, title, description, assigneeId, 'todo', 'generic', draftArtifact, dueDate || null);
+
+      return `[SUCCESS] Created task '${title}' assigned to ${assigneeId}. ID: ${taskId}`;
+    } catch (e: any) {
+      return `[FAILED] Could not create task: ${e.message}`;
+    }
+  },
+  {
+    name: "create_generic_task",
+    description: "Create a generic to-do item or reminder. Use this tool when a user asks you to remind them to do something, or if they want to add a standard task to their list. Do NOT use this for drafting social or blog posts.",
+    schema: z.object({
+      title: z.string(),
+      description: z.string(),
+      dueDate: z.string().optional().describe("MUST use ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ). Use your system prompt LiveContext to calculate this.")
+    })
+  }
+);
+
+export const manageTaskStatusTool = tool(
+  async ({ taskId, status }, config) => {
+    try {
+      if (!config?.configurable?.workspaceId) return "Error: Missing workspaceId in config.";
+      const workspaceId = config.configurable.workspaceId;
+      
+      const result = await db.prepare("UPDATE tasks SET status = ? WHERE id = ? AND workspace_id = ?").run(status, taskId, workspaceId);
+      
+      if (result.changes === 0) return `[FAILED] No task found with ID ${taskId}.`;
+      return `[SUCCESS] Task ${taskId} status updated to ${status}.`;
+    } catch (e: any) {
+      return `Failed to update task status: ${e.message}`;
+    }
+  },
+  {
+    name: "manage_task_status",
+    description: "Update the status of a specific task (e.g. marking it as 'done', 'cancelled', or 'todo'). You need the exact taskId to use this.",
+    schema: z.object({
+      taskId: z.string().describe("The exact ID of the task to update."),
+      status: z.enum(['todo', 'in_progress', 'done', 'cancelled']).describe("The new status for the task.")
+    })
+  }
+);
+
+export const allTools = [
+  queryBrainTool,
+  searchGoogleDriveTool,
+  draftEmailTool,
+  readGoogleChatTool,
+  searchWebTool,
+  generateImageTool,
+  scheduleSocialPostTool,
+  publishBlogPostTool,
+  updateCrmTool,
+  linkedinOutreachTool,
+  deleteTaskTool,
+  writeWorkspaceFileTool,
+  getWorkspaceTasksTool,
+  updateWorkspaceTaskTool,
+  createGenericTaskTool,
+  manageTaskStatusTool
 ];

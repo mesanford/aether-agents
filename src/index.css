@@ -1,26 +1,38 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@500;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  
-  --color-brand-50: #f0f9ff;
-  --color-brand-100: #e0f2fe;
-  --color-brand-200: #bae6fd;
-  --color-brand-300: #7dd3fc;
-  --color-brand-400: #38bdf8;
-  --color-brand-500: #0ea5e9;
-  --color-brand-600: #0284c7;
-  --color-brand-700: #0369a1;
-  --color-brand-800: #075985;
-  --color-brand-900: #0c4a6e;
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+
+  /* Warm teal brand — replaces sky blue */
+  --color-brand-50:  #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-300: #5eead4;
+  --color-brand-400: #2dd4bf;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+
+  /* Warm cream surface tokens */
+  --color-warm-50:  #faf8f5;
+  --color-warm-100: #f5f0e8;
+  --color-warm-200: #ede3d0;
+  --color-warm-300: #e0d0b8;
 }
 
 @layer base {
   body {
-    @apply bg-white text-slate-900 antialiased;
+    @apply bg-warm-50 text-stone-900 antialiased;
   }
+}
+
+.font-display {
+  font-family: var(--font-display);
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -47,49 +59,48 @@
 }
 
 .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
-  @apply text-slate-900 font-bold mt-6 mb-3;
+  @apply text-stone-900 font-bold mt-6 mb-3;
 }
 .markdown-body h1 { @apply text-2xl; }
-.markdown-body h2 { @apply text-xl border-b border-slate-100 pb-2; }
+.markdown-body h2 { @apply text-xl border-b border-warm-200 pb-2; }
 .markdown-body h3 { @apply text-lg; }
 .markdown-body h4 { @apply text-base; }
 
 .markdown-body ul {
-  @apply list-disc pl-5 mb-4 space-y-1.5 marker:text-slate-400;
+  @apply list-disc pl-5 mb-4 space-y-1.5 marker:text-stone-400;
 }
 .markdown-body ol {
-  @apply list-decimal pl-5 mb-4 space-y-1.5 marker:text-slate-500 marker:font-medium;
+  @apply list-decimal pl-5 mb-4 space-y-1.5 marker:text-stone-500 marker:font-medium;
 }
 
 .markdown-body blockquote {
-  @apply border-l-[3px] border-brand-400 bg-brand-50/50 text-slate-700 italic px-5 py-3.5 rounded-r-xl my-5;
+  @apply border-l-[3px] border-brand-400 bg-brand-50/50 text-stone-700 italic px-5 py-3.5 rounded-r-xl my-5;
 }
 
 .markdown-body strong {
-  @apply font-bold text-slate-900;
+  @apply font-bold text-stone-900;
 }
 
 .markdown-body table {
-  @apply w-full border-collapse my-6 text-[14px] text-left border border-slate-200 shadow-sm block sm:table overflow-x-auto;
+  @apply w-full border-collapse my-6 text-[14px] text-left border border-warm-200 shadow-sm block sm:table overflow-x-auto;
 }
 
 .markdown-body th {
-  @apply bg-[#f8fafc] border border-slate-200 font-bold text-slate-800 p-3 whitespace-nowrap;
+  @apply bg-warm-50 border border-warm-200 font-bold text-stone-800 p-3 whitespace-nowrap;
 }
 
 .markdown-body td {
-  @apply border border-slate-200 p-3 text-slate-700 bg-white;
+  @apply border border-warm-200 p-3 text-stone-700 bg-white;
 }
 
 .markdown-body code {
-  @apply font-mono bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-[13px] border border-slate-200;
+  @apply font-mono bg-warm-100 text-stone-800 px-1.5 py-0.5 rounded text-[13px] border border-warm-200;
 }
 
 .markdown-body pre {
-  @apply bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto my-6 border border-slate-800 shadow-md !leading-normal;
+  @apply bg-stone-900 text-stone-50 p-4 rounded-xl overflow-x-auto my-6 border border-stone-800 shadow-md !leading-normal;
 }
 
 .markdown-body pre code {
-  @apply bg-transparent text-slate-100 border-none p-0 text-[13.5px] shadow-none;
+  @apply bg-transparent text-stone-100 border-none p-0 text-[13.5px] shadow-none;
 }
-
