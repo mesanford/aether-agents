@@ -291,6 +291,31 @@ export function registerApprovalRoutes({
         WHERE id = ?
       `).run(userId ?? null, reason?.trim() || null, approvalId);
 
+      // REDRAFT LOOP: Notify the agent in the chat
+      try {
+        const user = await db.prepare("SELECT name, avatar FROM users WHERE id = ?").get(userId) as { name: string; avatar: string | null } | undefined;
+        const agentIdScoped = `${approval.agent_id}:${workspaceId}`;
+        const feedback = reason?.trim() || "No specific reason provided.";
+        
+        const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        await db.prepare(`
+          INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, timestamp, type)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          messageId,
+          workspaceId,
+          agentIdScoped,
+          'user',
+          user?.name || 'System',
+          user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system`,
+          `[REJECTED] I have rejected your ${approval.action_type} draft.\n\nReason: ${feedback}\n\nPlease analyze this feedback and provide a new draft that addresses these points.`,
+          Date.now(),
+          'user'
+        );
+      } catch (msgErr) {
+        console.error("Failed to insert redraft feedback message:", msgErr);
+      }
+
       writeApprovalAuditLog(db, workspaceId, "approval.rejected", {
         approvalId,
         actionType: approval.action_type,
