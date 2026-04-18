@@ -1593,7 +1593,7 @@ export function registerIntegrationsRoutes({
         await db.prepare(`
           INSERT INTO notion_connections (workspace_id, integration_token, bot_name, default_parent_page_id, updated_at)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-          ON CONFLICT(workspace_id) DO UPDATE SET
+          ON CONFLICT (workspace_id) DO UPDATE SET
             integration_token = excluded.integration_token,
             bot_name = excluded.bot_name,
             default_parent_page_id = excluded.default_parent_page_id,

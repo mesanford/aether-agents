@@ -65,7 +65,15 @@ async function startServer() {
   let seedWorkspace: ((workspaceId: string | number | bigint) => Promise<void>) | undefined;
 
   app.use((req, res, next) => {
-    if (!isReady && req.path.startsWith("/api") && req.method !== "DELETE") {
+    // Allow DELETE, and essential status/auth GET requests to bypass readiness.
+    // This prevents the frontend from "hanging" or crashing during background bootstrap.
+    const isEssentialGet = req.method === "GET" && (
+      req.path === "/api/auth/me" || 
+      req.path.includes("/status") || 
+      req.path.includes("/members")
+    );
+
+    if (!isReady && req.path.startsWith("/api") && req.method !== "DELETE" && !isEssentialGet) {
       res.status(503).json({ error: "Server is starting up, please retry shortly." });
       return;
     }
