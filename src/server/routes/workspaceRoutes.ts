@@ -795,7 +795,7 @@ export function registerWorkspaceRoutes({
         description: a.description,
         avatar: a.avatar,
         capabilities: JSON.parse(a.capabilities || "[]"),
-        guidelines: JSON.parse(a.guidelines || "[]"),
+        instructions: a.instructions || "",
         personality: parseAgentPersonality(a.personality, a.role),
         lastAction: a.last_action,
       }));
@@ -817,9 +817,9 @@ export function registerWorkspaceRoutes({
         return res.status(400).json({ error: "No updates provided" });
       }
 
-      const existingAgent = await db.prepare("SELECT description, guidelines, capabilities, personality, role FROM agents WHERE id = ? AND workspace_id = ?").get(agentId, req.workspaceId) as {
+      const existingAgent = await db.prepare("SELECT description, instructions, capabilities, personality, role FROM agents WHERE id = ? AND workspace_id = ?").get(agentId, req.workspaceId) as {
         description?: string | null;
-        guidelines?: string | null;
+        instructions?: string | null;
         capabilities?: string | null;
         personality?: string | null;
         role?: string | null;
@@ -851,7 +851,7 @@ export function registerWorkspaceRoutes({
 
       if (updates.status !== undefined) await db.prepare("UPDATE agents SET status = ? WHERE id = ? AND workspace_id = ?").run(updates.status, agentId, req.workspaceId);
       if (updates.name !== undefined) await db.prepare("UPDATE agents SET name = ? WHERE id = ? AND workspace_id = ?").run(updates.name, agentId, req.workspaceId);
-      if (updates.guidelines !== undefined) await db.prepare("UPDATE agents SET guidelines = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.guidelines), agentId, req.workspaceId);
+      if (updates.instructions !== undefined) await db.prepare("UPDATE agents SET instructions = ? WHERE id = ? AND workspace_id = ?").run(updates.instructions, agentId, req.workspaceId);
       if (updates.description !== undefined) await db.prepare("UPDATE agents SET description = ? WHERE id = ? AND workspace_id = ?").run(updates.description, agentId, req.workspaceId);
       if (updates.capabilities !== undefined) await db.prepare("UPDATE agents SET capabilities = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.capabilities), agentId, req.workspaceId);
       if (updates.personality !== undefined) await db.prepare("UPDATE agents SET personality = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.personality), agentId, req.workspaceId);
@@ -863,7 +863,7 @@ export function registerWorkspaceRoutes({
         details: { agentId, fields: Object.keys(updates) },
       });
 
-      const promptFieldsUpdated = ["description", "guidelines", "capabilities", "personality"].some((field) => field in updates);
+      const promptFieldsUpdated = ["description", "instructions", "capabilities", "personality"].some((field) => field in updates);
       if (promptFieldsUpdated && existingAgent) {
         writeAuditLog({
           workspaceId: req.workspaceId,
@@ -875,13 +875,13 @@ export function registerWorkspaceRoutes({
             versionAt: Date.now(),
             before: {
               description: existingAgent.description || "",
-              guidelines: JSON.parse(existingAgent.guidelines || "[]"),
+              instructions: existingAgent.instructions || "",
               capabilities: JSON.parse(existingAgent.capabilities || "[]"),
               personality: parseAgentPersonality(existingAgent.personality || null, existingAgent.role || undefined),
             },
             after: {
               description: updates.description !== undefined ? updates.description : (existingAgent.description || ""),
-              guidelines: updates.guidelines !== undefined ? updates.guidelines : JSON.parse(existingAgent.guidelines || "[]"),
+              instructions: updates.instructions !== undefined ? updates.instructions : (existingAgent.instructions || ""),
               capabilities: updates.capabilities !== undefined ? updates.capabilities : JSON.parse(existingAgent.capabilities || "[]"),
               personality: updates.personality !== undefined
                 ? updates.personality

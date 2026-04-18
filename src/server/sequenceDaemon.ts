@@ -72,12 +72,11 @@ Your Mission:
 3. Once completed, clearly declare that the step was executed successfully so the Daemon can advance the cursor.
 `;
 
-        try {
-          const profiles = await db.prepare("SELECT id, name, role, guidelines, personality, capabilities, description FROM agents WHERE workspace_id = ?").all(enrollment.workspace_id) as any[];
-          const agentProfiles = profiles.reduce((acc: any, a: any) => {
-            acc[a.id] = `Role: ${a.role}\nDescription: ${a.description}\nPersonality: ${a.personality}\nGuidelines: ${a.guidelines}\nCapabilities: ${a.capabilities}`;
-            return acc;
-          }, {} as Record<string, string>);
+        const profiles = await db.prepare("SELECT id, name, role, instructions, personality, capabilities, description FROM agents WHERE workspace_id = ?").all(enrollment.workspace_id) as any[];
+        const agentProfiles: Record<string, string> = profiles.reduce((acc, a) => {
+          acc[a.id] = `Role: ${a.role}\nDescription: ${a.description}\nPersonality: ${a.personality}\nInstructions: ${a.instructions}\nCapabilities: ${a.capabilities}`;
+          return acc;
+        }, {} as Record<string, string>);
           
           try {
             await checkAndIncrementDailyAIRequestLimit(db, enrollment.workspace_id);

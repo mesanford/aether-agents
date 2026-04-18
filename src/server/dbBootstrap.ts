@@ -20,7 +20,7 @@ type SeedAgent = {
   description: string;
   avatar: string;
   capabilities: string;
-  guidelines: string;
+  instructions: string;
   personality: string;
   lastAction: string;
 };
@@ -61,13 +61,30 @@ const INITIAL_LEADS_SEED: SeedLead[] = [
 ];
 
 const INITIAL_AGENTS_SEED: SeedAgent[] = [
-  { id: "team-chat", name: "Team Chat", role: "Team Chat", description: "Collaborative space where all agents can communicate.", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Team&backgroundColor=b6f4ef", capabilities: JSON.stringify(["Collaboration", "Team Communication"]), guidelines: JSON.stringify([]), personality: JSON.stringify({ tone: "warm", communicationStyle: "balanced", assertiveness: "medium", humor: "light", verbosity: "medium", signaturePhrase: "Let's align on the next move.", doNots: ["Do not dominate individual agent voices."] }), lastAction: "Just now" },
-  { id: "executive-assistant", name: "Eva", role: "Executive Assistant", description: "I'm here to help manage your inbox, categorize emails, and keep your schedule running smoothly.", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4", capabilities: JSON.stringify(["Inbox Management", "Scheduling", "Research"]), guidelines: JSON.stringify([{ id: "1", title: "Any specific rules to help me categorize your emails better?", items: [{ id: "1", content: "Flag RFP/RFI solicitations to Marcus only when the email explicitly uses the terms \"RFP\", \"RFI\", or \"solicitation\". Do not flag general job postings. Prioritize flagging official procurement notices, especially from .gov or .edu domains." }], showInput: true }, { id: "2", title: "How should I write emails?", items: [{ id: "1", content: "Professional yet approachable. Direct and concise. Helpful and solution-oriented. Calm and measured.", isMarkdown: false }], showInput: false }]), personality: JSON.stringify({ tone: "warm", communicationStyle: "concise", assertiveness: "medium", humor: "none", verbosity: "short", signaturePhrase: "I've prepared the next step for you.", doNots: ["Do not use slang."] }), lastAction: "2:12 PM" },
-  { id: "social-media-manager", name: "Sonny", role: "Social Media Manager", description: "Sweet. Everything's locked, loaded, and looking much more...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf", capabilities: JSON.stringify(["Social Media", "Engagement", "Content Strategy", "Image Generation"]), guidelines: JSON.stringify([{ id: "1", title: "Content Themes", items: [{ id: "1", content: "Google Search algorithm updates, Google AI features, technical SEO, Google Ads, content quality, Microsoft AI, SEO industry news, structured data, Google company news." }, { id: "2", content: "Google Apps Script, Python for SEO, BigQuery, Looker Studio, Google Analytics." }, { id: "3", content: "Digital analytics and web analytics." }], showInput: false }]), personality: JSON.stringify({ tone: "playful", communicationStyle: "balanced", assertiveness: "high", humor: "light", verbosity: "medium", signaturePhrase: "Let's make this one scroll-stopping.", doNots: ["Do not sound robotic."] }), lastAction: "11:29 AM" },
-  { id: "blog-writer", name: "Penny", role: "Blog Writer", description: "I've got some good news! To bypass that...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Penny&backgroundColor=c0aede", capabilities: JSON.stringify(["Content Writing", "SEO", "Research", "Image Generation"]), guidelines: JSON.stringify([{ id: "1", title: "Writing Style", items: [{ id: "1", content: "**Sanford Consulting: Tone & Style Guide**\n\nCore Philosophy: Talk _with_ clients as a high-level strategic partner. Maintain expert credibility while prioritizing clarity and minimalism.", isMarkdown: true }, { id: "2", content: "Write as an accessible expert: professional but casual, minimalist language, prioritize clarity. Use data-driven insights and actionable advice. Start with question-based headlines that challenge assumptions.", isMarkdown: false }], showInput: true }]), personality: JSON.stringify({ tone: "analytical", communicationStyle: "detailed", assertiveness: "medium", humor: "none", verbosity: "long", signaturePhrase: "Here is the narrative arc and data spine.", doNots: ["Do not overuse buzzwords."] }), lastAction: "11:33 AM" },
-  { id: "sales-associate", name: "Stan", role: "Sales Associate", description: "Lead outreach is set for today: 12 emails...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Stan&backgroundColor=d1f4d1", capabilities: JSON.stringify(["Outreach", "Lead Gen", "CRM"]), guidelines: JSON.stringify([]), personality: JSON.stringify({ tone: "direct", communicationStyle: "concise", assertiveness: "high", humor: "light", verbosity: "short", signaturePhrase: "I'll convert this into pipeline momentum.", doNots: ["Do not hedge recommendations."] }), lastAction: "10:24 AM" },
-  { id: "legal-associate", name: "Linda", role: "Legal Associate", description: "Awesome! Nice work getting that knocked...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Linda&backgroundColor=e8e8e8", capabilities: JSON.stringify(["Legal Research", "Compliance", "Contracts"]), guidelines: JSON.stringify([]), personality: JSON.stringify({ tone: "formal", communicationStyle: "detailed", assertiveness: "medium", humor: "none", verbosity: "medium", signaturePhrase: "Risk exposure is noted and bounded.", doNots: ["Do not provide certainty without caveats."] }), lastAction: "27 Feb" },
-  { id: "receptionist", name: "Rachel", role: "Receptionist", description: "Done! I've sent those 10 agency leads...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Rachel&backgroundColor=ffd6d6", capabilities: JSON.stringify(["Call Handling", "Inquiries", "Support"]), guidelines: JSON.stringify([]), personality: JSON.stringify({ tone: "warm", communicationStyle: "concise", assertiveness: "low", humor: "none", verbosity: "short", signaturePhrase: "I can help route this quickly.", doNots: ["Do not sound abrupt."] }), lastAction: "10:01 AM" },
+  { id: "team-chat", name: "Team Chat", role: "Team Chat", description: "Collaborative space where all agents can communicate.", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Team&backgroundColor=b6f4ef", capabilities: JSON.stringify(["Collaboration", "Team Communication"]), instructions: "", personality: JSON.stringify({ tone: "warm", communicationStyle: "balanced", assertiveness: "medium", humor: "light", verbosity: "medium", signaturePhrase: "Let's align on the next move.", doNots: ["Do not dominate individual agent voices."] }), lastAction: "Just now" },
+  { id: "executive-assistant", name: "Eva", role: "Executive Assistant", description: "I'm here to help manage your inbox, categorize emails, and keep your schedule running smoothly.", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4", capabilities: JSON.stringify(["Inbox Management", "Scheduling", "Research"]), instructions: `### Email Categorization
+- Flag RFP/RFI solicitations to Marcus only when the email explicitly uses the terms "RFP", "RFI", or "solicitation". 
+- Do not flag general job postings. 
+- Prioritize flagging official procurement notices, especially from .gov or .edu domains.
+
+### Writing Style
+- Professional yet approachable. 
+- Direct and concise. 
+- Helpful and solution-oriented. 
+- Calm and measured.`, personality: JSON.stringify({ tone: "warm", communicationStyle: "concise", assertiveness: "medium", humor: "none", verbosity: "short", signaturePhrase: "I've prepared the next step for you.", doNots: ["Do not use slang."] }), lastAction: "2:12 PM" },
+  { id: "social-media-manager", name: "Sonny", role: "Social Media Manager", description: "Sweet. Everything's locked, loaded, and looking much more...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf", capabilities: JSON.stringify(["Social Media", "Engagement", "Content Strategy", "Image Generation"]), instructions: `### Content Themes
+- Google Search algorithm updates, Google AI features, technical SEO, Google Ads, content quality, Microsoft AI, SEO industry news, structured data, Google company news.
+- Google Apps Script, Python for SEO, BigQuery, Looker Studio, Google Analytics.
+- Digital analytics and web analytics.`, personality: JSON.stringify({ tone: "playful", communicationStyle: "balanced", assertiveness: "high", humor: "light", verbosity: "medium", signaturePhrase: "Let's make this one scroll-stopping.", doNots: ["Do not sound robotic."] }), lastAction: "11:29 AM" },
+  { id: "blog-writer", name: "Penny", role: "Blog Writer", description: "I've got some good news! To bypass that...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Penny&backgroundColor=c0aede", capabilities: JSON.stringify(["Content Writing", "SEO", "Research", "Image Generation"]), instructions: `### Writing Style
+**Sanford Consulting: Tone & Style Guide**
+- Core Philosophy: Talk _with_ clients as a high-level strategic partner. Maintain expert credibility while prioritizing clarity and minimalism.
+- Write as an accessible expert: professional but casual, minimalist language, prioritize clarity. 
+- Use data-driven insights and actionable advice. 
+- Start with question-based headlines that challenge assumptions.`, personality: JSON.stringify({ tone: "analytical", communicationStyle: "detailed", assertiveness: "medium", humor: "none", verbosity: "long", signaturePhrase: "Here is the narrative arc and data spine.", doNots: ["Do not overuse buzzwords."] }), lastAction: "11:33 AM" },
+  { id: "sales-associate", name: "Stan", role: "Sales Associate", description: "Lead outreach is set for today: 12 emails...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Stan&backgroundColor=d1f4d1", capabilities: JSON.stringify(["Outreach", "Lead Gen", "CRM"]), instructions: "", personality: JSON.stringify({ tone: "direct", communicationStyle: "concise", assertiveness: "high", humor: "light", verbosity: "short", signaturePhrase: "I'll convert this into pipeline momentum.", doNots: ["Do not hedge recommendations."] }), lastAction: "10:24 AM" },
+  { id: "legal-associate", name: "Linda", role: "Legal Associate", description: "Awesome! Nice work getting that knocked...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Linda&backgroundColor=e8e8e8", capabilities: JSON.stringify(["Legal Research", "Compliance", "Contracts"]), instructions: "", personality: JSON.stringify({ tone: "formal", communicationStyle: "detailed", assertiveness: "medium", humor: "none", verbosity: "medium", signaturePhrase: "Risk exposure is noted and bounded.", doNots: ["Do not provide certainty without caveats."] }), lastAction: "27 Feb" },
+  { id: "receptionist", name: "Rachel", role: "Receptionist", description: "Done! I've sent those 10 agency leads...", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Rachel&backgroundColor=ffd6d6", capabilities: JSON.stringify(["Call Handling", "Inquiries", "Support"]), instructions: "", personality: JSON.stringify({ tone: "warm", communicationStyle: "concise", assertiveness: "low", humor: "none", verbosity: "short", signaturePhrase: "I can help route this quickly.", doNots: ["Do not sound abrupt."] }), lastAction: "10:01 AM" },
 ];
 
 const INITIAL_TASKS_SEED: SeedTask[] = [
@@ -396,7 +413,7 @@ export async function bootstrapDatabase(db: PostgresShim) {
       description TEXT,
       avatar TEXT,
       capabilities TEXT,
-      guidelines TEXT,
+      instructions TEXT,
       personality TEXT,
       last_action TEXT,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
@@ -404,6 +421,33 @@ export async function bootstrapDatabase(db: PostgresShim) {
   `);
 
   try {
+    if (!(await hasColumn("agents", "instructions"))) {
+      await db.exec("ALTER TABLE agents ADD COLUMN instructions TEXT");
+      
+      // Migrate existing guidelines data if any
+      const agents = await db.prepare("SELECT id, guidelines FROM agents").all() as any[];
+      for (const agent of agents) {
+        if (agent.guidelines) {
+          try {
+            const guidelines = JSON.parse(agent.guidelines);
+            if (Array.isArray(guidelines)) {
+              const instructions = guidelines.map((section: any) => {
+                const items = Array.isArray(section.items) 
+                  ? section.items.map((i: any) => `- ${i.content}`).join('\n')
+                  : '';
+                return `### ${section.title}\n${items}`;
+              }).join('\n\n');
+              
+              await db.prepare("UPDATE agents SET instructions = ? WHERE id = ?").run(instructions, agent.id);
+            }
+          } catch (err) {
+            console.error(`Failed to migrate guidelines for agent ${agent.id}:`, err);
+          }
+        }
+      }
+      console.log("Migration: Successfully added instructions column and migrated guidelines data");
+    }
+    
     if (!(await hasColumn("agents", "personality"))) {
       await db.exec("ALTER TABLE agents ADD COLUMN personality TEXT");
     }
@@ -659,13 +703,13 @@ export async function bootstrapDatabase(db: PostgresShim) {
     const agentCount = await db.prepare("SELECT COUNT(*) as count FROM agents WHERE workspace_id = ?").get(workspaceId) as { count: string };
     if (Number(agentCount?.count) > 0) return;
 
-    const insertAgent = db.prepare("INSERT INTO agents (id, workspace_id, name, role, status, description, avatar, capabilities, guidelines, personality, last_action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
+    const insertAgent = db.prepare("INSERT INTO agents (id, workspace_id, name, role, status, description, avatar, capabilities, instructions, personality, last_action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
     const insertTask = db.prepare("INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, due_date, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
     const insertMessage = db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
 
     for (const a of INITIAL_AGENTS_SEED) {
       const agentId = `${a.id}:${workspaceId}`;
-      await insertAgent.run(agentId, workspaceId, a.name, a.role, "idle", a.description, a.avatar, a.capabilities, a.guidelines, a.personality, a.lastAction);
+      await insertAgent.run(agentId, workspaceId, a.name, a.role, "idle", a.description, a.avatar, a.capabilities, a.instructions, a.personality, a.lastAction);
     }
     for (const t of INITIAL_TASKS_SEED) {
       const taskId = `${t.id}:${workspaceId}`;

@@ -303,13 +303,13 @@ export default function App() {
     return newTask;
   }, [activeWorkspaceId, token]);
 
-  const handleUpdateGuidelines = useCallback(async (agentId: string, guidelines: any[]) => {
-    let previousGuidelines: any[] = [];
+  const handleUpdateInstructions = useCallback(async (agentId: string, instructions: string) => {
+    let previousInstructions = '';
     setAgents(prev => prev.map(a =>
       a.id === agentId
         ? (() => {
-            previousGuidelines = a.guidelines;
-            return { ...a, guidelines };
+            previousInstructions = a.instructions;
+            return { ...a, instructions };
           })()
         : a
     ));
@@ -319,13 +319,13 @@ export default function App() {
         method: 'PATCH',
         token,
         onAuthFailure: () => handleLogout(),
-        body: JSON.stringify({ guidelines }),
+        body: JSON.stringify({ instructions }),
       });
       return true;
     } catch (err) {
-      console.error('Failed to save guidelines', err);
+      console.error('Failed to save instructions', err);
       setAgents(prev => prev.map(a =>
-        a.id === agentId ? { ...a, guidelines: previousGuidelines } : a
+        a.id === agentId ? { ...a, instructions: previousInstructions } : a
       ));
       return false;
     }
@@ -812,7 +812,7 @@ export default function App() {
               onAuthFailure={handleLogout}
               onSendMessage={handleSendMessage}
               isTyping={workingAgents.has(activeAgentId)}
-              onUpdateGuidelines={handleUpdateGuidelines}
+              onUpdateInstructions={handleUpdateInstructions}
               onUpdateCapabilities={handleUpdateCapabilities}
               onUpdatePersonality={handleUpdatePersonality}
               onUpdateName={handleUpdateAgentName}

@@ -35,11 +35,11 @@ export function getAllowedAgentUpdate(body: any) {
     updates.description = body.description;
   }
 
-  if (body.guidelines !== undefined) {
-    if (!Array.isArray(body.guidelines)) {
-      return { error: "Invalid guidelines payload" };
+  if (body.instructions !== undefined) {
+    if (typeof body.instructions !== "string") {
+      return { error: "Invalid instructions payload" };
     }
-    updates.guidelines = body.guidelines;
+    updates.instructions = body.instructions;
   }
 
   if (body.capabilities !== undefined) {

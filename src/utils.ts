@@ -7,16 +7,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type PromptGuidelineSection = {
-  items?: Array<{ content?: string | null }>;
-};
-
 type BuildAgentPromptContextInput = {
   description?: string | null;
   capabilities?: string[] | null;
-  guidelines?: PromptGuidelineSection[] | null;
+  instructions?: string | null;
   personality?: Partial<AgentPersonality> | null;
-  maxGuidelines?: number;
 };
 
 export const DEFAULT_AGENT_PERSONALITY: AgentPersonality = {
@@ -85,27 +80,21 @@ export function buildAgentPersonalityContext(personality?: Partial<AgentPersonal
 export function buildAgentPromptContext({
   description,
   capabilities,
-  guidelines,
+  instructions,
   personality,
-  maxGuidelines = 20,
 }: BuildAgentPromptContextInput) {
   const normalizedDescription = typeof description === 'string' ? description : '';
   const normalizedCapabilities = Array.isArray(capabilities) ? capabilities.filter((item) => typeof item === 'string' && item.trim().length > 0) : [];
-  const guidelineLines = (Array.isArray(guidelines) ? guidelines : [])
-    .flatMap((section) => (Array.isArray(section?.items) ? section.items : []))
-    .map((item) => (typeof item?.content === 'string' ? item.content.trim() : ''))
-    .filter((line) => line.length > 0)
-    .slice(0, maxGuidelines);
-
+  
   const capabilityLine = normalizedCapabilities.length > 0
     ? `Capabilities: ${normalizedCapabilities.join(', ')}`
     : 'Capabilities: none configured';
 
-  const guidelineBlock = guidelineLines.length > 0
-    ? `Guidelines:\n${guidelineLines.map((line) => `- ${line}`).join('\n')}`
-    : 'Guidelines: none configured';
+  const guidelineBlock = instructions?.trim()
+    ? `Instructions:\n${instructions.trim()}`
+    : 'Instructions: none configured';
 
   const personalityBlock = buildAgentPersonalityContext(personality);
 
-  return `${normalizedDescription}\n\n${personalityBlock}\n\n${capabilityLine}\n${guidelineBlock}`.trim();
+  return `${normalizedDescription}\n\n${personalityBlock}\n\n${capabilityLine}\n\n${guidelineBlock}`.trim();
 }

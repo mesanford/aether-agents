@@ -16,7 +16,7 @@ interface ChatInterfaceProps {
   onAuthFailure?: () => void;
   onSendMessage: (content: string) => void;
   isTyping: boolean;
-  onUpdateGuidelines: (agentId: string, guidelines: GuidelineSection[]) => Promise<boolean>;
+  onUpdateInstructions: (agentId: string, instructions: string) => Promise<boolean>;
   onUpdateCapabilities: (agentId: string, capabilities: string[]) => Promise<boolean>;
   onUpdatePersonality: (agentId: string, personality: AgentPersonality) => Promise<boolean>;
   onUpdateName?: (agentId: string, name: string) => Promise<boolean>;
@@ -41,13 +41,13 @@ type PromptVersionEntry = {
   before?: {
     description?: string;
     capabilities?: string[];
-    guidelines?: GuidelineSection[];
+    instructions?: string;
     personality?: AgentPersonality;
   } | null;
   after?: {
     description?: string;
     capabilities?: string[];
-    guidelines?: GuidelineSection[];
+    instructions?: string;
     personality?: AgentPersonality;
   } | null;
   versionAt?: number | null;
@@ -249,7 +249,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onAuthFailure,
   onSendMessage, 
   isTyping, 
-  onUpdateGuidelines,
+  onUpdateInstructions,
   onUpdateCapabilities,
   onUpdatePersonality,
   onUpdateName,
@@ -268,7 +268,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [editingTaskScheduleId, setEditingTaskScheduleId] = useState<string | null>(null);
   const [taskScheduleForm, setTaskScheduleForm] = useState<{repeat: string; dueDate: string}>({repeat: '', dueDate: ''});
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
-  const [guidelineState, setGuidelineState] = useState<{ status: 'idle' | 'saving' | 'success' | 'error'; message: string }>({
+  const [instructionsDraft, setInstructionsDraft] = useState(agent.instructions);
+  const [instructionsState, setInstructionsState] = useState<{ status: 'idle' | 'saving' | 'success' | 'error'; message: string }>({
     status: 'idle',
     message: '',
   });
@@ -321,14 +322,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   useEffect(() => {
     setActiveTab('Chat');
-    setGuidelineState({ status: 'idle', message: '' });
+    setInstructionsState({ status: 'idle', message: '' });
+    setInstructionsDraft(agent.instructions);
     setSkillState({ status: 'idle', message: '' });
     setPersonalityState({ status: 'idle', message: '' });
     setPersonalityDraft(normalizeAgentPersonality(agent.personality));
     setNewCapability('');
     setNameDraft(agent.name);
     setIsEditingName(false);
-  }, [agent.id, agent.name, agent.personality]);
+  }, [agent.id, agent.name, agent.personality, agent.instructions]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -357,10 +359,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       });
   }, [activeTab, token, activeWorkspaceId, agent.id, onAuthFailure]);
 
-  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [newSectionTitle, setNewSectionTitle] = useState('');
   const [newCapability, setNewCapability] = useState('');
   const [skillState, setSkillState] = useState<{ status: 'idle' | 'saving' | 'success' | 'error'; message: string }>({
     status: 'idle',
@@ -456,31 +454,33 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         "Help me with lead generation"
       ];
 
-  const renderGuidelines = () => {
+  const renderInstructions = () => {
     const trimmedCapability = newCapability.trim();
     const normalizedCapabilities = agent.capabilities.map((capability) => capability.toLowerCase());
     const hasDuplicateCapability = trimmedCapability.length > 0 && normalizedCapabilities.includes(trimmedCapability.toLowerCase());
     const exceedsSkillLength = trimmedCapability.length > MAX_SKILL_LENGTH;
     const hasSkillCapacity = agent.capabilities.length < MAX_AGENT_SKILLS;
     const canAddSkill = trimmedCapability.length > 0 && !hasDuplicateCapability && !exceedsSkillLength && hasSkillCapacity;
-    const effectivePromptPreview = buildAgentPromptContext({
-      description: agent.description,
-      capabilities: agent.capabilities,
-      guidelines: agent.guidelines,
-      personality: personalityDraft,
-    });
+    
     const savedPersonality = normalizeAgentPersonality(agent.personality);
     const hasUnsavedPersonalityChanges = JSON.stringify(savedPersonality) !== JSON.stringify(personalityDraft);
+    const hasUnsavedInstructionsChanges = agent.instructions !== instructionsDraft;
+    
     const personalityPresets = ROLE_PERSONALITY_PRESETS[agent.role] || DEFAULT_PERSONALITY_PRESETS;
     const rolePresetSkills = ROLE_SKILL_PRESETS[agent.role] || [];
     const missingRolePresetSkills = rolePresetSkills.filter((skill) => !normalizedCapabilities.includes(skill.toLowerCase()));
 
-    const persistGuidelinesUpdate = async (nextGuidelines: GuidelineSection[], successMessage: string) => {
-      setGuidelineState({ status: 'saving', message: '' });
-      const success = await onUpdateGuidelines(agent.id, nextGuidelines);
-      setGuidelineState(success
-        ? { status: 'success', message: successMessage }
-        : { status: 'error', message: 'Failed to save guideline changes.' });
+    const saveInstructions = async () => {
+      setInstructionsState({ status: 'saving', message: '' });
+      const success = await onUpdateInstructions(agent.id, instructionsDraft);
+      setInstructionsState(success
+        ? { status: 'success', message: 'Instructions saved successfully.' }
+        : { status: 'error', message: 'Failed to save instructions.' });
+    };
+
+    const revertInstructionsDraft = () => {
+      setInstructionsDraft(agent.instructions);
+      setInstructionsState({ status: 'idle', message: '' });
     };
 
     const applyRoleSkillPreset = async () => {
@@ -502,72 +502,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setSkillState(success
         ? { status: 'success', message: `Applied ${filteredPresetSkills.length} preset skill${filteredPresetSkills.length > 1 ? 's' : ''}.` }
         : { status: 'error', message: 'Failed to apply skill presets.' });
-    };
-
-    const handleUpdateSectionTitle = (sectionId: string, newTitle: string) => {
-      const updated = agent.guidelines.map(s => 
-        s.id === sectionId ? { ...s, title: newTitle } : s
-      );
-      void persistGuidelinesUpdate(updated, 'Section title updated.');
-      setEditingSectionId(null);
-    };
-
-    const handleUpdateItemContent = (sectionId: string, itemId: string, newContent: string) => {
-      const updated = agent.guidelines.map(s => {
-        if (s.id === sectionId) {
-          return {
-            ...s,
-            items: s.items.map(i => i.id === itemId ? { ...i, content: newContent } : i)
-          };
-        }
-        return s;
-      });
-      void persistGuidelinesUpdate(updated, 'Guideline updated.');
-      setEditingItemId(null);
-    };
-
-    const handleDeleteItem = (sectionId: string, itemId: string) => {
-      const updated = agent.guidelines.map(s => {
-        if (s.id === sectionId) {
-          return {
-            ...s,
-            items: s.items.filter(i => i.id !== itemId)
-          };
-        }
-        return s;
-      });
-      void persistGuidelinesUpdate(updated, 'Guideline removed.');
-    };
-
-    const handleDeleteSection = (sectionId: string) => {
-      const updated = agent.guidelines.filter(s => s.id !== sectionId);
-      void persistGuidelinesUpdate(updated, 'Section removed.');
-    };
-
-    const handleAddItem = (sectionId: string, content: string) => {
-      if (!content.trim()) return;
-      const updated = agent.guidelines.map(s => {
-        if (s.id === sectionId) {
-          return {
-            ...s,
-            items: [...s.items, { id: Date.now().toString(), content, isMarkdown: true }]
-          };
-        }
-        return s;
-      });
-      void persistGuidelinesUpdate(updated, 'Guideline added.');
-    };
-
-    const handleAddSection = () => {
-      if (!newSectionTitle.trim()) return;
-      const newSection: GuidelineSection = {
-        id: Date.now().toString(),
-        title: newSectionTitle,
-        items: [],
-        showInput: true
-      };
-      void persistGuidelinesUpdate([...agent.guidelines, newSection], 'Section added.');
-      setNewSectionTitle('');
     };
 
     const handleAddCapability = async () => {
@@ -673,16 +607,52 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               </div>
             )}
           </div>
-          
-          {guidelineState.message ? (
-            <p className={cn(
-              'text-xs mb-6 font-medium',
-              guidelineState.status === 'error' ? 'text-rose-600' : 'text-emerald-600',
-            )}>
-              {guidelineState.message}
-            </p>
-          ) : null}
 
+          <section className="mb-12">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider">Guidelines & Rules</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={revertInstructionsDraft}
+                  disabled={!hasUnsavedInstructionsChanges || instructionsState.status === 'saving'}
+                  className="px-3 py-1.5 bg-white border border-warm-200 text-stone-700 rounded-lg text-xs font-bold hover:bg-warm-100 transition-all disabled:bg-warm-100 disabled:text-stone-400 disabled:cursor-not-allowed"
+                >
+                  Revert
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveInstructions()}
+                  disabled={instructionsState.status === 'saving' || !hasUnsavedInstructionsChanges}
+                  className="px-3 py-1.5 bg-stone-900 text-white rounded-lg text-xs font-bold hover:bg-stone-800 transition-all disabled:bg-warm-200 disabled:text-stone-500"
+                >
+                  {instructionsState.status === 'saving' ? 'Saving...' : 'Save Instructions'}
+                </button>
+              </div>
+            </div>
+            
+            <div className="relative group">
+              <textarea
+                className="w-full min-h-[300px] p-6 bg-warm-50 border border-warm-200 rounded-2xl text-stone-700 text-[15px] leading-relaxed focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all resize-none"
+                placeholder="Enter instructions for this agent. You can use Markdown for structure..."
+                value={instructionsDraft}
+                onChange={(e) => setInstructionsDraft(e.target.value)}
+              />
+              <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-[10px] font-bold text-stone-400 bg-white/80 px-2 py-1 rounded-md border border-warm-100 backdrop-blur-sm uppercase tracking-tight">Markdown Supported</span>
+              </div>
+            </div>
+            
+            {instructionsState.message ? (
+              <p className={cn(
+                'text-xs mt-3 font-medium',
+                instructionsState.status === 'error' ? 'text-rose-600' : 'text-emerald-600',
+              )}>
+                {instructionsState.message}
+              </p>
+            ) : null}
+          </section>
+          
           <section className="mb-12 rounded-2xl border border-warm-200 bg-warm-50 px-4 py-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider">Personality Profile</h2>
@@ -693,7 +663,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   disabled={!hasUnsavedPersonalityChanges || personalityState.status === 'saving'}
                   className="px-3 py-1.5 bg-white border border-warm-200 text-stone-700 rounded-lg text-xs font-bold hover:bg-warm-100 transition-all disabled:bg-warm-100 disabled:text-stone-400 disabled:cursor-not-allowed"
                 >
-                  Revert Draft
+                  Revert
                 </button>
                 <button
                   type="button"
@@ -857,147 +827,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               </p>
             ) : null}
           </section>
-
-          <div className="space-y-12">
-            {agent.guidelines.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="w-20 h-20 bg-warm-50 rounded-full flex items-center justify-center mb-4">
-                  <FileText className="w-10 h-10 text-stone-200" />
-                </div>
-                <h3 className="text-lg font-bold text-stone-900">No guidelines yet</h3>
-                <p className="text-sm text-stone-500 max-w-xs mt-2">Add your first section below to give {agent.name} custom instructions to follow.</p>
-              </div>
-            )}
-            {agent.guidelines.map((section) => (
-              <section key={section.id} className="group/section relative">
-                <div className="flex items-center gap-4 mb-6">
-                  {editingSectionId === section.id ? (
-                    <div className="flex items-center gap-2 flex-1">
-                      <input 
-                        autoFocus
-                        className="flex-1 font-bold text-stone-900 bg-warm-50 border border-warm-200 rounded-lg px-3 py-1 outline-none focus:ring-2 focus:ring-brand-500/20"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateSectionTitle(section.id, editValue)}
-                      />
-                      <button onClick={() => handleUpdateSectionTitle(section.id, editValue)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => setEditingSectionId(null)} className="p-1 text-stone-400 hover:bg-warm-50 rounded">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <h3 className="font-bold text-stone-900">{section.title}</h3>
-                      <div className="flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => {
-                            setEditingSectionId(section.id);
-                            setEditValue(section.title);
-                          }}
-                          className="p-1 text-stone-400 hover:text-stone-600 hover:bg-warm-50 rounded"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteSection(section.id)}
-                          className="p-1 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded"
-                        >
-                          <Trash className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {section.items.map((item, idx) => (
-                    <div key={item.id} className="group relative flex gap-4 p-6 bg-white border border-warm-200 rounded-xl shadow-sm hover:border-warm-200 transition-all">
-                      <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-sm flex-shrink-0">{idx + 1}</div>
-                      <div className="flex-1 text-stone-600 text-[15px] leading-relaxed whitespace-pre-wrap">
-                        {editingItemId === item.id ? (
-                          <div className="flex flex-col gap-2">
-                            <textarea 
-                              autoFocus
-                              className="w-full bg-warm-50 border border-warm-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-brand-500/20 min-h-[100px]"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                            />
-                            <div className="flex justify-end gap-2">
-                              <button onClick={() => setEditingItemId(null)} className="px-3 py-1 text-xs font-bold text-stone-500 hover:bg-warm-50 rounded-lg">Cancel</button>
-                              <button onClick={() => handleUpdateItemContent(section.id, item.id, editValue)} className="px-3 py-1 text-xs font-bold bg-brand-600 text-white rounded-lg hover:bg-brand-700">Save</button>
-                            </div>
-                          </div>
-                        ) : (
-                          item.isMarkdown ? (
-                            <div className="markdown-body">
-                              <Markdown remarkPlugins={[remarkGfm]}>{item.content}</Markdown>
-                            </div>
-                          ) : (
-                            item.content
-                          )
-                        )}
-                      </div>
-                      {!editingItemId && (
-                        <div className="opacity-0 group-hover:opacity-100 absolute top-4 right-4 flex gap-1">
-                          <button 
-                            onClick={() => {
-                              setEditingItemId(item.id);
-                              setEditValue(item.content);
-                            }}
-                            className="p-1.5 text-stone-300 hover:text-stone-500 hover:bg-warm-50 rounded-lg transition-all"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteItem(section.id, item.id)}
-                            className="p-1.5 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          >
-                            <Trash className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  
-                  <div className="flex gap-4 p-6 bg-white border border-warm-200 rounded-xl border-dashed group/new-item">
-                    <div className="w-8 h-8 rounded-lg bg-warm-50 text-stone-300 flex items-center justify-center font-bold text-sm flex-shrink-0">{section.items.length + 1}</div>
-                    <input 
-                      className="flex-1 bg-transparent border-none p-0 text-[15px] text-stone-600 focus:ring-0 placeholder:text-stone-300" 
-                      placeholder="Add a new instruction..." 
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleAddItem(section.id, (e.target as HTMLInputElement).value);
-                          (e.target as HTMLInputElement).value = '';
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-              </section>
-            ))}
-
-            {/* Add New Section */}
-            <div className="pt-8 border-t border-warm-200">
-              <div className="flex gap-4">
-                <input 
-                  className="flex-1 bg-warm-50 border border-warm-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
-                  placeholder="New Section Title..."
-                  value={newSectionTitle}
-                  onChange={(e) => setNewSectionTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddSection()}
-                />
-                <button 
-                  onClick={handleAddSection}
-                  className="px-6 py-3 bg-stone-900 text-white rounded-xl text-sm font-bold hover:bg-stone-800 transition-all flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Section
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -2514,7 +2343,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         ))}
       </div>
 
-      {activeTab === 'Guidelines' ? renderGuidelines() : activeTab === 'Posts' ? renderPosts() : activeTab === 'Blog Posts' ? renderBlogPosts() : activeTab === 'Newsletters' ? renderNewsletters() : activeTab === 'Leads' ? renderLeads() : activeTab === 'Sequence' ? renderSequences() : activeTab === 'Documents' ? renderDocuments() : activeTab === 'Calls' ? renderCalls() : (
+      {activeTab === 'Instructions' ? renderInstructions() : activeTab === 'Posts' ? renderPosts() : activeTab === 'Blog Posts' ? renderBlogPosts() : activeTab === 'Newsletters' ? renderNewsletters() : activeTab === 'Leads' ? renderLeads() : activeTab === 'Sequence' ? renderSequences() : activeTab === 'Documents' ? renderDocuments() : activeTab === 'Calls' ? renderCalls() : (
         <>
           {/* Messages */}
           <div 

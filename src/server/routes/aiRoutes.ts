@@ -34,7 +34,7 @@ export function registerAiRoutes({
   const buildAgentProfilePromptContext = (agent: {
     description?: string | null;
     capabilities?: string | null;
-    guidelines?: string | null;
+    instructions?: string | null;
     personality?: string | null;
   }) => {
     const description = typeof agent.description === "string" ? agent.description.trim() : "";
@@ -46,19 +46,8 @@ export function registerAiRoutes({
         return [];
       }
     })();
-    const guidelineLines = (() => {
-      try {
-        const parsed = JSON.parse(agent.guidelines || "[]") as Array<{ items?: Array<{ content?: string }> }>;
-        if (!Array.isArray(parsed)) return [];
-        return parsed
-          .flatMap((section) => (Array.isArray(section?.items) ? section.items : []))
-          .map((item) => (typeof item?.content === "string" ? item.content.trim() : ""))
-          .filter((line) => line.length > 0)
-          .slice(0, 20);
-      } catch {
-        return [];
-      }
-    })();
+    const instructions = typeof agent.instructions === "string" ? agent.instructions.trim() : "";
+    
     const personality = (() => {
       const fallback = {
         tone: "direct",
@@ -91,9 +80,9 @@ export function registerAiRoutes({
     const capabilityLine = capabilities.length > 0
       ? `Capabilities: ${capabilities.join(", ")}`
       : "Capabilities: none configured";
-    const guidelineBlock = guidelineLines.length > 0
-      ? `Guidelines:\n${guidelineLines.map((line) => `- ${line}`).join("\n")}`
-      : "Guidelines: none configured";
+    const guidelineBlock = instructions
+      ? `Instructions:\n${instructions}`
+      : "Instructions: none configured";
     const personalityLines = [
       "Personality:",
       `- Tone: ${personality.tone}`,
@@ -117,14 +106,14 @@ export function registerAiRoutes({
 
     try {
       const rows = await db.prepare(`
-        SELECT id, description, capabilities, guidelines, personality
+        SELECT id, description, capabilities, instructions, personality
         FROM agents
         WHERE workspace_id = ?
       `).all(workspaceId) as Array<{
         id: string;
         description?: string | null;
         capabilities?: string | null;
-        guidelines?: string | null;
+        instructions?: string | null;
         personality?: string | null;
       }>;
 

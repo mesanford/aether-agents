@@ -54,7 +54,7 @@ export interface Agent {
   avatar: string;
   capabilities: string[];
   lastAction?: string;
-  guidelines: GuidelineSection[];
+  instructions: string;
   personality?: AgentPersonality;
 }
 
