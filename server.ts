@@ -54,7 +54,7 @@ if (GEMINI_API_KEY) {
 
 async function startServer() {
   const app = express();
-  const PORT = Number.parseInt(process.env.PORT || "3000", 10);
+  const PORT = Number.parseInt(process.env.PORT || "3001", 10);
   const DATABASE_PATH = process.env.DATABASE_PATH || "crm.db";
 
   app.use(express.json({ limit: "256kb" }));
