@@ -5,7 +5,6 @@ import { config } from "dotenv";
 config({ path: ".env.local", override: true });
 
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import db from "./src/server/db.ts";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -37,7 +36,9 @@ const __dirname = path.dirname(__filename);
 const isProduction = process.env.NODE_ENV === "production";
 
 if (isProduction && !process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET environment variable is required in production.");
+  // Secrets may take a moment to mount on cold start; log and exit gracefully
+  console.error("FATAL: JWT_SECRET environment variable is required in production.");
+  process.exit(1);
 }
 
 if (!process.env.JWT_SECRET) {
@@ -259,8 +260,9 @@ async function startServer() {
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
   });
 
-  // Vite middleware for development
+  // Vite middleware for development (dynamic import keeps vite out of production bundle)
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
