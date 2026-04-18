@@ -278,7 +278,7 @@ export function registerWorkspaceRoutes({
     }
   });
 
-  app.delete("/api/workspaces/:id", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner"), async (req: AuthenticatedRequest, res) => {
+  app.delete("/api/workspaces/:workspaceId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner"), async (req: AuthenticatedRequest, res) => {
     try {
       const workspaceId = req.workspaceId;
       

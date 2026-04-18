@@ -65,7 +65,7 @@ async function startServer() {
   let seedWorkspace: ((workspaceId: string | number | bigint) => Promise<void>) | undefined;
 
   app.use((req, res, next) => {
-    if (!isReady && req.path.startsWith("/api")) {
+    if (!isReady && req.path.startsWith("/api") && req.method !== "DELETE") {
       res.status(503).json({ error: "Server is starting up, please retry shortly." });
       return;
     }
