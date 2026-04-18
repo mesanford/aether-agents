@@ -28,7 +28,7 @@ import { registerGoogleDriveRoutes } from "./src/server/routes/googleDriveRoutes
 import { registerApprovalRoutes } from "./src/server/routes/approvalRoutes.ts";
 import { bootstrapDatabase } from "./src/server/dbBootstrap.ts";
 import { startTaskEngine } from "./src/server/taskEngine.ts";
-import { startSequenceDaemon } from "./src/server/sequenceDaemon.js";
+import { startSequenceDaemon } from "./src/server/sequenceDaemon.ts";
 import { migrateBase64ToGCS } from "./src/server/gcpStorage.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -55,14 +55,41 @@ if (GEMINI_API_KEY) {
 async function startServer() {
   const app = express();
   const PORT = Number.parseInt(process.env.PORT || "3001", 10);
+
+  // Start listening IMMEDIATELY so Cloud Run health checks pass while
+  // async bootstrap (DB migrations, GCS migration) completes in the background.
+  let isReady = false;
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server listening on port ${PORT} (bootstrapping...)`);
+  });
+
+  // Readiness guard: return 503 for API calls until DB is ready
+  app.use((req, res, next) => {
+    if (!isReady && req.path.startsWith("/api")) {
+      res.status(503).json({ error: "Server is starting up, please retry shortly." });
+      return;
+    }
+    next();
+  });
+
   const DATABASE_PATH = process.env.DATABASE_PATH || "crm.db";
+
 
   app.use(express.json({ limit: "256kb" }));
 
-  const { seedWorkspace } = await bootstrapDatabase(db);
-  
-  // Kick off migration of any legacy SQLite base64 strings to GCS
-  await migrateBase64ToGCS(db);
+  let seedWorkspace: (() => Promise<void>) | undefined;
+  try {
+    const bootstrapResult = await bootstrapDatabase(db);
+    seedWorkspace = bootstrapResult.seedWorkspace;
+  } catch (err) {
+    console.error("Database bootstrap failed:", err);
+    // Still mark ready so the server stays up (avoids Cloud Run restart loop)
+  }
+
+  // Kick off migration of any legacy SQLite base64 strings to GCS (non-blocking)
+  migrateBase64ToGCS(db).catch((err) =>
+    console.error("GCS migration error (non-fatal):", err)
+  );
 
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -256,10 +283,9 @@ async function startServer() {
     res.status(500).json({ error: "Internal server error" });
   });
 
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Mark server as fully ready
+  isReady = true;
+  console.log(`Server fully ready on http://localhost:${PORT}`);
 }
 
 startServer();
