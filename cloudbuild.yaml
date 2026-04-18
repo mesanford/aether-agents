@@ -28,7 +28,7 @@ steps:
       - '300'
       - '--add-cloudsql-instances'
       - 'marketing-agents-1bafd:us-central1:agencyos-db'
-      - '--startup-cpu-boost'
+      - '--cpu-boost'
       - '--cpu'
       - '2'
       - '--memory'
