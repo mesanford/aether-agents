@@ -2360,7 +2360,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 >
                   <div className="w-10 h-10 rounded-lg bg-warm-100 flex-shrink-0 overflow-hidden">
                     <img
-                      src={msg.senderAvatar || (msg.type === 'user' ? "https://api.dicebear.com/9.x/avataaars/svg?seed=marcus" : agent.avatar)}
+                      src={msg.senderAvatar || (msg.type === 'user' ? "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Marcus&backgroundColor=f5f5f4" : agent.avatar)}
                       alt={msg.senderName}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
@@ -2503,7 +2503,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             <div className="relative">
               {isTyping && (
                 <div className="flex items-center gap-2 mb-3 px-3">
-                  <img src={agent.avatar} alt={agent.name} className="w-[22px] h-[22px] rounded-full object-cover bg-emerald-500 shadow-sm" />
+                  <img src={agent.avatar} alt={agent.name} className="w-[22px] h-[22px] rounded-full object-cover bg-warm-100 shadow-sm" />
                   <span className="text-[15px] font-medium text-stone-500 tracking-wide flex items-center">
                     {agent.name.split(' ')[0]} is thinking
                     <span className="ml-2 flex space-x-1">
@@ -2536,7 +2536,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   </div>
                 )}
 
-                <div className={cn("flex items-center bg-white border rounded-2xl px-4 py-3 transition-all shadow-sm", pendingAttachment ? "border-brand-500" : "border-warm-200 focus-within:border-brand-500")}>
+                <div className={cn(
+                  "flex items-center bg-white border rounded-2xl px-4 py-3 transition-all shadow-sm duration-300", 
+                  pendingAttachment 
+                    ? "border-brand-500 ring-4 ring-brand-500/10" 
+                    : "border-warm-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10 focus-within:shadow-md"
+                )}>
                   <button
                     type="button"
                     onClick={handleFileClick}
@@ -2550,7 +2555,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder={pendingAttachment ? "Add a message about this image..." : "Write message"}
-                    className="flex-1 bg-transparent border-none p-0 text-[15px] focus:ring-0 placeholder:text-stone-300"
+                    className="flex-1 bg-transparent border-none p-0 text-[15px] focus:ring-0 outline-none placeholder:text-stone-300"
                   />
                   <button
                     type="submit"

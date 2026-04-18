@@ -793,6 +793,8 @@ export function registerIntegrationsRoutes({
         "https://www.googleapis.com/auth/presentations.readonly",
         "https://www.googleapis.com/auth/analytics.readonly",
         "https://www.googleapis.com/auth/webmasters.readonly",
+        "https://www.googleapis.com/auth/chat.spaces.readonly",
+        "https://www.googleapis.com/auth/chat.messages.readonly",
       ],
       state: Buffer.from(JSON.stringify({ type: "workspace", userId })).toString("base64"),
     });

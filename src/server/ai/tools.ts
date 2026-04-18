@@ -9,12 +9,54 @@ import { ShadowGitServer } from '../lib/git/shadow';
 const SHADOW_DIR = path.resolve(process.cwd(), '.shadow-workspace');
 
 export const queryBrainTool = tool(
-  async ({ query }) => {
-    return "Search failed. Memory integration pending.";
+  async ({ query }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      // 1. Search Knowledge Documents
+      const docs = await db.prepare(`
+        SELECT title, content, author 
+        FROM knowledge_documents 
+        WHERE workspace_id = ? 
+        AND (title ILIKE ? OR content ILIKE ?)
+        LIMIT 5
+      `).all(workspaceId, `%${query}%`, `%${query}%`) as any[];
+
+      // 2. Search Stan's Memory (Lessons Learned)
+      const lessons = await db.prepare(`
+        SELECT learning, confidence_score
+        FROM stan_memory_ledger
+        WHERE workspace_id = ?
+        AND learning ILIKE ?
+        ORDER BY confidence_score DESC
+        LIMIT 3
+      `).all(workspaceId, `%${query}%`) as any[];
+
+      if (docs.length === 0 && lessons.length === 0) {
+        return `No internal knowledge found matching '${query}' in workspace ${workspaceId}.`;
+      }
+
+      let result = `Internal Knowledge results for '${query}':\n\n`;
+
+      if (docs.length > 0) {
+        result += `--- COMPANY DOCUMENTS ---\n`;
+        result += docs.map(d => `Title: ${d.title}\nAuthor: ${d.author || 'Agency'}\nContent: ${d.content}`).join('\n\n');
+        result += `\n\n`;
+      }
+
+      if (lessons.length > 0) {
+        result += `--- LESSONS LEARNED (Stan's Memory) ---\n`;
+        result += lessons.map(l => `- [Confidence: ${l.confidence_score}%] ${l.learning}`).join('\n');
+      }
+
+      return result;
+    } catch (err: any) {
+      console.error("query_brain error:", err);
+      return `Failed to query agency brain: ${err.message}`;
+    }
   },
   {
     name: "query_brain",
-    description: "Search the company's internal agency brain, knowledge base, policies, and semantic context. Keywords: knowledge, vector, search, find, memory, context, policies, files, documents, drive, read, list docs.",
+    description: "Search the company's internal agency brain, knowledge base, policies, and semantic context. Use this to find company-specific rules, project backgrounds, or lessons learned from previous tasks. Keywords: knowledge, policies, find info, project context, lessons learned.",
     schema: z.object({ query: z.string() })
   }
 );
@@ -50,32 +92,217 @@ export const searchGoogleDriveTool = tool(
 );
 
 export const draftEmailTool = tool(
-  async ({ to, subject, body }) => {
-    return `[GMAIL MOCK] Draft saved successfully for ${to} regarding "${subject}".`;
+  async ({ to, subject, body }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    
+    try {
+      // 1. Get workspace owner and tokens
+      const workspace = await db.prepare("SELECT owner_id FROM workspaces WHERE id = ?").get(workspaceId) as any;
+      if (!workspace) return "[FAILED] Workspace not found.";
+
+      const tokenRow = await db.prepare("SELECT * FROM google_tokens WHERE user_id = ?").get(workspace.owner_id) as any;
+      if (!tokenRow) return "[FAILED] Google account not connected. The user must connect it via Settings -> Integrations.";
+
+      const { OAuth2Client } = await import("google-auth-library");
+      const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+      client.setCredentials({
+        access_token: tokenRow.access_token,
+        refresh_token: tokenRow.refresh_token,
+        expiry_date: tokenRow.expiry_date,
+      });
+
+      // 2. Handle token refresh if needed
+      if (tokenRow.expiry_date && Date.now() > tokenRow.expiry_date - 60000) {
+        const { credentials } = await client.refreshAccessToken();
+        await db.prepare("UPDATE google_tokens SET access_token = ?, expiry_date = ? WHERE user_id = ?").run(
+          credentials.access_token,
+          credentials.expiry_date,
+          workspace.owner_id
+        );
+        client.setCredentials(credentials);
+      }
+
+      // 3. Create the draft via Gmail API
+      const { google } = await import("googleapis");
+      const gmail = google.gmail({ version: "v1", auth: client });
+
+      const messageParts = [
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        body,
+      ];
+      const message = messageParts.join("\n");
+
+      const encodedMessage = Buffer.from(message)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+
+      const draftRes = await gmail.users.drafts.create({
+        userId: "me",
+        requestBody: {
+          message: {
+            raw: encodedMessage,
+          },
+        },
+      });
+
+      return `[SUCCESS] Real draft saved in Gmail for ${to} regarding "${subject}". DRAFT_ID: ${draftRes.data.id}`;
+    } catch (err: any) {
+      console.error("draft_email error:", err);
+      return `[FAILED] Could not create Gmail draft: ${err.message}`;
+    }
   },
   {
     name: "draft_email",
-    description: "Draft an email response via Gmail. Eva can use this to stage responses.",
-    schema: z.object({ to: z.string(), subject: z.string(), body: z.string() })
+    description: "Create a real email draft in the user's Gmail account. Use this strictly when users ask to stage a response, draft an email, or prepare a reply. Keywords: email, draft, stage, reply, gmail, write mail.",
+    schema: z.object({ 
+      to: z.string().describe("Recipient email address."), 
+      subject: z.string().describe("Email subject line."), 
+      body: z.string().describe("The full content of the email.") 
+    })
   }
 );
 
 export const readGoogleChatTool = tool(
-  async ({ space, limit }) => {
-    return `[GCAT MOCK] Read recent messages in space '${space}'. No urgent alerts flagged.`;
+  async ({ space, limit = 5 }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    
+    try {
+      // 1. Get workspace owner and tokens
+      const workspace = await db.prepare("SELECT owner_id FROM workspaces WHERE id = ?").get(workspaceId) as any;
+      if (!workspace) return "[FAILED] Workspace not found.";
+
+      const tokenRow = await db.prepare("SELECT * FROM google_tokens WHERE user_id = ?").get(workspace.owner_id) as any;
+      if (!tokenRow) return "[FAILED] Google account not connected. The user must connect it via Settings -> Integrations.";
+
+      const { OAuth2Client } = await import("google-auth-library");
+      const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+      client.setCredentials({
+        access_token: tokenRow.access_token,
+        refresh_token: tokenRow.refresh_token,
+        expiry_date: tokenRow.expiry_date,
+      });
+
+      // 2. Handle token refresh if needed
+      if (tokenRow.expiry_date && Date.now() > tokenRow.expiry_date - 60000) {
+        const { credentials } = await client.refreshAccessToken();
+        await db.prepare("UPDATE google_tokens SET access_token = ?, expiry_date = ? WHERE user_id = ?").run(
+          credentials.access_token,
+          credentials.expiry_date,
+          workspace.owner_id
+        );
+        client.setCredentials(credentials);
+      }
+
+      const { google } = await import("googleapis");
+      const chat = google.chat({ version: "v1", auth: client });
+
+      // 3. If space is provided, try to read messages
+      if (space) {
+        let targetSpaceId = space;
+        
+        // If 'space' doesn't look like a resource name (spaces/...), try to find it by display name
+        if (!space.startsWith("spaces/")) {
+          const spacesRes = await chat.spaces.list();
+          const found = spacesRes.data.spaces?.find(s => s.displayName?.toLowerCase() === space.toLowerCase());
+          if (found?.name) {
+            targetSpaceId = found.name;
+          } else {
+            return `[FAILED] Could not find a Google Chat space named '${space}'. Use the tool without a space name to list all available spaces first.`;
+          }
+        }
+
+        const messagesRes = await chat.spaces.messages.list({
+          parent: targetSpaceId,
+          pageSize: limit,
+        });
+
+        const messages = messagesRes.data.messages || [];
+        if (messages.length === 0) return `No recent messages found in space '${space}'.`;
+
+        const formattedMessages = messages.map(m => {
+          const sender = m.sender?.displayName || "Unknown";
+          const time = m.createTime ? new Date(m.createTime).toLocaleString() : "Unknown time";
+          return `[${time}] ${sender}: ${m.text}`;
+        }).reverse().join("\n");
+
+        return `Recent messages in '${space}':\n\n${formattedMessages}`;
+      }
+
+      // 4. If no space provided, list available spaces
+      const spacesRes = await chat.spaces.list();
+      const spaces = spacesRes.data.spaces || [];
+      
+      if (spaces.length === 0) return "No Google Chat spaces found for this account.";
+
+      const spaceList = spaces.map(s => `- ${s.displayName} (ID: ${s.name})`).join("\n");
+      return `Available Google Chat Spaces:\n\n${spaceList}\n\nUse this tool again with a specific space name or ID to read its messages.`;
+
+    } catch (err: any) {
+      console.error("read_google_chat error:", err);
+      if (err.message?.includes("scope")) {
+        return "[FAILED] Insufficient permissions. The user needs to reconnect Google via Integrations to grant Google Chat access.";
+      }
+      return `[FAILED] Could not read Google Chat: ${err.message}`;
+    }
   },
   {
     name: "read_google_chat",
-    description: "Read recent messages from Google Chat spaces.",
-    schema: z.object({ space: z.string(), limit: z.number().optional() })
+    description: "Read recent messages from Google Chat spaces. If no space name is provided, it lists all available spaces. Use this to monitor team communications or look for specific alerts. Keywords: chat, google chat, messages, spaces, team talk.",
+    schema: z.object({ 
+      space: z.string().optional().describe("The display name or resource ID (spaces/...) of the space to read. Leave empty to list all spaces."), 
+      limit: z.number().optional().describe("Number of recent messages to retrieve. Default is 5.") 
+    })
   }
 );
 
 export const searchWebTool = tool(
-  async ({ query }) => `[MOCK WEB RESULT] Scraped top 3 articles for ${query}.`,
+  async ({ query }) => {
+    const apiKey = process.env.SERPER_API_KEY;
+    if (!apiKey) {
+      return "Web search is not configured. Please add SERPER_API_KEY to your environment variables.";
+    }
+
+    try {
+      const response = await fetch("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ q: query }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Serper API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json() as any;
+      
+      const results = [];
+      if (data.organic) {
+        results.push(...data.organic.slice(0, 5).map((res: any) => 
+          `Title: ${res.title}\nLink: ${res.link}\nSnippet: ${res.snippet}`
+        ));
+      }
+
+      if (results.length === 0) {
+        return `No organic results found for '${query}'.`;
+      }
+
+      return `Top search results for '${query}':\n\n${results.join('\n\n---\n\n')}`;
+    } catch (err: any) {
+      console.error("search_web error:", err);
+      return `Failed to perform web search: ${err.message}`;
+    }
+  },
   {
     name: "search_web",
-    description: "Search the public internet for articles, trends, or keyword research.",
+    description: "Search the public internet for articles, trends, news, or prospect research. Use this to find current events, verify facts, or gather intelligence for blog posts and social media. Keywords: search, find, research, news, lookup, google.",
     schema: z.object({ query: z.string() })
   }
 );
@@ -211,24 +438,105 @@ export const publishBlogPostTool = tool(
 );
 
 export const updateCrmTool = tool(
-  async (lead) => {
-    return `[SUCCESS] Lead ${lead.name} added to CRM Database successfully.`;
+  async (lead, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const avatar = `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${encodeURIComponent(lead.name)}&backgroundColor=f5f5f4`;
+      
+      const result = await db.prepare(`
+        INSERT INTO leads (workspace_id, name, email, company, role, linkedin_url, avatar, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING id
+      `).run(
+        workspaceId,
+        lead.name,
+        lead.email,
+        lead.company || null,
+        lead.role || null,
+        lead.linkedin_url || null,
+        avatar,
+        'New Lead'
+      );
+
+      const leadId = result.lastInsertRowid;
+
+      return `[SUCCESS] Lead ${lead.name} added to CRM Database successfully for workspace ${workspaceId}. LEAD_ID: ${leadId}`;
+    } catch (err: any) {
+      console.error("update_crm error:", err);
+      return `[FAILED] Could not add lead to CRM: ${err.message}`;
+    }
   },
   {
     name: "update_crm",
-    description: "Update the SQLite Leads CRM with client interactions.",
-    schema: z.object({ name: z.string(), email: z.string(), company: z.string().optional(), role: z.string().optional(), linkedin_url: z.string().optional() })
+    description: "Update the CRM by adding a new lead. Use this tool when you find a new sales prospect that should be tracked in the agency's pipeline. Keywords: add lead, new prospect, update crm, save contact.",
+    schema: z.object({ 
+      name: z.string().describe("The full name of the prospect."), 
+      email: z.string().describe("The contact email address."), 
+      company: z.string().optional().describe("The name of the prospect's company."), 
+      role: z.string().optional().describe("The job title or role of the prospect."), 
+      linkedin_url: z.string().optional().describe("The URL to the prospect's LinkedIn profile.") 
+    })
   }
 );
 
 export const linkedinOutreachTool = tool(
-  async ({ sequenceId, leadName }) => {
-     return `[SUCCESS] Lead ${leadName} successfully enrolled into outbound sequence ${sequenceId}.`;
+  async ({ sequenceId, leadName, leadId }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    
+    try {
+      // 1. Find the sequence
+      let sequence;
+      if (Number.isInteger(Number(sequenceId))) {
+        sequence = await db.prepare("SELECT id, title FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
+      } else {
+        sequence = await db.prepare("SELECT id, title FROM sales_sequences WHERE title = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
+      }
+
+      if (!sequence) {
+        return `[FAILED] Sequence '${sequenceId}' not found in workspace ${workspaceId}.`;
+      }
+
+      // 2. Find the lead
+      let lead;
+      if (leadId) {
+        lead = await db.prepare("SELECT id, name FROM leads WHERE id = ? AND workspace_id = ?").get(leadId, workspaceId) as any;
+      } else if (leadName) {
+        lead = await db.prepare("SELECT id, name FROM leads WHERE name = ? AND workspace_id = ?").get(leadName, workspaceId) as any;
+      }
+
+      if (!lead) {
+        return `[FAILED] Lead '${leadId || leadName}' not found in workspace ${workspaceId}.`;
+      }
+
+      // 3. Check for existing enrollment
+      const existing = await db.prepare("SELECT id FROM sequence_enrollments WHERE lead_id = ? AND sequence_id = ? AND workspace_id = ?").get(lead.id, sequence.id, workspaceId);
+      if (existing) {
+        return `[ALREADY ENROLLED] Lead ${lead.name} is already enrolled in sequence '${sequence.title}'.`;
+      }
+
+      // 4. Enroll
+      await db.prepare(`
+        INSERT INTO sequence_enrollments (workspace_id, lead_id, sequence_id, status, current_step_idx)
+        VALUES (?, ?, ?, 'Active', 0)
+      `).run(workspaceId, lead.id, sequence.id);
+
+      // 5. Update lead status
+      await db.prepare("UPDATE leads SET status = 'In Sequence', sequence = ? WHERE id = ?").run(sequence.title, lead.id);
+
+      return `[SUCCESS] Lead ${lead.name} successfully enrolled into outbound sequence '${sequence.title}'.`;
+    } catch (err: any) {
+      console.error("linkedin_outreach error:", err);
+      return `[FAILED] Could not enroll lead: ${err.message}`;
+    }
   },
   {
     name: "linkedin_outreach",
-    description: "Enroll a prospect into an automated LinkedIn or Email sequence.",
-    schema: z.object({ sequenceId: z.string(), leadName: z.string() })
+    description: "Enroll a prospect into an automated LinkedIn or Email sequence. Use this to start the agency's automated outreach process for a specific lead. Keywords: start sequence, enroll lead, outreach, automate contact.",
+    schema: z.object({ 
+      sequenceId: z.string().describe("The ID or exact title of the sequence to enroll them in."), 
+      leadName: z.string().optional().describe("The name of the lead to enroll (if leadId is unknown)."),
+      leadId: z.number().optional().describe("The database ID of the lead (preferred).")
+    })
   }
 );
 
