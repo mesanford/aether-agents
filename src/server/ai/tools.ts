@@ -714,6 +714,277 @@ export const manageTaskStatusTool = tool(
   }
 );
 
+export const manageCalendarTool = tool(
+  async ({ action, summary, start, end, description, timeMin, timeMax, maxResults = 10 }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    
+    try {
+      // 1. Get workspace owner and tokens
+      const workspace = await db.prepare("SELECT owner_id FROM workspaces WHERE id = ?").get(workspaceId) as any;
+      if (!workspace) return "[FAILED] Workspace not found.";
+
+      const tokenRow = await db.prepare("SELECT * FROM google_tokens WHERE user_id = ?").get(workspace.owner_id) as any;
+      if (!tokenRow) return "[FAILED] Google account not connected. The user must connect it via Settings -> Integrations.";
+
+      const { OAuth2Client } = await import("google-auth-library");
+      const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+      client.setCredentials({
+        access_token: tokenRow.access_token,
+        refresh_token: tokenRow.refresh_token,
+        expiry_date: tokenRow.expiry_date,
+      });
+
+      // 2. Handle token refresh if needed
+      if (tokenRow.expiry_date && Date.now() > tokenRow.expiry_date - 60000) {
+        const { credentials } = await client.refreshAccessToken();
+        await db.prepare("UPDATE google_tokens SET access_token = ?, expiry_date = ? WHERE user_id = ?").run(
+          credentials.access_token,
+          credentials.expiry_date,
+          workspace.owner_id
+        );
+        client.setCredentials(credentials);
+      }
+
+      const { google } = await import("googleapis");
+      const calendar = google.calendar({ version: "v3", auth: client });
+
+      if (action === 'create') {
+        if (!summary || !start || !end) {
+          return "[FAILED] Missing required fields for creating an event (summary, start, end).";
+        }
+
+        const event = {
+          summary,
+          description,
+          start: { dateTime: start },
+          end: { dateTime: end },
+        };
+
+        const res = await calendar.events.insert({
+          calendarId: 'primary',
+          requestBody: event,
+        });
+
+        return `[SUCCESS] Event created: "${summary}" at ${start}. EVENT_ID: ${res.data.id}`;
+      } else {
+        // Default to 'list'
+        const res = await calendar.events.list({
+          calendarId: 'primary',
+          timeMin: timeMin || new Date().toISOString(),
+          timeMax: timeMax || undefined,
+          maxResults,
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+
+        const events = res.data.items || [];
+        if (events.length === 0) return "No upcoming events found in the specified range.";
+
+        const formatted = events.map(e => {
+          const start = e.start?.dateTime || e.start?.date;
+          return `- ${e.summary} (${start})`;
+        }).join('\n');
+
+        return `Upcoming Calendar Events:\n\n${formatted}`;
+      }
+
+    } catch (err: any) {
+      console.error("manage_calendar error:", err);
+      return `[FAILED] Could not access Google Calendar: ${err.message}`;
+    }
+  },
+  {
+    name: "manage_calendar",
+    description: "List or create events in the user's Google Calendar. Use 'list' to check availability or 'create' to schedule something. Keywords: schedule, calendar, meeting, event, availability, check time.",
+    schema: z.object({
+      action: z.enum(['list', 'create']).describe("The action to perform."),
+      summary: z.string().optional().describe("Title of the event (required for 'create')."),
+      start: z.string().optional().describe("Start time in ISO 8601 format (required for 'create')."),
+      end: z.string().optional().describe("End time in ISO 8601 format (required for 'create')."),
+      description: z.string().optional().describe("Optional description for the event."),
+      timeMin: z.string().optional().describe("Lower bound (exclusive) for an event's end time to filter by. Defaults to now."),
+      timeMax: z.string().optional().describe("Upper bound (exclusive) for an event's start time to filter by."),
+      maxResults: z.number().optional().describe("Maximum number of events to return. Default 10.")
+    })
+  }
+);
+
+export const sendSlackMessageTool = tool(
+  async ({ channel, text }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const slack = await db.prepare("SELECT bot_token, default_channel FROM slack_connections WHERE workspace_id = ?").get(workspaceId) as any;
+      if (!slack?.bot_token) return "[FAILED] Slack is not connected for this workspace.";
+
+      const targetChannel = channel || slack.default_channel;
+      if (!targetChannel) return "[FAILED] No channel provided and no default channel configured.";
+
+      const response = await fetch("https://slack.com/api/chat.postMessage", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${slack.bot_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: targetChannel,
+          text,
+        }),
+      });
+
+      const data = await response.json() as any;
+      if (!data.ok) throw new Error(data.error || "Slack API error");
+
+      return `[SUCCESS] Message sent to Slack channel '${targetChannel}'.`;
+    } catch (err: any) {
+      console.error("send_slack_message error:", err);
+      return `[FAILED] Could not send Slack message: ${err.message}`;
+    }
+  },
+  {
+    name: "send_slack_message",
+    description: "Send a message to a Slack channel. Use this to notify the team or update a specific channel. Keywords: slack, notify, message channel.",
+    schema: z.object({
+      channel: z.string().optional().describe("The channel name or ID (e.g. #general). Defaults to the workspace default channel."),
+      text: z.string().describe("The message text to send.")
+    })
+  }
+);
+
+export const listSlackChannelsTool = tool(
+  async ({}, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const slack = await db.prepare("SELECT bot_token FROM slack_connections WHERE workspace_id = ?").get(workspaceId) as any;
+      if (!slack?.bot_token) return "[FAILED] Slack is not connected.";
+
+      const response = await fetch("https://slack.com/api/conversations.list?types=public_channel,private_channel", {
+        headers: { Authorization: `Bearer ${slack.bot_token}` },
+      });
+
+      const data = await response.json() as any;
+      if (!data.ok) throw new Error(data.error || "Slack API error");
+
+      const channels = data.channels || [];
+      if (channels.length === 0) return "No Slack channels found.";
+
+      return `Available Slack Channels:\n\n${channels.map((c: any) => `- ${c.name} (ID: ${c.id})`).join('\n')}`;
+    } catch (err: any) {
+      console.error("list_slack_channels error:", err);
+      return `[FAILED] Could not list Slack channels: ${err.message}`;
+    }
+  },
+  {
+    name: "list_slack_channels",
+    description: "List all available Slack channels in the workspace. Use this to find the correct channel name or ID for sending messages.",
+    schema: z.object({})
+  }
+);
+
+export const sendTeamsMessageTool = tool(
+  async ({ text, title }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const teams = await db.prepare("SELECT webhook_url FROM teams_connections WHERE workspace_id = ?").get(workspaceId) as any;
+      if (!teams?.webhook_url) return "[FAILED] Microsoft Teams is not connected (webhook URL missing).";
+
+      const payload = title && title.trim()
+        ? {
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            summary: title.trim(),
+            themeColor: "0078D4",
+            title: title.trim(),
+            text,
+          }
+        : { text };
+
+      const response = await fetch(teams.webhook_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error(`Teams webhook failed with status ${response.status}`);
+
+      return `[SUCCESS] Message sent to Microsoft Teams.`;
+    } catch (err: any) {
+      console.error("send_teams_message error:", err);
+      return `[FAILED] Could not send Teams message: ${err.message}`;
+    }
+  },
+  {
+    name: "send_teams_message",
+    description: "Send a message to a Microsoft Teams channel via webhook. Keywords: teams, microsoft teams, notify teams.",
+    schema: z.object({
+      text: z.string().describe("The message text to send."),
+      title: z.string().optional().describe("Optional title/header for the message card.")
+    })
+  }
+);
+
+export const manageNotionTool = tool(
+  async ({ action, title, content, parentPageId }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const notion = await db.prepare("SELECT integration_token, default_parent_page_id FROM notion_connections WHERE workspace_id = ?").get(workspaceId) as any;
+      if (!notion?.integration_token) return "[FAILED] Notion is not connected for this workspace.";
+
+      const resolvedParentPageId = parentPageId || notion.default_parent_page_id;
+      if (!resolvedParentPageId) return "[FAILED] No parent page ID provided and no default parent page configured.";
+
+      if (action === 'create_page') {
+        if (!title) return "[FAILED] Title is required to create a Notion page.";
+
+        const response = await fetch("https://api.notion.com/v1/pages", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${notion.integration_token}`,
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            parent: { page_id: resolvedParentPageId },
+            properties: {
+              title: {
+                title: [{ type: "text", text: { content: title } }],
+              },
+            },
+            ...(content ? {
+              children: [{
+                object: "block",
+                type: "paragraph",
+                paragraph: {
+                  rich_text: [{ type: "text", text: { content } }],
+                },
+              }],
+            } : {}),
+          }),
+        });
+
+        const data = await response.json() as any;
+        if (!response.ok) throw new Error(data.message || "Notion API error");
+
+        return `[SUCCESS] Notion page "${title}" created. PAGE_ID: ${data.id}`;
+      }
+
+      return "[FAILED] Unsupported Notion action.";
+    } catch (err: any) {
+      console.error("manage_notion error:", err);
+      return `[FAILED] Could not interact with Notion: ${err.message}`;
+    }
+  },
+  {
+    name: "manage_notion",
+    description: "Create or manage pages in Notion. Use this to save research, documents, or notes to the agency's Notion workspace. Keywords: notion, save doc, create page, notes.",
+    schema: z.object({
+      action: z.enum(['create_page']).describe("The action to perform."),
+      title: z.string().describe("The title of the Notion page."),
+      content: z.string().optional().describe("The text content for the page."),
+      parentPageId: z.string().optional().describe("Optional ID of the parent page. Defaults to the workspace default.")
+    })
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   searchGoogleDriveTool,
@@ -730,5 +1001,10 @@ export const allTools = [
   getWorkspaceTasksTool,
   updateWorkspaceTaskTool,
   createGenericTaskTool,
-  manageTaskStatusTool
+  manageTaskStatusTool,
+  manageCalendarTool,
+  sendSlackMessageTool,
+  listSlackChannelsTool,
+  sendTeamsMessageTool,
+  manageNotionTool
 ];
