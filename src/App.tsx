@@ -869,8 +869,8 @@ export default function App() {
                 workspace={activeWorkspace}
                 token={token}
                 onAuthFailure={() => handleLogout()}
-                onLogoUpdate={(logo) => {
-                  setWorkspaces(prev => prev.map(w => w.id === activeWorkspaceId ? { ...w, logo } : w));
+                onWorkspaceUpdate={(updatedWs) => {
+                  setWorkspaces(prev => prev.map(w => w.id === updatedWs.id ? updatedWs : w));
                 }}
               />
             ) : activeView === 'team' ? (

@@ -272,7 +272,9 @@ export function registerWorkspaceRoutes({
       if (target_audience !== undefined) {
         await db.prepare("UPDATE workspaces SET target_audience = ? WHERE id = ?").run(target_audience, req.workspaceId);
       }
-      res.json({ success: true });
+
+      const updatedWorkspace = await db.prepare("SELECT * FROM workspaces WHERE id = ?").get(req.workspaceId);
+      res.json(updatedWorkspace);
     } catch {
       res.status(500).json({ error: "Failed to update workspace details" });
     }

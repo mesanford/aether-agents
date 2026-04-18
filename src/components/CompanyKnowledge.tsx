@@ -10,19 +10,22 @@ interface CompanyKnowledgeProps {
   workspace?: any;
   token?: string | null;
   onAuthFailure?: () => void;
-  onLogoUpdate?: (logo: string) => void;
+  onWorkspaceUpdate?: (workspace: any) => void;
 }
 
-export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorkspaceId, workspace, token, onAuthFailure, onLogoUpdate }) => {
-  const [companyName, setCompanyName] = useState(() => {
-    return workspace?.name || localStorage.getItem(`sanford-company-name-${activeWorkspaceId}`) || 'MM Sanford';
-  });
-  const [description, setDescription] = useState(() => {
-    return workspace?.description || localStorage.getItem(`sanford-company-desc-${activeWorkspaceId}`) || "I provide technical marketing solutions for government agencies, higher education institutions, and B2B businesses. My core services are organic search (SEO) for visibility through deep content and technical optimizations, digital advertising with precision targeting and retargeting campaigns, and conversion rate optimization to boost engagement and qualified leads. I'm known for handling complex, large-scale websites and delivering creative, actionable strategies backed by strong analytics expertise—";
-  });
-  const [targetCustomers, setTargetCustomers] = useState(() => {
-    return workspace?.target_audience || localStorage.getItem(`sanford-company-target-${activeWorkspaceId}`) || "Government agencies (state and federal), colleges and universities, and B2B organizations with large, complex web presences. My key contacts are executive directors, marketing managers, and decision-makers needing advanced analytics or strategic marketing.";
-  });
+export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorkspaceId, workspace, token, onAuthFailure, onWorkspaceUpdate }) => {
+  const [companyName, setCompanyName] = useState(workspace?.name || 'MM Sanford');
+  const [description, setDescription] = useState(workspace?.description || "");
+  const [targetCustomers, setTargetCustomers] = useState(workspace?.target_audience || "");
+
+  // Keep local state in sync when workspace prop changes (e.g. switching workspaces)
+  React.useEffect(() => {
+    if (workspace) {
+      setCompanyName(workspace.name || '');
+      setDescription(workspace.description || '');
+      setTargetCustomers(workspace.target_audience || '');
+    }
+  }, [workspace?.id, workspace?.name, workspace?.description, workspace?.target_audience]);
 
   const handleSave = () => {
     if (activeWorkspaceId) {
@@ -39,7 +42,8 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
           description: description,
           target_audience: targetCustomers
         })
-      }).then(() => {
+      }).then((updatedWorkspace) => {
+        if (onWorkspaceUpdate) onWorkspaceUpdate(updatedWorkspace);
         toast.success('Knowledge base updated successfully!');
       }).catch(err => toast.error('Failed to save to cloud. Please try again.'));
     }
@@ -122,8 +126,9 @@ export const CompanyKnowledge: React.FC<CompanyKnowledgeProps> = ({ activeWorksp
           token: token || undefined,
           onAuthFailure,
           body: JSON.stringify({ logo: base64String })
-        }).then(() => {
-          if (onLogoUpdate) onLogoUpdate(base64String);
+        }).then((updatedWorkspace) => {
+          if (onWorkspaceUpdate) onWorkspaceUpdate(updatedWorkspace);
+          toast.success("Logo updated!");
         }).catch(err => toast.error("Failed to save logo. Please try again."));
       };
       reader.readAsDataURL(file);
