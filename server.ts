@@ -57,7 +57,7 @@ async function startServer() {
 
   // Register body parser FIRST — must be before app.listen() so all routes
   // (including those registered during bootstrap) have JSON parsing available.
-  app.use(express.json({ limit: "256kb" }));
+  app.use(express.json({ limit: "5mb" }));
 
   // Register readiness guard BEFORE app.listen so it's in the middleware chain.
   // Returns 503 for /api/* routes until DB bootstrap completes.
