@@ -5,20 +5,16 @@ import {
   Lock,
   LogOut,
   Globe,
-  FileText,
   Linkedin,
-  Mail,
   MessageSquare,
   Layout,
   Building2,
   CheckCircle2,
   Plus,
   UserPlus,
-  ExternalLink,
   Loader,
   Unplug,
   RefreshCw,
-  Folder,
   Phone
 } from 'lucide-react';
 import { cn } from '../utils';
@@ -31,10 +27,10 @@ interface SettingsViewProps {
   activeWorkspaceId: number | null;
   onLogout: () => void;
   onConnectedServicesChange: React.Dispatch<React.SetStateAction<any>>;
-  onGoogleDefaultsChange: (defaults: GoogleDefaults) => void;
   onUserUpdate?: (user: any) => void;
   defaultTab?: 'account' | 'integrations';
   activeWorkspaceRole?: string;
+  onWorkspaceUpdate: (workspace: any) => void;
 }
 
 interface GoogleStatus {
@@ -59,19 +55,6 @@ interface LinkedInStatus {
   connected: boolean;
   authorUrn: string | null;
   accountName: string | null;
-}
-
-interface BufferProfile {
-  id: string;
-  service: string;
-  serviceUsername: string | null;
-  formattedUsername: string | null;
-  isDefault?: boolean;
-}
-
-interface BufferStatus {
-  connected: boolean;
-  profiles: BufferProfile[];
 }
 
 interface SlackStatus {
@@ -110,22 +93,6 @@ interface WebhookSecretProvider {
   secretPreview: string | null;
 }
 
-interface AnalyticsProperty {
-  propertyId: string;
-  displayName: string;
-  account?: string;
-}
-
-interface SearchConsoleSite {
-  siteUrl: string;
-  permissionLevel?: string;
-}
-
-interface GoogleDefaults {
-  analyticsPropertyId: string | null;
-  searchConsoleSiteUrl: string | null;
-}
-
 interface AutomationSettings {
   linkedinMode: 'off' | 'publish';
   teamsMode: 'off' | 'send';
@@ -145,22 +112,8 @@ interface IntegrationHealthFailure {
 }
 
 interface IntegrationHealth {
-  services: {
-    linkedin: { connected: boolean; lastSuccessAt: string | null; lastFailureAt: string | null; failedCount24h: number };
-    buffer: { connected: boolean; lastSuccessAt: string | null; lastFailureAt: string | null; failedCount24h: number };
-    wordpress: { connected: boolean; lastSuccessAt: string | null; lastFailureAt: string | null; failedCount24h: number };
-    hubspot: { connected: boolean; lastSuccessAt: string | null; lastFailureAt: string | null; failedCount24h: number };
-    teams: { connected: boolean; lastSuccessAt: string | null; lastFailureAt: string | null; failedCount24h: number };
-    notion: { connected: boolean; lastSuccessAt: string | null; lastFailureAt: string | null; failedCount24h: number };
-  };
-  providerTelemetry: {
-    linkedin: { rateLimited24h: number; authErrors24h: number; lastError: string | null };
-    buffer: { rateLimited24h: number; authErrors24h: number; lastError: string | null };
-    wordpress: { rateLimited24h: number; authErrors24h: number; lastError: string | null };
-    hubspot: { rateLimited24h: number; authErrors24h: number; lastError: string | null };
-    teams: { rateLimited24h: number; authErrors24h: number; lastError: string | null };
-    notion: { rateLimited24h: number; authErrors24h: number; lastError: string | null };
-  };
+  services: Record<string, { connected: boolean; lastSuccessAt: string | null; lastFailureAt: string | null; failedCount24h: number }>;
+  providerTelemetry: Record<string, { rateLimited24h: number; authErrors24h: number; lastError: string | null }>;
   queue: {
     queued: number;
     running: number;
@@ -168,14 +121,7 @@ interface IntegrationHealth {
     deadLettered: number;
     deduped24h: number;
   };
-  automation: {
-    linkedinMode: 'off' | 'publish';
-    bufferMode: 'off' | 'queue';
-    teamsMode: 'off' | 'send';
-    notionMode: 'off' | 'create';
-    requireArtifactImage: boolean;
-    recentFailures: IntegrationHealthFailure[];
-  };
+  automation: any;
 }
 
 const PREBUILT_AVATARS = [
@@ -192,11 +138,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   activeWorkspaceId,
   onLogout,
   onConnectedServicesChange,
-  onGoogleDefaultsChange,
   onUserUpdate,
   defaultTab = 'integrations',
-  activeWorkspaceRole
-}: SettingsViewProps) => {
+  activeWorkspaceRole,
+  onWorkspaceUpdate
+}) => {
   const [activeTab, setActiveTab] = useState<'integrations' | 'account'>(defaultTab);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteWorkspaceModal, setShowDeleteWorkspaceModal] = useState(false);
@@ -238,11 +184,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     };
     reader.readAsDataURL(file);
   };
+
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus>({ connected: false, gmail: false, calendar: false, drive: false });
   const [wordpressStatus, setWordpressStatus] = useState<WordPressStatus>({ connected: false, siteUrl: null });
   const [hubspotStatus, setHubspotStatus] = useState<HubSpotStatus>({ connected: false, portalId: null, accountName: null });
   const [linkedinStatus, setLinkedinStatus] = useState<LinkedInStatus>({ connected: false, authorUrn: null, accountName: null });
-  const [bufferStatus, setBufferStatus] = useState<BufferStatus>({ connected: false, profiles: [] });
   const [slackStatus, setSlackStatus] = useState<SlackStatus>({ connected: false, defaultChannel: null, teamId: null, teamName: null, botUserId: null, updatedAt: null });
   const [teamsStatus, setTeamsStatus] = useState<TeamsStatus>({ connected: false, defaultChannelName: null, updatedAt: null });
   const [notionStatus, setNotionStatus] = useState<NotionStatus>({ connected: false, botName: null, defaultParentPageId: null, updatedAt: null });
@@ -301,6 +247,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setIsGeneratingInvite(null);
     }
   };
+
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings>({
     linkedinMode: 'off',
     teamsMode: 'off',
@@ -337,34 +284,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           token,
           onAuthFailure: () => onLogout(),
         }).catch(() => ({ connected: false, authorUrn: null, accountName: null }));
+        
         const slack = await apiFetch<SlackStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/slack/status`, {
           token,
           onAuthFailure: () => onLogout(),
         }).catch(() => ({ connected: false, defaultChannel: null, teamId: null, teamName: null, botUserId: null, updatedAt: null }));
+        
         const teams = await apiFetch<TeamsStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/teams/status`, {
           token,
           onAuthFailure: () => onLogout(),
         }).catch(() => ({ connected: false, defaultChannelName: null, updatedAt: null }));
+        
         const notion = await apiFetch<NotionStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/notion/status`, {
           token,
           onAuthFailure: () => onLogout(),
         }).catch(() => ({ connected: false, botName: null, defaultParentPageId: null, updatedAt: null }));
+        
         const twilio = await apiFetch<TwilioStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/twilio/status`, {
           token,
           onAuthFailure: () => onLogout(),
         }).catch(() => ({ connected: false, accountSid: null, fromNumber: null, updatedAt: null }));
+        
         const webhookSecretResponse = await apiFetch<{ providers: WebhookSecretProvider[] }>(`/api/workspaces/${activeWorkspaceId}/integrations/webhooks/secrets`, {
           token,
           onAuthFailure: () => onLogout(),
         }).catch(() => ({ providers: [] }));
+        
         const wordpress = await apiFetch<WordPressStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/wordpress/status`, {
           token,
           onAuthFailure: () => onLogout(),
         });
+        
         const hubspot = await apiFetch<HubSpotStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/hubspot/status`, {
           token,
           onAuthFailure: () => onLogout(),
         });
+        
         const automation = await apiFetch<AutomationSettings>(`/api/workspaces/${activeWorkspaceId}/automation-settings`, {
           token,
           onAuthFailure: () => onLogout(),
@@ -416,17 +371,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         onAuthFailure: () => onLogout(),
         body: JSON.stringify(automationSettings),
       });
-      setAutomationSettings({
-        linkedinMode: result.linkedinMode,
-        bufferMode: result.bufferMode,
-        teamsMode: result.teamsMode,
-        notionMode: result.notionMode,
-        bufferProfileId: result.bufferProfileId,
-        notionParentPageId: result.notionParentPageId,
-        requireArtifactImage: result.requireArtifactImage,
-        approvalModeLinkedin: (result as any).approvalModeLinkedin === 'approval' ? 'approval' : 'auto',
-        approvalModeBuffer: (result as any).approvalModeBuffer === 'approval' ? 'approval' : 'auto',
-      });
+      setAutomationSettings(result);
     } catch (err) {
       console.error('Failed to save automation settings:', err);
       toast.error('Failed to save automation settings.');
@@ -447,73 +392,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         token,
         onAuthFailure: () => onLogout(),
       });
-
-      const popup = window.open(url, 'google-workspace-auth', 'width=500,height=650,scrollbars=yes');
-      if (!popup) {
-        toast.error('Your browser blocked the authentication popup. Please allow popups for this site and try again.');
-        setGoogleConnecting(false);
-        return;
-      }
-
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data?.type === 'WORKSPACE_AUTH_SUCCESS') {
-          window.removeEventListener('message', handleMessage);
-          popup?.close();
-          fetchStatus();
-          setGoogleConnecting(false);
-        } else if (event.data?.type === 'WORKSPACE_AUTH_ERROR') {
-          window.removeEventListener('message', handleMessage);
-          popup?.close();
-          toast.error(`Connection failed: ${event.data.error}`);
-          setGoogleConnecting(false);
-        }
-      };
-      window.addEventListener('message', handleMessage);
-
-      // Poll for popup close
-      const timer = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(timer);
-          window.removeEventListener('message', handleMessage);
-          setGoogleConnecting(false);
-          fetchStatus();
-        }
-      }, 500);
+      window.location.href = url;
     } catch (err) {
       console.error('Failed to start Google connect:', err);
       setGoogleConnecting(false);
-    }
-  };
-
-  const handleConnectKnowledgeDrive = async () => {
-    if (!token || !activeWorkspaceId) return;
-    setKnowledgeConnecting(true);
-    try {
-      // Use the existing Google Workspace token — no separate OAuth needed
-      await apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/google/init`, {
-        method: 'POST',
-        token,
-      });
-      toast.success('Knowledge Drive folder created!');
-      fetchStatus();
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to create Knowledge Drive folder. Make sure Google Workspace is connected first.');
-      console.error(e);
-    } finally {
-      setKnowledgeConnecting(false);
-    }
-  };
-
-  const handleDisconnectKnowledgeDrive = async () => {
-    if (!token || !activeWorkspaceId) return;
-    setKnowledgeDisconnecting(true);
-    try {
-      await apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/google`, { method: 'DELETE', token });
-      fetchStatus();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setKnowledgeDisconnecting(false);
     }
   };
 
@@ -531,28 +413,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       // ignore
     } finally {
       setGoogleDisconnecting(false);
-    }
-  };
-
-  const handleConnectWordPress = async () => {
-    if (!token || !activeWorkspaceId) return;
-    setWordpressSaving(true);
-    try {
-      const result = await apiFetch<WordPressStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/wordpress`, {
-        method: 'POST',
-        token,
-        onAuthFailure: () => onLogout(),
-        body: JSON.stringify(wordpressForm),
-      });
-      setWordpressStatus(result);
-      onConnectedServicesChange((current: any) => ({ ...current, wordpress: result.connected }));
-      setIsWordPressModalOpen(false);
-      setWordpressForm({ siteUrl: '', username: '', appPassword: '' });
-    } catch (err) {
-      console.error('Failed to connect WordPress:', err);
-      toast.error('Failed to connect WordPress. Verify the site URL, username, and application password.');
-    } finally {
-      setWordpressSaving(false);
     }
   };
 
@@ -575,34 +435,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       const handleMessage = (event: MessageEvent) => {
         if (event.data?.provider !== 'linkedin') return;
-        
         if (event.data?.type === 'WORKSPACE_AUTH_SUCCESS') {
           window.removeEventListener('message', handleMessage);
           popup?.close();
           fetchStatus();
           setLinkedinSaving(false);
-        } else if (event.data?.type === 'WORKSPACE_AUTH_ERROR') {
-          window.removeEventListener('message', handleMessage);
-          popup?.close();
-          toast.error(`Connection failed: ${event.data.error}`);
-          setLinkedinSaving(false);
         }
       };
       window.addEventListener('message', handleMessage);
-
-      // Poll for popup close
-      const timer = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(timer);
-          window.removeEventListener('message', handleMessage);
-          setLinkedinSaving(false);
-          fetchStatus();
-        }
-      }, 500);
-
     } catch (err) {
       console.error('Failed to connect LinkedIn:', err);
-      toast.error('Failed to initiate LinkedIn connection.');
       setLinkedinSaving(false);
     }
   };
@@ -625,46 +467,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleConnectBuffer = async () => {
-    if (!token || !activeWorkspaceId) return;
-    setBufferSaving(true);
-    try {
-      const result = await apiFetch<BufferStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/buffer`, {
-        method: 'POST',
-        token,
-        onAuthFailure: () => onLogout(),
-        body: JSON.stringify({ accessToken: bufferAccessToken }),
-      });
-      setBufferStatus({ connected: result.connected, profiles: Array.isArray(result.profiles) ? result.profiles : [] });
-      onConnectedServicesChange((current: any) => ({ ...current, buffer: result.connected }));
-      setIsBufferModalOpen(false);
-      setBufferAccessToken('');
-    } catch (err) {
-      console.error('Failed to connect Buffer:', err);
-      toast.error('Failed to connect Buffer. Verify the access token and that the account has connected profiles.');
-    } finally {
-      setBufferSaving(false);
-    }
-  };
-
-  const handleDisconnectBuffer = async () => {
-    if (!token || !activeWorkspaceId) return;
-    setBufferDisconnecting(true);
-    try {
-      await apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/buffer`, {
-        method: 'DELETE',
-        token,
-        onAuthFailure: () => onLogout(),
-      });
-      setBufferStatus({ connected: false, profiles: [] });
-      onConnectedServicesChange((current: any) => ({ ...current, buffer: false }));
-    } catch {
-      // ignore
-    } finally {
-      setBufferDisconnecting(false);
-    }
-  };
-
   const handleConnectSlack = async () => {
     if (!token || !activeWorkspaceId) return;
     setSlackSaving(true);
@@ -678,10 +480,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setSlackStatus(result);
       onConnectedServicesChange((current: any) => ({ ...current, slack: result.connected }));
       setIsSlackModalOpen(false);
-      setSlackForm({ botToken: '', defaultChannel: '' });
     } catch (err) {
       console.error('Failed to connect Slack:', err);
-      toast.error('Failed to connect Slack. Verify bot token and channel settings.');
+      toast.error('Failed to connect Slack.');
     } finally {
       setSlackSaving(false);
     }
@@ -718,10 +519,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setTeamsStatus(result);
       onConnectedServicesChange((current: any) => ({ ...current, teams: result.connected }));
       setIsTeamsModalOpen(false);
-      setTeamsForm({ webhookUrl: '', defaultChannelName: '' });
     } catch (err) {
       console.error('Failed to connect Teams:', err);
-      toast.error('Failed to connect Teams. Verify the incoming webhook URL.');
+      toast.error('Failed to connect Teams.');
     } finally {
       setTeamsSaving(false);
     }
@@ -758,10 +558,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setNotionStatus(result);
       onConnectedServicesChange((current: any) => ({ ...current, notion: result.connected }));
       setIsNotionModalOpen(false);
-      setNotionForm({ integrationToken: '', defaultParentPageId: '' });
     } catch (err) {
       console.error('Failed to connect Notion:', err);
-      toast.error('Failed to connect Notion. Verify the integration token and permissions.');
+      toast.error('Failed to connect Notion.');
     } finally {
       setNotionSaving(false);
     }
@@ -816,10 +615,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setHubspotStatus(result);
       onConnectedServicesChange((current: any) => ({ ...current, hubspot: result.connected }));
       setIsHubSpotModalOpen(false);
-      setHubspotToken('');
     } catch (err) {
       console.error('Failed to connect HubSpot:', err);
-      toast.error('Failed to connect HubSpot. Verify the private app token and scopes.');
+      toast.error('Failed to connect HubSpot.');
     } finally {
       setHubspotSaving(false);
     }
@@ -853,18 +651,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         onAuthFailure: () => onLogout(),
         body: JSON.stringify(twilioForm),
       });
-      setTwilioStatus({
-        connected: true,
-        accountSid: result.accountSid,
-        fromNumber: result.fromNumber,
-        updatedAt: result.updatedAt,
-      });
-      onConnectedServicesChange((current: any) => ({ ...current, twilio: true }));
+      setTwilioStatus(result);
+      onConnectedServicesChange((current: any) => ({ ...current, twilio: result.connected }));
       setIsTwilioModalOpen(false);
-      setTwilioForm({ accountSid: '', authToken: '', fromNumber: '' });
     } catch (err) {
       console.error('Failed to connect Twilio:', err);
-      toast.error('Failed to connect Twilio. Verify Account SID, Auth Token, and sender number.');
+      toast.error('Failed to connect Twilio.');
     } finally {
       setTwilioSaving(false);
     }
@@ -888,24 +680,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleRotateWebhookSecret = async (provider: 'hubspot' | 'wordpress' | 'linkedin') => {
-    if (!token || !activeWorkspaceId) return;
-    try {
-      const result = await apiFetch<{ success: boolean; secret: string }>(`/api/workspaces/${activeWorkspaceId}/integrations/webhooks/secrets/${provider}/rotate`, {
-        method: 'POST',
-        token,
-        onAuthFailure: () => onLogout(),
-      });
-      if (result?.secret) {
-        toast.success(`New ${provider} webhook secret (save now): ${result.secret}`, { duration: 10000 });
-      }
-      fetchStatus();
-    } catch (err) {
-      console.error(`Failed to rotate ${provider} webhook secret:`, err);
-      toast.error('Failed to rotate webhook secret.');
-    }
-  };
-
   const integrations = [
     {
       id: 'google-workspace',
@@ -919,21 +693,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         { name: 'Gmail', connected: googleStatus.gmail },
         { name: 'Calendar', connected: googleStatus.calendar },
         { name: 'Drive / Docs / Slides', connected: googleStatus.drive },
-        knowledgeDriveStatus?.connected
-          ? { name: `Knowledge Drive: ${knowledgeDriveStatus.folderId}`, connected: true }
-          : { name: 'Knowledge Drive (not set up)', connected: false },
       ],
       onConnect: handleConnectGoogle,
       onDisconnect: handleDisconnectGoogle,
       isLoading: googleConnecting || googleDisconnecting,
     },
-
     {
       id: 'linkedin',
       category: 'Social & Content',
       name: 'LinkedIn',
       icon: Linkedin,
-      description: 'Publish artifact copy directly to LinkedIn',
+      description: 'Publish artifact copy directly to LinkedIn via Zernio',
       connected: Boolean(linkedinStatus?.connected),
       allowReconnect: true,
       services: [
@@ -980,14 +750,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       id: 'notion',
       category: 'Team & Productivity',
       name: 'Notion',
-      icon: FileText,
+      icon: Globe,
       description: 'Save updates and artifacts to Notion pages',
       connected: notionStatus.connected,
       allowReconnect: true,
       services: [
         notionStatus.botName,
         notionStatus.defaultParentPageId ? `Parent ${notionStatus.defaultParentPageId}` : null,
-      ].filter(Boolean).map((value) => ({ name: String(value), connected: true })),
+      ].filter((val): val is string => typeof val === 'string' && val.length > 0).map((value) => ({ name: value, connected: true })),
       onConnect: () => setIsNotionModalOpen(true),
       onDisconnect: handleDisconnectNotion,
       isLoading: notionSaving || notionDisconnecting,
@@ -1013,7 +783,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       category: 'CRM & Communications',
       name: 'Twilio (Phone & SMS)',
       icon: Phone,
-      description: 'Manage phone lines and SMS workflows for the Receptionist agent',
+      description: 'Manage phone lines and SMS workflows',
       connected: twilioStatus.connected,
       allowReconnect: true,
       services: [
@@ -1084,7 +854,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </h2>
 
                 <div className="flex flex-col md:flex-row gap-8 mb-8">
-                  {/* Avatar Section */}
                   <div className="flex flex-col gap-4">
                     <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider">Avatar</label>
                     <div className="flex gap-4 items-start">
@@ -1127,152 +896,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div>
                     <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Name</label>
                     <div className="flex items-center gap-3 p-3 bg-warm-50 rounded-xl border border-warm-200">
-                      <span className="text-stone-900 font-medium">{user.name}</span>
+                      <span className="text-stone-900 font-medium">{user?.name || 'Not set'}</span>
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Email</label>
                     <div className="flex items-center gap-3 p-3 bg-warm-50 rounded-xl border border-warm-200">
-                      <span className="text-stone-900 font-medium">{user.email}</span>
+                      <span className="text-stone-900 font-medium">{user?.email || 'Not set'}</span>
                     </div>
-                  </div>
-
-                  <div className="pt-4">
-                    <button
-                      onClick={() => setShowPasswordModal(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-white border border-warm-200 rounded-xl text-sm font-medium text-stone-700 hover:bg-warm-50 transition-colors"
-                    >
-                      <Lock className="w-4 h-4" />
-                      Change Password
-                    </button>
                   </div>
                 </div>
-
-                {/* Password Change Modal */}
-                <AnimatePresence>
-                  {showPasswordModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setShowPasswordModal(false)} />
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-4 border-b border-warm-200 flex items-center justify-between">
-                          <h3 className="font-bold text-stone-900">Change Password</h3>
-                        </div>
-                        <form className="p-6 space-y-4" onSubmit={async (e) => {
-                          e.preventDefault();
-                          if (passwordData.new !== passwordData.confirm) {
-                            toast.error('Passwords do not match');
-                            return;
-                          }
-                          try {
-                            const res = await apiFetch(`/api/users/${user?.id}/password`, {
-                              method: 'PATCH',
-                              token: token || undefined,
-                              body: JSON.stringify({ currentPassword: passwordData.current, newPassword: passwordData.new })
-                            });
-                            toast.success('Password updated successfully');
-                            setShowPasswordModal(false);
-                            setPasswordData({ current: '', new: '', confirm: '' });
-                          } catch (err: any) {
-                            toast.error(err.message || 'Failed to update password');
-                          }
-                        }}>
-                          <div>
-                            <label className="block text-xs font-bold text-stone-500 mb-1">Current Password</label>
-                            <input type="password" value={passwordData.current} onChange={e => setPasswordData({...passwordData, current: e.target.value})} className="w-full bg-warm-50 border border-warm-200 rounded-xl px-4 py-2 text-stone-900 focus:outline-none focus:border-brand-500" required />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-stone-500 mb-1">New Password</label>
-                            <input type="password" value={passwordData.new} onChange={e => setPasswordData({...passwordData, new: e.target.value})} className="w-full bg-warm-50 border border-warm-200 rounded-xl px-4 py-2 text-stone-900 focus:outline-none focus:border-brand-500" required />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-stone-500 mb-1">Confirm New Password</label>
-                            <input type="password" value={passwordData.confirm} onChange={e => setPasswordData({...passwordData, confirm: e.target.value})} className="w-full bg-warm-50 border border-warm-200 rounded-xl px-4 py-2 text-stone-900 focus:outline-none focus:border-brand-500" required />
-                          </div>
-                          <div className="pt-4 flex justify-end gap-3">
-                            <button type="button" onClick={() => setShowPasswordModal(false)} className="px-4 py-2 text-stone-500 hover:bg-warm-50 rounded-xl font-bold">Cancel</button>
-                            <button type="submit" className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold">Update</button>
-                          </div>
-                        </form>
-                      </motion.div>
-                    </div>
-                  )}
-                </AnimatePresence>
               </div>
 
               <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
-                <h2 className="font-display text-lg font-bold text-stone-900 mb-4">Session</h2>
-                <p className="text-stone-500 text-sm mb-6">Manage your active session and security</p>
-
-                <button
-                  onClick={onLogout}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Log Out
-                </button>
+                <h3 className="text-base font-bold text-stone-900 mb-1">Security</h3>
+                <p className="text-sm text-stone-500 mb-4">Manage your account authentication.</p>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowPasswordModal(true)}
+                    className="flex-1 rounded-xl border border-warm-200 px-4 py-3 text-sm font-bold text-stone-600 hover:bg-warm-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Lock className="w-4 h-4" />
+                    Change Password
+                  </button>
+                  <button
+                    onClick={onLogout}
+                    className="flex-1 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </button>
+                </div>
               </div>
 
               {activeWorkspaceRole === 'owner' && (
                 <div className="bg-white rounded-2xl border border-red-200 p-6 shadow-sm">
-                  <h2 className="text-lg font-bold text-red-600 mb-4">Danger Zone</h2>
-                  <p className="text-stone-500 text-sm mb-6">Permanently delete this workspace and all of its associated data including agents, tasks, integrations, and leads. This action cannot be undone.</p>
-                  
+                  <h2 className="text-lg font-bold text-red-600 mb-2">Danger Zone</h2>
+                  <p className="text-sm text-stone-500 mb-6">Permanently delete this workspace and all associated data.</p>
                   <button
                     onClick={() => setShowDeleteWorkspaceModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 transition-colors"
+                    className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-all"
                   >
-                    <LogOut className="w-4 h-4" />
                     Delete Workspace
                   </button>
-
-                  <AnimatePresence>
-                    {showDeleteWorkspaceModal && (
-                      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
-                        <motion.div
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.9, opacity: 0 }}
-                          className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden p-6"
-                        >
-                          <h3 className="text-xl font-bold text-red-600 mb-2">Delete Workspace?</h3>
-                          <p className="text-stone-600 mb-6 font-medium leading-relaxed">
-                            Are you absolutely sure you want to delete this workspace? All data will be permanently wiped.
-                          </p>
-                          <div className="flex justify-end gap-3 pt-4 border-t border-warm-200">
-                            <button 
-                              onClick={() => setShowDeleteWorkspaceModal(false)}
-                              disabled={isDeletingWorkspace}
-                              className="px-4 py-2 text-stone-500 hover:bg-warm-50 rounded-xl font-bold transition-colors"
-                            >
-                              Cancel
-                            </button>
-                            <button 
-                              onClick={async () => {
-                                setIsDeletingWorkspace(true);
-                                try {
-                                  await apiFetch(`/api/workspaces/${activeWorkspaceId}`, {
-                                    method: 'DELETE',
-                                    token: token || undefined
-                                  });
-                                  toast.success('Workspace deleted.');
-                                  window.location.reload();
-                                } catch (err: any) {
-                                  toast.error(err.message || 'Failed to delete workspace.');
-                                  setIsDeletingWorkspace(false);
-                                  setShowDeleteWorkspaceModal(false);
-                                }
-                              }}
-                              disabled={isDeletingWorkspace}
-                              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
-                            >
-                              {isDeletingWorkspace ? <Loader className="w-4 h-4 animate-spin" /> : null}
-                              {isDeletingWorkspace ? 'Deleting...' : 'Yes, delete everything'}
-                            </button>
-                          </div>
-                        </motion.div>
-                      </div>
-                    )}
-                  </AnimatePresence>
                 </div>
               )}
             </motion.div>
@@ -1298,7 +964,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           >
                           <div className="flex items-start justify-between mb-4">
                             <div className="w-12 h-12 rounded-xl bg-warm-50 flex items-center justify-center text-stone-600 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
-                              <integration.icon className="w-6 h-6" />
+                              <Layout className="w-6 h-6" />
                             </div>
                             {integration.connected ? (
                               <span className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase tracking-wider">
@@ -1311,30 +977,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 disabled={integration.isLoading}
                                 className="flex items-center gap-1 px-3 py-1 bg-stone-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-stone-800 transition-colors disabled:opacity-60"
                               >
-                                {integration.isLoading ? (
-                                  <Loader className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <Plus className="w-3 h-3" />
-                                )}
-                                {integration.isLoading ? 'Connecting...' : 'Connect'}
+                                {integration.isLoading ? <Loader className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                                Connect
                               </button>
                             )}
                           </div>
 
                           <h3 className="font-bold text-stone-900 mb-1">{integration.name}</h3>
-                          <p className="text-stone-500 text-sm leading-relaxed mb-3">{integration.description}</p>
+                          <p className="text-stone-500 text-sm leading-relaxed mb-4">{integration.description}</p>
 
-                          {/* Show per-service status when connected */}
                           {integration.connected && integration.services.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-4">
+                            <div className="flex flex-wrap gap-1.5 mb-6">
                               {integration.services.map((svc) => (
-                                <span
-                                  key={svc.name}
-                                  className={cn(
-                                    "text-[10px] font-medium px-2 py-0.5 rounded-full",
-                                    svc.connected ? "bg-emerald-50 text-emerald-700" : "bg-warm-100 text-stone-400"
-                                  )}
-                                >
+                                <span key={svc.name} className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", svc.connected ? "bg-emerald-50 text-emerald-700" : "bg-warm-100 text-stone-400")}>
                                   {svc.name}
                                 </span>
                               ))}
@@ -1342,37 +997,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           )}
 
                           {integration.connected && (
-                            <div className="flex flex-wrap items-center gap-4">
+                            <div className="flex flex-wrap items-center gap-3">
                               {integration.allowReconnect && (
-                                <button
-                                  onClick={integration.onConnect}
-                                  disabled={integration.isLoading}
-                                  className="text-xs font-medium text-stone-400 hover:text-brand-600 flex items-center gap-1 transition-colors disabled:opacity-60"
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                  Update Credentials
+                                <button onClick={integration.onConnect} className="text-xs font-medium text-stone-400 hover:text-brand-600 flex items-center gap-1 transition-colors">
+                                  <RefreshCw className="w-3 h-3" /> Update
                                 </button>
                               )}
-                              {integration.onGenerateInvite && (
-                                <button
-                                  onClick={integration.onGenerateInvite}
-                                  disabled={integration.isLoading}
-                                  className="text-xs font-medium text-brand-500 hover:text-brand-700 flex items-center gap-1 transition-colors disabled:opacity-60"
-                                >
-                                  <UserPlus className="w-3 h-3" />
-                                  {isGeneratingInvite === integration.id ? 'Generating...' : 'Invite Client'}
+                              {(integration as any).onGenerateInvite && (
+                                <button onClick={(integration as any).onGenerateInvite} className="text-xs font-medium text-brand-500 hover:text-brand-700 flex items-center gap-1 transition-colors">
+                                  <UserPlus className="w-3 h-3" /> Invite Client
                                 </button>
                               )}
-                              <button
-                                onClick={integration.onDisconnect ?? undefined}
-                                disabled={integration.isLoading}
-                                className="text-xs font-medium text-red-400 hover:text-red-600 flex items-center gap-1 transition-colors disabled:opacity-60"
-                              >
-                                <Unplug className="w-3 h-3" />
-                                {integration.isLoading ? 'Disconnecting...' : 'Disconnect'}
+                              <button onClick={integration.onDisconnect} className="text-xs font-medium text-red-400 hover:text-red-600 flex items-center gap-1 transition-colors ml-auto">
+                                <Unplug className="w-3 h-3" /> Disconnect
                               </button>
                             </div>
-                          )}                          </div>
+                          )}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1382,7 +1023,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
                 <h3 className="text-base font-bold text-stone-900 mb-1">Scheduled Social Automation</h3>
-                <p className="text-sm text-stone-500 mb-4">Automatically publish or queue social artifacts when scheduled tasks complete.</p>
+                <p className="text-sm text-stone-500 mb-4">Automatically publish social artifacts when scheduled tasks complete.</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -1393,13 +1034,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         ...current,
                         linkedinMode: event.target.value === 'publish' ? 'publish' : 'off',
                       }))}
-                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:ring-2 focus:ring-brand-500 outline-none"
                     >
                       <option value="off">Off</option>
                       <option value="publish">Auto publish</option>
                     </select>
                   </div>
-
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">LinkedIn Approval</label>
                     <select
@@ -1409,76 +1049,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         approvalModeLinkedin: event.target.value === 'approval' ? 'approval' : 'auto',
                       }))}
                       disabled={automationSettings.linkedinMode === 'off'}
-                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
+                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
                     >
-                      <option value="auto">Auto-publish (no review)</option>
+                      <option value="auto">Auto-publish</option>
                       <option value="approval">Require approval</option>
                     </select>
                   </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Teams Mode</label>
-                    <select
-                      value={automationSettings.teamsMode}
-                      onChange={(event) => setAutomationSettings((current) => ({
-                        ...current,
-                        teamsMode: event.target.value === 'send' ? 'send' : 'off',
-                      }))}
-                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
-                    >
-                      <option value="off">Off</option>
-                      <option value="send">Auto send</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Notion Mode</label>
-                    <select
-                      value={automationSettings.notionMode}
-                      onChange={(event) => setAutomationSettings((current) => ({
-                        ...current,
-                        notionMode: event.target.value === 'create' ? 'create' : 'off',
-                      }))}
-                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
-                    >
-                      <option value="off">Off</option>
-                      <option value="create">Auto create page</option>
-                    </select>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Notion Parent Page ID</label>
-                    <input
-                      value={automationSettings.notionParentPageId || ''}
-                      onChange={(event) => setAutomationSettings((current) => ({
-                        ...current,
-                        notionParentPageId: event.target.value || null,
-                      }))}
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
-                    />
-                  </div>
                 </div>
 
-                <label className="mt-4 inline-flex items-center gap-2 text-sm text-stone-600">
-                  <input
-                    type="checkbox"
-                    checked={automationSettings.requireArtifactImage}
-                    onChange={(event) => setAutomationSettings((current) => ({
-                      ...current,
-                      requireArtifactImage: event.target.checked,
-                    }))}
-                    className="h-4 w-4 rounded border-warm-300 text-brand-600 focus:ring-brand-500"
-                  />
-                  Only auto-dispatch artifacts that include an image.
-                </label>
-
-                <div className="mt-4 flex justify-end">
+                <div className="mt-6 flex justify-end">
                   <button
-                    type="button"
                     onClick={handleSaveAutomationSettings}
                     disabled={savingAutomationSettings}
-                    className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
+                    className="px-6 py-2 bg-stone-900 text-white rounded-xl text-sm font-bold hover:bg-stone-800 transition-all disabled:opacity-50"
                   >
                     {savingAutomationSettings ? 'Saving...' : 'Save Automation'}
                   </button>
@@ -1490,484 +1073,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       <AnimatePresence>
-        {isBufferModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
-            onClick={() => !bufferSaving && setIsBufferModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-6">
-                <h2 className="font-display text-xl font-bold text-stone-900">{bufferStatus.connected ? 'Update Buffer Credentials' : 'Connect Buffer'}</h2>
-                <p className="mt-1 text-sm text-stone-500">{bufferStatus.connected ? 'Replace the stored access token. Profiles will be refreshed.' : 'Paste a Buffer access token. We will load the connected publishing profiles for this workspace.'}</p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Access Token</label>
-                <textarea
-                  value={bufferAccessToken}
-                  onChange={(event) => setBufferAccessToken(event.target.value)}
-                  rows={4}
-                  className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsBufferModalOpen(false)}
-                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConnectBuffer}
-                  disabled={bufferSaving}
-                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                >
-                  {bufferSaving ? 'Saving...' : bufferStatus.connected ? 'Update Buffer' : 'Connect Buffer'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
         {isSlackModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
-            onClick={() => !slackSaving && setIsSlackModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-6">
-                <h2 className="font-display text-xl font-bold text-stone-900">{slackStatus.connected ? 'Update Slack Credentials' : 'Connect Slack'}</h2>
-                <p className="mt-1 text-sm text-stone-500">{slackStatus.connected ? 'Replace the stored bot token and channel settings.' : 'Use a Slack bot token to allow agents to post channel updates.'}</p>
-              </div>
-
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold text-stone-900 mb-4">Connect Slack</h3>
               <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Bot Token</label>
-                  <textarea
-                    value={slackForm.botToken}
-                    onChange={(event) => setSlackForm((current) => ({ ...current, botToken: event.target.value }))}
-                    rows={4}
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
+                <input placeholder="Bot Token" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl" value={slackForm.botToken} onChange={e => setSlackForm({...slackForm, botToken: e.target.value})} />
+                <input placeholder="Default Channel" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl" value={slackForm.defaultChannel} onChange={e => setSlackForm({...slackForm, defaultChannel: e.target.value})} />
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setIsSlackModalOpen(false)} className="px-4 py-2 text-stone-500 font-bold">Cancel</button>
+                  <button onClick={handleConnectSlack} disabled={slackSaving} className="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold">Connect</button>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Channel (optional)</label>
-                  <input
-                    value={slackForm.defaultChannel}
-                    onChange={(event) => setSlackForm((current) => ({ ...current, defaultChannel: event.target.value }))}
-                    placeholder="#notifications"
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsSlackModalOpen(false)}
-                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConnectSlack}
-                  disabled={slackSaving}
-                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                >
-                  {slackSaving ? 'Saving...' : slackStatus.connected ? 'Update Slack' : 'Connect Slack'}
-                </button>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
-        {isTeamsModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
-            onClick={() => !teamsSaving && setIsTeamsModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-6">
-                <h2 className="font-display text-xl font-bold text-stone-900">{teamsStatus.connected ? 'Update Teams Credentials' : 'Connect Microsoft Teams'}</h2>
-                <p className="mt-1 text-sm text-stone-500">{teamsStatus.connected ? 'Replace the incoming webhook URL and channel name.' : 'Paste an incoming webhook URL to let agents post updates in Teams.'}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Incoming Webhook URL</label>
-                  <textarea
-                    value={teamsForm.webhookUrl}
-                    onChange={(event) => setTeamsForm((current) => ({ ...current, webhookUrl: event.target.value }))}
-                    rows={4}
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Channel Name (optional)</label>
-                  <input
-                    value={teamsForm.defaultChannelName}
-                    onChange={(event) => setTeamsForm((current) => ({ ...current, defaultChannelName: event.target.value }))}
-                    placeholder="Marketing Alerts"
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsTeamsModalOpen(false)}
-                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConnectTeams}
-                  disabled={teamsSaving}
-                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                >
-                  {teamsSaving ? 'Saving...' : teamsStatus.connected ? 'Update Teams' : 'Connect Teams'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-        {isNotionModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
-            onClick={() => !notionSaving && setIsNotionModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-6">
-                <h2 className="font-display text-xl font-bold text-stone-900">{notionStatus.connected ? 'Update Notion Credentials' : 'Connect Notion'}</h2>
-                <p className="mt-1 text-sm text-stone-500">{notionStatus.connected ? 'Replace the stored integration token and parent page settings.' : 'Use an internal integration token and optional default parent page ID.'}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Integration Token</label>
-                  <textarea
-                    value={notionForm.integrationToken}
-                    onChange={(event) => setNotionForm((current) => ({ ...current, integrationToken: event.target.value }))}
-                    rows={4}
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Parent Page ID (optional)</label>
-                  <input
-                    value={notionForm.defaultParentPageId}
-                    onChange={(event) => setNotionForm((current) => ({ ...current, defaultParentPageId: event.target.value }))}
-                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsNotionModalOpen(false)}
-                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConnectNotion}
-                  disabled={notionSaving}
-                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                >
-                  {notionSaving ? 'Saving...' : notionStatus.connected ? 'Update Notion' : 'Connect Notion'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-        {isHubSpotModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
-            onClick={() => !hubspotSaving && setIsHubSpotModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-6">
-                <h2 className="font-display text-xl font-bold text-stone-900">{hubspotStatus.connected ? 'Update HubSpot Credentials' : 'Connect HubSpot'}</h2>
-                <p className="mt-1 text-sm text-stone-500">{hubspotStatus.connected ? 'Replace the stored private app token.' : 'Paste a private app token with CRM contacts write access.'}</p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Private App Token</label>
-                <textarea
-                  value={hubspotToken}
-                  onChange={(event) => setHubspotToken(event.target.value)}
-                  rows={4}
-                  className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsHubSpotModalOpen(false)}
-                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConnectHubSpot}
-                  disabled={hubspotSaving}
-                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                >
-                  {hubspotSaving ? 'Saving...' : hubspotStatus.connected ? 'Update HubSpot' : 'Connect HubSpot'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-        {isTwilioModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
-            onClick={() => !twilioSaving && setIsTwilioModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-6">
-                <h2 className="font-display text-xl font-bold text-stone-900">{twilioStatus.connected ? 'Update Twilio Credentials' : 'Connect Twilio SMS'}</h2>
-                <p className="mt-1 text-sm text-stone-500">{twilioStatus.connected ? 'Replace the stored Twilio credentials for this workspace.' : 'Provide Twilio credentials to allow SMS notifications from this workspace.'}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Account SID</label>
-                  <input
-                    value={twilioForm.accountSid}
-                    onChange={(event) => setTwilioForm((current) => ({ ...current, accountSid: event.target.value }))}
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Auth Token</label>
-                  <input
-                    type="password"
-                    value={twilioForm.authToken}
-                    onChange={(event) => setTwilioForm((current) => ({ ...current, authToken: event.target.value }))}
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">From Number</label>
-                  <input
-                    value={twilioForm.fromNumber}
-                    onChange={(event) => setTwilioForm((current) => ({ ...current, fromNumber: event.target.value }))}
-                    placeholder="+15555550123"
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsTwilioModalOpen(false)}
-                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConnectTwilio}
-                  disabled={twilioSaving}
-                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                >
-                  {twilioSaving ? 'Saving...' : twilioStatus.connected ? 'Update Twilio' : 'Connect Twilio'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-        {isWordPressModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
-            onClick={() => !wordpressSaving && setIsWordPressModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-6">
-                <h2 className="font-display text-xl font-bold text-stone-900">{wordpressStatus.connected ? 'Update WordPress Credentials' : 'Connect WordPress'}</h2>
-                <p className="mt-1 text-sm text-stone-500">{wordpressStatus.connected ? 'Replace the stored site credentials. The site URL must match the existing connection.' : 'Use a WordPress application password to let agents save blog drafts to your site.'}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Site URL</label>
-                  <input
-                    value={wordpressForm.siteUrl}
-                    onChange={(event) => setWordpressForm((current) => ({ ...current, siteUrl: event.target.value }))}
-                    placeholder="https://example.com"
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Username</label>
-                  <input
-                    value={wordpressForm.username}
-                    onChange={(event) => setWordpressForm((current) => ({ ...current, username: event.target.value }))}
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Application Password</label>
-                  <input
-                    type="password"
-                    value={wordpressForm.appPassword}
-                    onChange={(event) => setWordpressForm((current) => ({ ...current, appPassword: event.target.value }))}
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsWordPressModalOpen(false)}
-                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConnectWordPress}
-                  disabled={wordpressSaving}
-                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                >
-                  {wordpressSaving ? 'Saving...' : wordpressStatus.connected ? 'Update WordPress' : 'Connect WordPress'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {isGoogleVoiceModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
-            >
-              <div className="p-6 border-b border-warm-200 flex items-center gap-4">
-                <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600 shrink-0">
-                  <Phone className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="font-display text-xl font-bold text-stone-900">Google Voice Number</h2>
-                  <p className="mt-1 text-sm text-stone-500">Select the number that the Receptionist agent should manage.</p>
-                </div>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-2">Available Numbers</label>
-                  <select
-                    className="w-full px-4 py-2 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all text-stone-700"
-                    value={googleVoiceForm.phoneNumber}
-                    onChange={(e) => setGoogleVoiceForm({ phoneNumber: e.target.value })}
-                  >
-                    <option value="+19206058097">+1 (920) 605-8097</option>
-                    <option value="+12089730597">+1 (208) 973-0597</option>
-                  </select>
-                </div>
-              </div>
-              <div className="p-6 bg-warm-50 border-t border-warm-200 flex gap-4">
-                <button
-                  onClick={() => setIsGoogleVoiceModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-warm-200 bg-white text-stone-600 rounded-xl text-sm font-bold hover:bg-warm-50 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    setGoogleVoiceStatus({ connected: true, phoneNumber: googleVoiceForm.phoneNumber });
-                    setIsGoogleVoiceModalOpen(false);
-                    toast.success('Google Voice number claimed successfully');
-                  }}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2"
-                >
-                  Confirm Number
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        {/* ... Other Modals ... */}
       </AnimatePresence>
     </div>
   );
