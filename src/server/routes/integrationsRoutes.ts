@@ -1366,18 +1366,35 @@ export function registerIntegrationsRoutes({
       }
 
       try {
-        // 1. Get the first available Zernio profile ID
+        // 1. Get available Zernio profiles
         const profilesRes = await fetch("https://zernio.com/api/v1/profiles", {
           headers: { 'Authorization': `Bearer ${apiKey}` }
         });
         const profilesData = await profilesRes.json() as any;
-        const profileId = profilesData.profiles?.[0]?.id;
+        let profileId = profilesData.profiles?.[0]?._id || profilesData.profiles?.[0]?.id;
 
+        // 2. If no profile exists, automatically create a default one
         if (!profileId) {
-          throw new Error("No Zernio profile found. Please create a profile in your Zernio dashboard.");
+          const createRes = await fetch("https://zernio.com/api/v1/profiles", {
+            method: "POST",
+            headers: { 
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+              name: "Agency OS Default",
+              description: "Automatically created for multi-platform management"
+            })
+          });
+          const createData = await createRes.json() as any;
+          profileId = createData.profile?._id || createData.profile?.id;
+          
+          if (!profileId) {
+            throw new Error("Could not find or create a Zernio profile. Please verify your API key.");
+          }
         }
 
-        // 2. Get managed connect URL from Zernio using the profileId
+        // 3. Get managed connect URL from Zernio using the resolved profileId
         const connectRes = await fetch(`https://zernio.com/api/v1/connect/linkedin?profileId=${profileId}`, {
           headers: { 'Authorization': `Bearer ${apiKey}` }
         });
@@ -1411,18 +1428,30 @@ export function registerIntegrationsRoutes({
       }
 
       try {
-        // 1. Get the first available Zernio profile ID
+        // 1. Get available Zernio profiles
         const profilesRes = await fetch("https://zernio.com/api/v1/profiles", {
           headers: { 'Authorization': `Bearer ${apiKey}` }
         });
         const profilesData = await profilesRes.json() as any;
-        const profileId = profilesData.profiles?.[0]?.id;
+        let profileId = profilesData.profiles?.[0]?._id || profilesData.profiles?.[0]?.id;
 
+        // 2. If no profile exists, automatically create a default one
         if (!profileId) {
-          throw new Error("No Zernio profile found.");
+          const createRes = await fetch("https://zernio.com/api/v1/profiles", {
+            method: "POST",
+            headers: { 
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: "Agency OS Default" })
+          });
+          const createData = await createRes.json() as any;
+          profileId = createData.profile?._id || createData.profile?.id;
+          
+          if (!profileId) throw new Error("Could not find or create a profile.");
         }
 
-        // 2. Create platform invitation
+        // 3. Create platform invitation
         const inviteRes = await fetch("https://zernio.com/api/v1/platform-invites", {
           method: "POST",
           headers: { 
