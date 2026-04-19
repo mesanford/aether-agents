@@ -1,3 +1,5 @@
+export const LINKEDIN_VERSION = "202401";
+
 type LinkedInMedia = {
   imageUrl?: string;
   url?: string;
@@ -111,49 +113,47 @@ export async function loadImageBinary(source: string) {
 }
 
 async function uploadLinkedInImage(accessToken: string, authorUrn: string, imageUrl: string) {
-  const registerResponse = await fetch("https://api.linkedin.com/v2/assets?action=registerUpload", {
+  const registerResponse = await fetch("https://api.linkedin.com/rest/images?action=initializeUpload", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": LINKEDIN_VERSION,
     },
     body: JSON.stringify({
-      registerUploadRequest: {
+      initializeUploadRequest: {
         owner: authorUrn,
-        recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
-        serviceRelationships: [{ relationshipType: "OWNER", identifier: "urn:li:userGeneratedContent" }],
       },
     }),
   });
 
   if (!registerResponse.ok) {
-    const errorText = await registerResponse.text().catch(() => "");
-    throw new Error(errorText || `LinkedIn asset registration failed with status ${registerResponse.status}`);
+    const errorBody = await registerResponse.text().catch(() => "");
+    let errorMessage = errorBody;
+    try {
+      const json = JSON.parse(errorBody);
+      errorMessage = json.message || json.error || errorBody;
+    } catch (e) {}
+    throw new Error(errorMessage || `LinkedIn image initialization failed with status ${registerResponse.status}`);
   }
 
   const registerPayload = await registerResponse.json() as {
     value?: {
-      asset?: string;
-      uploadMechanism?: {
-        "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"?: {
-          uploadUrl?: string;
-        };
-      };
+      uploadUrl?: string;
+      image?: string;
     };
   };
 
-  const assetUrn = registerPayload.value?.asset;
-  const uploadUrl = registerPayload.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
+  const assetUrn = registerPayload.value?.image;
+  const uploadUrl = registerPayload.value?.uploadUrl;
   if (!assetUrn || !uploadUrl) {
-    throw new Error("LinkedIn asset registration did not return an upload target");
+    throw new Error("LinkedIn image initialization did not return an upload target");
   }
 
   const image = await loadImageBinary(imageUrl);
   const uploadResponse = await fetch(uploadUrl, {
     method: "PUT",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
       "Content-Type": image.mimeType,
     },
     body: image.bytes,
@@ -179,47 +179,53 @@ export async function createLinkedInPost(
     ? await uploadLinkedInImage(accessToken, authorUrn, media.imageUrl)
     : null;
 
-  const response = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+  const body: any = {
+    author: authorUrn,
+    commentary: text,
+    visibility: "PUBLIC",
+    distribution: {
+      feedDistribution: "MAIN_FEED",
+      targetEntities: [],
+      thirdPartyDistributionChannels: [],
+    },
+    lifecycleState: "PUBLISHED",
+  };
+
+  if (hasImage && uploadedAssetUrn) {
+    body.content = {
+      media: {
+        id: uploadedAssetUrn,
+        ...(media?.title ? { title: media.title } : {}),
+      },
+    };
+  } else if (hasArticle && media?.url) {
+    body.content = {
+      article: {
+        source: media.url,
+        ...(media?.title ? { title: media.title } : {}),
+        ...(media?.description ? { description: media.description } : {}),
+      },
+    };
+  }
+
+  const response = await fetch("https://api.linkedin.com/rest/posts", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": LINKEDIN_VERSION,
     },
-    body: JSON.stringify({
-      author: authorUrn,
-      lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: { text },
-          shareMediaCategory: hasImage ? "IMAGE" : (hasArticle ? "ARTICLE" : "NONE"),
-          ...(hasImage ? {
-            media: [{
-              status: "READY",
-              media: uploadedAssetUrn,
-              ...(media?.title ? { title: { text: media.title } } : {}),
-              ...(media?.description ? { description: { text: media.description } } : {}),
-            }],
-          } : {}),
-          ...(hasArticle ? {
-            media: [{
-              status: "READY",
-              originalUrl: media?.url,
-              ...(media?.title ? { title: { text: media.title } } : {}),
-              ...(media?.description ? { description: { text: media.description } } : {}),
-            }],
-          } : {}),
-        },
-      },
-      visibility: {
-        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(errorText || `LinkedIn post creation failed with status ${response.status}`);
+    const errorBody = await response.text().catch(() => "");
+    let errorMessage = errorBody;
+    try {
+      const json = JSON.parse(errorBody);
+      errorMessage = json.message || json.error || errorBody;
+    } catch (e) {}
+    throw new Error(errorMessage || `LinkedIn post creation failed with status ${response.status}`);
   }
 
   return {

@@ -444,8 +444,15 @@ export const updateCrmTool = tool(
       const avatar = `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${encodeURIComponent(lead.name)}&backgroundColor=f5f5f4`;
       
       const result = await db.prepare(`
-        INSERT INTO leads (workspace_id, name, email, company, role, linkedin_url, avatar, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO leads (workspace_id, name, email, company, role, linkedin_url, avatar, status, source_context, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT (workspace_id, email) DO UPDATE SET
+          name = EXCLUDED.name,
+          company = COALESCE(EXCLUDED.company, leads.company),
+          role = COALESCE(EXCLUDED.role, leads.role),
+          linkedin_url = COALESCE(EXCLUDED.linkedin_url, leads.linkedin_url),
+          source_context = COALESCE(EXCLUDED.source_context, leads.source_context),
+          updated_at = CURRENT_TIMESTAMP
         RETURNING id
       `).run(
         workspaceId,
@@ -455,26 +462,28 @@ export const updateCrmTool = tool(
         lead.role || null,
         lead.linkedin_url || null,
         avatar,
-        'New Lead'
+        'New Lead',
+        lead.reasoning || null
       );
 
       const leadId = result.lastInsertRowid;
 
-      return `[SUCCESS] Lead ${lead.name} added to CRM Database successfully for workspace ${workspaceId}. LEAD_ID: ${leadId}`;
+      return `[SUCCESS] Lead ${lead.name} (${lead.email}) processed successfully. ${result.changes > 0 ? 'Record created/updated.' : 'No changes needed.'} LEAD_ID: ${leadId}`;
     } catch (err: any) {
       console.error("update_crm error:", err);
-      return `[FAILED] Could not add lead to CRM: ${err.message}`;
+      return `[FAILED] Could not process lead in CRM: ${err.message}`;
     }
   },
   {
     name: "update_crm",
-    description: "Update the CRM by adding a new lead. Use this tool when you find a new sales prospect that should be tracked in the agency's pipeline. Keywords: add lead, new prospect, update crm, save contact.",
+    description: "Add or update a sales prospect in the agency's CRM. This tool automatically handles duplicates by updating existing records with new information. Use this whenever you find a promising lead. Keywords: add lead, new prospect, update crm, save contact, lead enrichment.",
     schema: z.object({ 
       name: z.string().describe("The full name of the prospect."), 
-      email: z.string().describe("The contact email address."), 
+      email: z.string().describe("The contact email address. This is used for deduplication."), 
       company: z.string().optional().describe("The name of the prospect's company."), 
       role: z.string().optional().describe("The job title or role of the prospect."), 
-      linkedin_url: z.string().optional().describe("The URL to the prospect's LinkedIn profile.") 
+      linkedin_url: z.string().optional().describe("The URL to the prospect's LinkedIn profile."),
+      reasoning: z.string().optional().describe("Briefly explain why this lead is a good fit or where you found them.")
     })
   }
 );

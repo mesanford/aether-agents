@@ -106,6 +106,13 @@ export function getAllowedAgentUpdate(body: any) {
   return { updates };
 }
 
+export function getAllowedTaskStatusUpdate(body: any) {
+  if (!isNonEmptyString(body.status) || !VALID_TASK_STATUSES.has(body.status)) {
+    return { error: "Invalid task status" };
+  }
+  return { status: body.status as string };
+}
+
 export function getAllowedTaskCreate(body: any) {
   if (!isNonEmptyString(body.title)) {
     return { error: "Task title is required" };

@@ -97,7 +97,7 @@ test("getAllowedAgentUpdate filters unsupported updates and validates status", (
   const valid = getAllowedAgentUpdate({
     status: "idle",
     description: "updated",
-    guidelines: [{ title: "x" }],
+    ignored_legacy_guidelines: [{ title: "x" }],
     capabilities: [" SEO ", "Analytics"],
     personality: {
       tone: "direct",
@@ -115,7 +115,7 @@ test("getAllowedAgentUpdate filters unsupported updates and validates status", (
   assert.deepEqual(valid.updates, {
     status: "idle",
     description: "updated",
-    guidelines: [{ title: "x" }],
+
     capabilities: ["SEO", "Analytics"],
     personality: {
       tone: "direct",

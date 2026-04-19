@@ -781,7 +781,7 @@ test("registerIntegrationsRoutes rotates provider webhook secrets", async () => 
   assert.equal(body.provider, "hubspot");
   assert.equal(typeof body.secret, "string");
   assert.ok(String(body.secret).length >= 32);
-  assert.ok(runs.some((entry) => entry.sql.includes("UPDATE workspace_webhook_secrets SET is_active = 0")));
+  assert.ok(runs.some((entry) => entry.sql.includes("UPDATE workspace_webhook_secrets SET is_active = false")));
   assert.ok(runs.some((entry) => entry.sql.includes("INSERT INTO workspace_webhook_secrets")));
 });
 

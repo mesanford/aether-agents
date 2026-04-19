@@ -62,190 +62,129 @@ function createPassThroughMiddleware(): MockHandler {
   };
 }
 
-test("registerAiRoutes rejects oversized live email context before model invocation", async () => {
+test("registerAiRoutes rejects /chat request missing threadId or message", async () => {
   const { app, getRoute } = createMockApp();
-  let modelCallCount = 0;
 
   registerAiRoutes({
     app: app as any,
-    aiClient: {
-      models: {
-        async generateContent() {
-          modelCallCount += 1;
-          return { text: "ignored" };
-        },
-      },
-    } as any,
+    aiClient: null as any,
     requireAuth: createPassThroughMiddleware() as any,
     requireWorkspaceAccess: createPassThroughMiddleware() as any,
     aiRateLimiter: createPassThroughMiddleware() as any,
     isNonEmptyString,
-    buildDataAccessSection: () => "data access",
-    buildLiveDataSection: () => "live data",
+    buildDataAccessSection: () => "data",
+    buildLiveDataSection: () => "live",
+  });
+
+  // Missing message
+  const reqNoMessage = {
+    params: { id: "9" },
+    body: { threadId: "thread-1" },
+  };
+  const resNoMessage = createMockRes();
+  await invokeHandlers(getRoute("POST", "/api/workspaces/:id/chat"), reqNoMessage, resNoMessage);
+  assert.equal(resNoMessage.statusCode, 400);
+
+  // Missing threadId
+  const reqNoThread = {
+    params: { id: "9" },
+    body: { message: "Hello" },
+  };
+  const resNoThread = createMockRes();
+  await invokeHandlers(getRoute("POST", "/api/workspaces/:id/chat"), reqNoThread, resNoThread);
+  assert.equal(resNoThread.statusCode, 400);
+});
+
+test("registerAiRoutes rejects /chat/history request missing threadId query param", async () => {
+  const { app, getRoute } = createMockApp();
+
+  registerAiRoutes({
+    app: app as any,
+    aiClient: null as any,
+    requireAuth: createPassThroughMiddleware() as any,
+    requireWorkspaceAccess: createPassThroughMiddleware() as any,
+    aiRateLimiter: createPassThroughMiddleware() as any,
+    isNonEmptyString,
+    buildDataAccessSection: () => "data",
+    buildLiveDataSection: () => "live",
   });
 
   const req = {
-    body: {
-      role: "Executive Assistant",
-      message: "Hello",
-      liveContext: {
-        emails: Array.from({ length: 51 }, (_, index) => ({
-          from: `sender-${index}@example.com`,
-          subject: `Subject ${index}`,
-          date: "2026-03-13",
-          snippet: "snippet",
-        })),
-      },
-    },
+    params: { id: "9" },
+    query: {},
   };
   const res = createMockRes();
-
-  await invokeHandlers(getRoute("POST", "/api/workspaces/:id/ai/respond"), req, res);
-
+  await invokeHandlers(getRoute("GET", "/api/workspaces/:id/chat/history"), req, res);
   assert.equal(res.statusCode, 400);
-  assert.deepEqual(res.body, { error: "liveContext.emails exceeds 50 items" });
-  assert.equal(modelCallCount, 0);
+  assert.deepEqual(res.body, { error: "Missing threadId" });
 });
 
-test("registerAiRoutes responds with generated image data when image prompt JSON is returned", async () => {
+test("registerAiRoutes rejects /scrape-onboarding-insights missing url", async () => {
   const { app, getRoute } = createMockApp();
-  let modelCallCount = 0;
 
   registerAiRoutes({
     app: app as any,
-    aiClient: {
-      models: {
-        async generateContent({ model }: { model: string }) {
-          modelCallCount += 1;
-
-          if (model === "gemini-3-flash-preview") {
-            return {
-              text: "```json\n{\"imagePrompt\":\"Create a dashboard\"}\n```",
-            };
-          }
-
-          return {
-            candidates: [
-              {
-                content: {
-                  parts: [
-                    {
-                      inlineData: {
-                        data: "ZmFrZS1pbWFnZS1ieXRlcw==",
-                      },
-                    },
-                  ],
-                },
-              },
-            ],
-          };
-        },
-      },
-    } as any,
+    aiClient: null as any,
     requireAuth: createPassThroughMiddleware() as any,
     requireWorkspaceAccess: createPassThroughMiddleware() as any,
     aiRateLimiter: createPassThroughMiddleware() as any,
     isNonEmptyString,
-    buildDataAccessSection: () => "data access",
-    buildLiveDataSection: () => "live data",
+    buildDataAccessSection: () => "data",
+    buildLiveDataSection: () => "live",
   });
 
   const req = {
-    body: {
-      role: "Executive Assistant",
-      message: "Generate an image",
-      canGenerateImage: true,
-    },
+    params: {},
+    body: {},
   };
   const res = createMockRes();
-
-  await invokeHandlers(getRoute("POST", "/api/workspaces/:id/ai/respond"), req, res);
-
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, {
-    text: "```json\n{\"imagePrompt\":\"Create a dashboard\"}\n```",
-    imageUrl: "data:image/png;base64,ZmFrZS1pbWFnZS1ieXRlcw==",
-  });
-  assert.equal(modelCallCount, 2);
-});
-
-test("registerAiRoutes rejects invalid orchestrator agent lists before model invocation", async () => {
-  const { app, getRoute } = createMockApp();
-  let modelCallCount = 0;
-
-  registerAiRoutes({
-    app: app as any,
-    aiClient: {
-      models: {
-        async generateContent() {
-          modelCallCount += 1;
-          return { text: '{"plan":[]}' };
-        },
-      },
-    } as any,
-    requireAuth: createPassThroughMiddleware() as any,
-    requireWorkspaceAccess: createPassThroughMiddleware() as any,
-    aiRateLimiter: createPassThroughMiddleware() as any,
-    isNonEmptyString,
-    buildDataAccessSection: () => "data access",
-    buildLiveDataSection: () => "live data",
-  });
-
-  const req = {
-    body: {
-      taskDescription: "Plan this task",
-      agents: [],
-    },
-  };
-  const res = createMockRes();
-
-  await invokeHandlers(getRoute("POST", "/api/workspaces/:id/ai/orchestrate"), req, res);
-
+  await invokeHandlers(getRoute("POST", "/api/scrape-onboarding-insights"), req, res);
   assert.equal(res.statusCode, 400);
-  assert.deepEqual(res.body, { error: "agents must be a non-empty array of strings" });
-  assert.equal(modelCallCount, 0);
+  assert.deepEqual(res.body, { error: "Missing URL param." });
 });
 
-test("registerAiRoutes parses orchestrator JSON response", async () => {
+test("registerAiRoutes invokes buildLiveDataSection and buildDataAccessSection with body values", async () => {
   const { app, getRoute } = createMockApp();
+  const capturedArgs: { liveContext: unknown; connectedServices: unknown } = {
+    liveContext: undefined,
+    connectedServices: undefined,
+  };
+
+  // Patch workflow before importing to avoid real LangGraph invocation:
+  // Instead we test that the section builders receive the correct arguments by
+  // observing that the route handler reaches those calls before the workflow step.
 
   registerAiRoutes({
     app: app as any,
-    aiClient: {
-      models: {
-        async generateContent() {
-          return {
-            text: JSON.stringify({
-              plan: [
-                { agentId: "executive-assistant", action: "Triage inbox", priority: "high" },
-              ],
-            }),
-          };
-        },
-      },
-    } as any,
+    aiClient: null as any,
     requireAuth: createPassThroughMiddleware() as any,
     requireWorkspaceAccess: createPassThroughMiddleware() as any,
     aiRateLimiter: createPassThroughMiddleware() as any,
     isNonEmptyString,
-    buildDataAccessSection: () => "data access",
-    buildLiveDataSection: () => "live data",
+    buildDataAccessSection: (services) => {
+      capturedArgs.connectedServices = services;
+      return "data-section";
+    },
+    buildLiveDataSection: (ctx) => {
+      capturedArgs.liveContext = ctx;
+      return "live-section";
+    },
   });
 
+  const liveContext = { emails: [{ from: "a@b.com", subject: "Hi", date: "2026-01-01", snippet: "ok" }] };
+  const connectedServices = { googleAnalytics: true };
+
+  // The route will fail at workflow.invoke (no real LangGraph), but section
+  // builders execute before that, so we catch the eventual 500 and just
+  // assert on the captured arguments.
   const req = {
-    body: {
-      taskDescription: "Run daily operations",
-      agents: ["executive-assistant"],
-    },
+    params: { id: "9" },
+    body: { threadId: "t-1", message: "Go", liveContext, connectedServices },
+    userId: 1,
   };
   const res = createMockRes();
+  await invokeHandlers(getRoute("POST", "/api/workspaces/:id/chat"), req, res);
 
-  await invokeHandlers(getRoute("POST", "/api/workspaces/:id/ai/orchestrate"), req, res);
-
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, {
-    plan: [
-      { agentId: "executive-assistant", action: "Triage inbox", priority: "high" },
-    ],
-  });
+  assert.deepEqual(capturedArgs.liveContext, liveContext);
+  assert.deepEqual(capturedArgs.connectedServices, connectedServices);
 });

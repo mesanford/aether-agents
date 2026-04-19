@@ -6,6 +6,7 @@ import {
   createLinkedInPost,
   fetchBufferProfiles,
   isHttpUrl,
+  LINKEDIN_VERSION,
   loadImageBinary,
 } from "../socialPublishing.ts";
 import { enqueueAutomationJob } from "../taskEngine.ts";
@@ -693,7 +694,12 @@ export function registerIntegrationsRoutes({
       throw new Error("LinkedIn author URN is required");
     }
 
-    return trimmed.startsWith("urn:li:person:") ? trimmed : `urn:li:person:${trimmed.replace(/^urn:li:person:/, "")}`;
+    if (trimmed.startsWith("urn:li:person:") || trimmed.startsWith("urn:li:organization:")) {
+      return trimmed;
+    }
+
+    // Default to person if no prefix is provided
+    return `urn:li:person:${trimmed}`;
   }
 
   async function verifyLinkedInToken(accessToken: string, providedAuthorUrn?: string) {
@@ -701,6 +707,7 @@ export function registerIntegrationsRoutes({
       method: "GET",
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        "LinkedIn-Version": LINKEDIN_VERSION,
       },
     });
 

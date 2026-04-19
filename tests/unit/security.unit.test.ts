@@ -74,14 +74,17 @@ test("requireAuth rejects missing token and accepts valid token", () => {
   assert.equal(reqValid.userId, 77);
 });
 
-test("requireWorkspaceAccess enforces membership and stores role", () => {
+test("requireWorkspaceAccess enforces membership and stores role", async () => {
   const allowTools = createSecurityTools(createDbWithRole("admin") as any, "secret");
   const reqAllowed = { params: { id: "9" }, userId: 1 } as any;
   const resAllowed = createMockRes();
   let nextCalled = false;
 
-  allowTools.requireWorkspaceAccess(reqAllowed, resAllowed as any, () => {
-    nextCalled = true;
+  await new Promise<void>((resolve) => {
+    allowTools.requireWorkspaceAccess(reqAllowed, resAllowed as any, () => {
+      nextCalled = true;
+      resolve();
+    });
   });
 
   assert.equal(nextCalled, true);
@@ -92,7 +95,7 @@ test("requireWorkspaceAccess enforces membership and stores role", () => {
   const reqDenied = { params: { id: "9" }, userId: 1 } as any;
   const resDenied = createMockRes();
 
-  denyTools.requireWorkspaceAccess(reqDenied, resDenied as any, () => {
+  await denyTools.requireWorkspaceAccess(reqDenied, resDenied as any, () => {
     throw new Error("next should not be called");
   });
 

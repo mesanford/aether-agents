@@ -340,14 +340,33 @@ export function registerAiRoutes({
       }`;
 
       const aiResponse = await aiClient.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.0-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json"
         }
       });
 
-      const parsedJSON = JSON.parse(aiResponse.text || "{}");
+      const cleanJsonResponse = (text: string) => {
+        let cleaned = text.trim();
+        // Remove markdown code blocks if present
+        const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (match) {
+          cleaned = match[1];
+        } else {
+          // Fallback: try to find the first { and last }
+          const start = cleaned.indexOf('{');
+          const end = cleaned.lastIndexOf('}');
+          if (start !== -1 && end !== -1 && end > start) {
+            cleaned = cleaned.substring(start, end + 1);
+          }
+        }
+        return cleaned.trim();
+      };
+
+      const rawText = aiResponse.text || "{}";
+      const cleanedText = cleanJsonResponse(rawText);
+      const parsedJSON = JSON.parse(cleanedText);
       return res.json(parsedJSON);
     } catch (err: any) {
       console.error("Scrape Error:", err);

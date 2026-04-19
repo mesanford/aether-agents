@@ -163,6 +163,15 @@ async function dispatchApprovedAction(
       const err = await fbRes.text().catch(() => "");
       throw new Error(err || `Facebook post failed with status ${fbRes.status}`);
     }
+  } else if (actionType === "linkedin_post" || (actionType === "post_social_media" && (payload as any).target_platform === "linkedin")) {
+    const li = await db.prepare("SELECT access_token, linkedin_person_id FROM linkedin_connections WHERE workspace_id = ?").get(workspaceId) as { access_token: string; linkedin_person_id: string } | undefined;
+    if (!li) throw new Error("LinkedIn not connected");
+
+    await createLinkedInPost(li.access_token, li.linkedin_person_id, payload.text || "", {
+      imageUrl: payload.imageUrl,
+      link: payload.link,
+      title: payload.title,
+    });
   } else {
     throw new Error(`Unsupported action type: ${actionType}`);
   }
@@ -234,18 +243,22 @@ export function registerApprovalRoutes({
         .prepare("SELECT * FROM approval_requests WHERE id = ? AND workspace_id = ?").get(approvalId, workspaceId) as any;
 
       if (!approval) return res.status(404).json({ error: "Approval request not found" });
-      if (approval.status !== "pending") {
-        return res.status(409).json({ error: `Already ${approval.status}` });
-      }
-
       try {
-        await dispatchApprovedAction(db, workspaceId, approval.action_type, approval.payload);
-
-        await db.prepare(`
+        // Atomic update to mark as approved BEFORE dispatching action
+        // This prevents double-approval and double-dispatch
+        const updateResult = await db.prepare(`
           UPDATE approval_requests
           SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP, reviewed_by_user_id = ?
-          WHERE id = ?
-        `).run(userId ?? null, approvalId);
+          WHERE id = ? AND status = 'pending' AND workspace_id = ?
+        `).run(userId ?? null, approvalId, workspaceId);
+
+        if (updateResult.changes === 0) {
+          // If rowCount is 0, it means it was already approved or doesn't match the criteria
+          return res.status(409).json({ error: "Approval request is no longer pending or has already been processed" });
+        }
+
+        // Now dispatch the action
+        await dispatchApprovedAction(db, workspaceId, approval.action_type, approval.payload);
 
         writeApprovalAuditLog(db, workspaceId, "approval.approved", {
           approvalId,
@@ -254,13 +267,18 @@ export function registerApprovalRoutes({
           reviewedByUserId: userId,
         });
 
-        res.json({ success: true });
+        res.json({ success: true, message: "Approval approved and action dispatched" });
       } catch (err: any) {
+        // Log the failure
         writeApprovalAuditLog(db, workspaceId, "approval.dispatch_failed", {
           approvalId,
           actionType: approval.action_type,
           error: err?.message || "unknown_error",
         });
+
+        // Note: we've already marked it as 'approved'. 
+        // In a real production system we might want to move it to a 'failed' status or retry.
+        // For now, we return 500 so the user knows it failed.
         res.status(500).json({ error: err?.message || "Failed to dispatch action" });
       }
     },
