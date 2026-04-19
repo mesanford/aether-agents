@@ -1153,6 +1153,47 @@ export const syncHubspotLeadTool = tool(
   }
 );
 
+export const listLocalLeadsTool = tool(
+  async ({ status, limit = 10 }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      let query = "SELECT name, email, company, role, status, sequence, source_context FROM leads WHERE workspace_id = ?";
+      const params: any[] = [workspaceId];
+
+      if (status) {
+        query += " AND status = ?";
+        params.push(status);
+      }
+
+      query += " ORDER BY created_at DESC LIMIT ?";
+      params.push(limit);
+
+      const rows = await db.prepare(query).all(...params) as any[];
+
+      if (rows.length === 0) {
+        return `No leads found in the local CRM for workspace ${workspaceId}${status ? ` with status '${status}'` : ''}.`;
+      }
+
+      const formatted = rows.map(r => 
+        `- ${r.name} (${r.email}) | ${r.role || 'No Role'} at ${r.company || 'No Company'}\n  Status: ${r.status} | Sequence: ${r.sequence}\n  Context: ${r.source_context || 'No context saved.'}`
+      ).join('\n\n');
+
+      return `Current Local CRM Leads (Total: ${rows.length}):\n\n${formatted}`;
+    } catch (err: any) {
+      console.error("list_local_leads error:", err);
+      return `[FAILED] Could not list local leads: ${err.message}`;
+    }
+  },
+  {
+    name: "list_local_leads",
+    description: "List the prospects currently stored in the agency's local CRM database. Use this to check who has already been found or to get an update on your pipeline status. Keywords: list leads, show pipeline, current prospects, who did I find.",
+    schema: z.object({
+      status: z.string().optional().describe("Filter by status (e.g. 'New Lead', 'In Sequence')."),
+      limit: z.number().optional().describe("Maximum number of leads to return. Default 10.")
+    })
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   searchGoogleDriveTool,
@@ -1177,5 +1218,6 @@ export const allTools = [
   manageNotionTool,
   sendSmsTool,
   publishHubspotPostTool,
-  syncHubspotLeadTool
+  syncHubspotLeadTool,
+  listLocalLeadsTool
 ];
