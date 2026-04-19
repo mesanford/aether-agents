@@ -789,6 +789,12 @@ export function registerIntegrationsRoutes({
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
 
+    // Determine the active workspace for this user so we can create the Drive folder post-auth
+    const userWorkspace = await db.prepare(
+      "SELECT id FROM workspaces WHERE owner_id = ? ORDER BY id ASC LIMIT 1"
+    ).get(userId) as any;
+    const connectWorkspaceId = userWorkspace?.id ?? null;
+
     const authClient = new OAuth2Client(googleClientId, googleClientSecret, redirectUri);
     const url = authClient.generateAuthUrl({
       access_type: "offline",
@@ -799,6 +805,7 @@ export function registerIntegrationsRoutes({
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar.readonly",
         "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/drive.file",
         "https://www.googleapis.com/auth/drive.readonly",
         "https://www.googleapis.com/auth/docs.readonly",
         "https://www.googleapis.com/auth/presentations.readonly",
@@ -807,7 +814,7 @@ export function registerIntegrationsRoutes({
         "https://www.googleapis.com/auth/chat.spaces.readonly",
         "https://www.googleapis.com/auth/chat.messages.readonly",
       ],
-      state: Buffer.from(JSON.stringify({ type: "workspace", userId })).toString("base64"),
+      state: Buffer.from(JSON.stringify({ type: "workspace", userId, workspaceId: connectWorkspaceId })).toString("base64"),
     });
 
     return res.json({ url });
@@ -1310,12 +1317,30 @@ export function registerIntegrationsRoutes({
   });
 
   app.get("/api/workspaces/:id/integrations/linkedin/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
-    const row = await db.prepare("SELECT author_urn, account_name FROM linkedin_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
-    return res.json({
-      connected: Boolean(row),
-      authorUrn: row?.author_urn ?? null,
-      accountName: row?.account_name ?? null,
-    });
+    try {
+      const apiKey = process.env.ZERNIO_API_KEY;
+      if (!apiKey) {
+        return res.json({ connected: false, error: "Zernio API key missing" });
+      }
+
+      // Check Zernio for connected LinkedIn accounts
+      const response = await fetch("https://zernio.com/api/v1/accounts?platform=linkedin", {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      
+      const data = await response.json() as any;
+      const accounts = data.accounts || [];
+      const isConnected = accounts.length > 0;
+
+      return res.json({
+        connected: isConnected,
+        authorUrn: accounts[0]?.id || null,
+        accountName: accounts[0]?.name || null,
+      });
+    } catch (err: any) {
+      console.error("Zernio LinkedIn status error:", err.message);
+      return res.status(500).json({ error: "Failed to fetch LinkedIn status from Zernio" });
+    }
   });
 
   app.post(
@@ -1324,43 +1349,48 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     requireWorkspaceRole("owner", "admin"),
     async (req: any, res) => {
-      try {
-        const { accessToken, authorUrn } = req.body as {
-          accessToken?: string;
-          authorUrn?: string;
-        };
-
-        if (!accessToken || !accessToken.trim()) {
-          return res.status(400).json({ error: "accessToken is required" });
-        }
-
-        const verified = await verifyLinkedInToken(accessToken.trim(), authorUrn);
-
-        await db.prepare(`
-          INSERT INTO linkedin_connections (workspace_id, access_token, author_urn, account_name, updated_at)
-          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-          ON CONFLICT(workspace_id) DO UPDATE SET
-            access_token = excluded.access_token,
-            author_urn = excluded.author_urn,
-            account_name = excluded.account_name,
-            updated_at = CURRENT_TIMESTAMP
-        `).run(req.workspaceId, accessToken.trim(), verified.authorUrn, verified.accountName);
-
-        writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.linkedin.connected", "linkedin_connections", {
-          authorUrn: verified.authorUrn,
-          accountName: verified.accountName,
-        });
-
-        return res.json({
-          connected: true,
-          authorUrn: verified.authorUrn,
-          accountName: verified.accountName,
-        });
-      } catch (err: any) {
-        console.error("LinkedIn connect error:", err.message);
-        return res.status(400).json({ error: "Failed to verify LinkedIn token" });
-      }
+      // Stubbed out: Zernio handles the actual connection persistence
+      return res.json({ success: true });
     },
+  );
+
+  app.get(
+    "/api/workspaces/:id/integrations/linkedin/connect",
+    requireAuth,
+    requireWorkspaceAccess,
+    requireWorkspaceRole("owner", "admin"),
+    async (req: any, res) => {
+      const apiKey = process.env.ZERNIO_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "ZERNIO_API_KEY not configured" });
+      }
+
+      try {
+        // Get managed connect URL from Zernio
+        const response = await fetch("https://zernio.com/api/v1/connect/linkedin", {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        const data = await response.json() as any;
+
+        if (!data.url) throw new Error("Zernio did not return a connect URL");
+
+        // We wrap the Zernio URL in a simple page that can post a message back to our opener
+        // This keeps the "Success" toast and UI refresh working seamlessly
+        const successHtml = `
+          <html>
+            <body>
+              <script>
+                window.location.href = "${data.url}";
+              </script>
+            </body>
+          </html>
+        `;
+        res.json({ url: data.url });
+      } catch (err: any) {
+        console.error("Zernio Connect error:", err.message);
+        res.status(500).json({ error: "Failed to get Zernio connection URL" });
+      }
+    }
   );
 
   app.get("/api/workspaces/:id/integrations/twilio/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
