@@ -13,6 +13,7 @@ import {
   Building2,
   CheckCircle2,
   Plus,
+  UserPlus,
   ExternalLink,
   Loader,
   Unplug,
@@ -240,7 +241,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     };
     reader.readAsDataURL(file);
   };
-  const [googleStatus, setGoogleStatus] = useState<GoogleStatus>({ connected: false, gmail: false, calendar: false, drive: false, analytics: false, searchConsole: false });
+  const [googleStatus, setGoogleStatus] = useState<GoogleStatus>({ connected: false, gmail: false, calendar: false, drive: false });
   const [wordpressStatus, setWordpressStatus] = useState<WordPressStatus>({ connected: false, siteUrl: null });
   const [hubspotStatus, setHubspotStatus] = useState<HubSpotStatus>({ connected: false, portalId: null, accountName: null });
   const [linkedinStatus, setLinkedinStatus] = useState<LinkedInStatus>({ connected: false, authorUrn: null, accountName: null });
@@ -397,22 +398,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           onAuthFailure: () => onLogout(),
         }).catch(() => ({ linkedinMode: 'off', bufferMode: 'off', teamsMode: 'off', notionMode: 'off', bufferProfileId: null, notionParentPageId: null, requireArtifactImage: false }));
 
-        const propertiesData = data.analytics
-          ? await apiFetch<{ properties?: AnalyticsProperty[] }>('/api/integrations/analytics/properties', {
-              token,
-              onAuthFailure: () => onLogout(),
-            }).catch(() => ({ properties: [] }))
-          : { properties: [] };
-
-        const sitesData = data.searchConsole
-          ? await apiFetch<{ sites?: SearchConsoleSite[] }>('/api/integrations/search-console/sites', {
-              token,
-              onAuthFailure: () => onLogout(),
-            }).catch(() => ({ sites: [] }))
-          : { sites: [] };
-
-  setLinkedinStatus(linkedin);
-  setBufferStatus({ connected: buffer.connected, profiles: Array.isArray(buffer.profiles) ? buffer.profiles : [] });
+        setLinkedinStatus(linkedin);  setBufferStatus({ connected: buffer.connected, profiles: Array.isArray(buffer.profiles) ? buffer.profiles : [] });
       setSlackStatus(slack);
   setTeamsStatus(teams);
         setNotionStatus(notion);
@@ -592,7 +578,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         token,
         onAuthFailure: () => onLogout(),
       });
-      setGoogleStatus({ connected: false, gmail: false, calendar: false, drive: false, analytics: false, searchConsole: false });
+      setGoogleStatus({ connected: false, gmail: false, calendar: false, drive: false });
     } catch {
       // ignore
     } finally {

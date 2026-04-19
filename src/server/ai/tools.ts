@@ -433,7 +433,7 @@ export const scheduleSocialPostTool = tool(
       publishNow: z.boolean().default(false).describe("Set to true to bypass scheduling and post immediately."),
       scheduledFor: z.string().optional().describe("ISO 8601 timestamp for future scheduling."),
       mediaUrls: z.array(z.string()).optional().describe("Array of image or video URLs to attach."),
-      platformOverrides: z.record(z.string()).optional().describe("Optional map of platform-specific text (e.g. { 'twitter': 'Short version for X' }) to handle different character limits.")
+      platformOverrides: z.record(z.string(), z.string()).optional().describe("Optional map of platform-specific text (e.g. { 'twitter': 'Short version for X' }) to handle different character limits.")
     })
   }
 );

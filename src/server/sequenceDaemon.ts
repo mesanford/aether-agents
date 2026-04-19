@@ -29,23 +29,24 @@ export function startSequenceDaemon(db: PostgresShim) {
       console.log(`[DAEMON] Found ${pendingEnrollments.length} pending lead sequence(s) to process.`);
 
       for (const enrollment of pendingEnrollments) {
-        const steps = JSON.parse(enrollment.steps || "[]");
-        if (enrollment.current_step_idx >= steps.length) {
-          await db.prepare("UPDATE sequence_enrollments SET status = 'Completed' WHERE id = ?").run(enrollment.id);
-          continue;
-        }
+        try {
+          const steps = JSON.parse(enrollment.steps || "[]");
+          if (enrollment.current_step_idx >= steps.length) {
+            await db.prepare("UPDATE sequence_enrollments SET status = 'Completed' WHERE id = ?").run(enrollment.id);
+            continue;
+          }
 
-        const currentStep = steps[enrollment.current_step_idx];
-        
-        // Fetch recent lead events and Stan's memory ledger
-        const history = await db.prepare("SELECT event_type, content, agent_feedback FROM sequence_events WHERE sequence_id = ? AND lead_id = ? ORDER BY created_at ASC").all(enrollment.sequence_id, enrollment.lead_id) as any[];
-        const ledger = await db.prepare("SELECT learning FROM stan_memory_ledger WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 5").all(enrollment.workspace_id) as any[];
+          const currentStep = steps[enrollment.current_step_idx];
+          
+          // Fetch recent lead events and Stan's memory ledger
+          const history = await db.prepare("SELECT event_type, content, agent_feedback FROM sequence_events WHERE sequence_id = ? AND lead_id = ? ORDER BY created_at ASC").all(enrollment.sequence_id, enrollment.lead_id) as any[];
+          const ledger = await db.prepare("SELECT learning FROM stan_memory_ledger WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 5").all(enrollment.workspace_id) as any[];
 
-        const ledgerContext = ledger.map((l: any) => l.learning).join('. ');
-        const historyContext = history.map((h: any) => `[${h.event_type}]: ${h.agent_feedback || h.content}`).join('\n');
+          const ledgerContext = ledger.map((l: any) => l.learning).join('. ');
+          const historyContext = history.map((h: any) => `[${h.event_type}]: ${h.agent_feedback || h.content}`).join('\n');
 
-        // Compile the prompt for Stan
-        const runPrompt = `
+          // Compile the prompt for Stan
+          const runPrompt = `
 [Direct message to sales-associate]
 ATTENTION STAN (Autonomous Sequence Engine): 
 You have been awakened by the Cron Daemon to execute step ${enrollment.current_step_idx + 1} of the "${enrollment.title}" sequence.
@@ -72,11 +73,11 @@ Your Mission:
 3. Once completed, clearly declare that the step was executed successfully so the Daemon can advance the cursor.
 `;
 
-        const profiles = await db.prepare("SELECT id, name, role, instructions, personality, capabilities, description FROM agents WHERE workspace_id = ?").all(enrollment.workspace_id) as any[];
-        const agentProfiles: Record<string, string> = profiles.reduce((acc, a) => {
-          acc[a.id] = `Role: ${a.role}\nDescription: ${a.description}\nPersonality: ${a.personality}\nInstructions: ${a.instructions}\nCapabilities: ${a.capabilities}`;
-          return acc;
-        }, {} as Record<string, string>);
+          const profiles = await db.prepare("SELECT id, name, role, instructions, personality, capabilities, description FROM agents WHERE workspace_id = ?").all(enrollment.workspace_id) as any[];
+          const agentProfiles: Record<string, string> = profiles.reduce((acc, a) => {
+            acc[a.id] = `Role: ${a.role}\nDescription: ${a.description}\nPersonality: ${a.personality}\nInstructions: ${a.instructions}\nCapabilities: ${a.capabilities}`;
+            return acc;
+          }, {} as Record<string, string>);
           
           try {
             await checkAndIncrementDailyAIRequestLimit(db, enrollment.workspace_id);

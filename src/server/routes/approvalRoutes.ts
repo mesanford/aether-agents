@@ -20,6 +20,7 @@ type RegisterApprovalRoutesArgs = {
 type ApprovalPayload = {
   text?: string;
   link?: string;
+  url?: string;
   imageUrl?: string;
   title?: string;
   description?: string;
@@ -169,7 +170,7 @@ async function dispatchApprovedAction(
 
     await createLinkedInPost(li.access_token, li.linkedin_person_id, payload.text || "", {
       imageUrl: payload.imageUrl,
-      link: payload.link,
+      url: payload.url || payload.link,
       title: payload.title,
     });
   } else {

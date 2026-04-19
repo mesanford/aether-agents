@@ -134,9 +134,9 @@ export default function App() {
           setIsLoading(false);
         }
         setConnectedServices({
-          gmail: data.gmail,
-          calendar: data.calendar,
-          drive: data.drive,
+          gmail: gsData.gmail,
+          calendar: gsData.calendar,
+          drive: gsData.drive,
           slack: false,
           teams: false,
           notion: false,

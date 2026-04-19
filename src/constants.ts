@@ -12,7 +12,7 @@ export const INITIAL_AGENTS: Agent[] = [
     avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Team&backgroundColor=b6f4ef',
     capabilities: ['Collaboration', 'Team Communication'],
     lastAction: 'Just now',
-    guidelines: []
+    instructions: ""
   },
   {
     id: 'executive-assistant',
@@ -23,32 +23,16 @@ export const INITIAL_AGENTS: Agent[] = [
     avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4',
     capabilities: ['Inbox Management', 'Scheduling', 'Research'],
     lastAction: '2:12 PM',
-    guidelines: [
-      {
-        id: '1',
-        title: "Any specific rules to help me categorize your emails better?",
-        items: [
-          { id: '1', content: "Flag RFP/RFI solicitations to Marcus only when the email explicitly uses the terms \"RFP\", \"RFI\", or \"solicitation\". Do not flag general job postings, job-matching, or freelance opportunities from platforms like Twine. Prioritize flagging official procurement notices, especially from .gov or .edu domains." }
-        ],
-        showInput: true
-      },
-      {
-        id: '2',
-        title: "How should I write emails?",
-        items: [
-          {
-            id: '1', content: `# Email Tone and Style Analysis
+    instructions: `### Email Categorization
+- Flag RFP/RFI solicitations to Marcus only when the email explicitly uses the terms "RFP", "RFI", or "solicitation". 
+- Do not flag general job postings, job-matching, or freelance opportunities from platforms like Twine. 
+- Prioritize flagging official procurement notices, especially from .gov or .edu domains.
 
-## Overall Tone
-- **Professional yet approachable**: Maintains business professionalism while being personable and conversational
-- **Direct and concise**: Gets to the point quickly without unnecessary pleasantries or filler
-- **Helpful and solution-oriented**: Focuses on providing information, solving problems, or moving projects forward
-- **Calm and measured**: Even when expressing frustration (payout issues), maintains composure and professionalism`, isMarkdown: true
-          }
-        ],
-        showInput: false
-      }
-    ]
+### Email Tone and Style
+- **Professional yet approachable**: Maintains business professionalism while being personable and conversational.
+- **Direct and concise**: Gets to the point quickly without unnecessary pleasantries or filler.
+- **Helpful and solution-oriented**: Focuses on providing information, solving problems, or moving projects forward.
+- **Calm and measured**: Even when expressing frustration, maintains composure and professionalism.`
   },
   {
     id: 'social-media-manager',
@@ -59,35 +43,20 @@ export const INITIAL_AGENTS: Agent[] = [
     avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Sonny&backgroundColor=ffdfbf',
     capabilities: ['Social Media', 'Engagement', 'Content Strategy', 'Image Generation'],
     lastAction: '11:29 AM',
-    guidelines: [
-      {
-        id: '1',
-        title: "Content Themes",
-        items: [
-          {
-            id: '1', content: `• Google Search algorithm updates and ranking volatility
-• Google AI features and developments (AI Overviews, LLMs)
-• Google technical SEO (Googlebot crawling, indexing limits, file types)
-• Google's financial performance and revenue reports
-• Google Ads and PPC (invalid clicks, ad network)
-• Content quality and Google's treatment of specific content types (listicles, reviews)
-• Microsoft AI initiatives and publisher partnerships
-• SEO industry news and commentary
-• Technical implementation for search engines (markdown pages, structured data)
-• Google company news and personnel updates` },
-          {
-            id: '2', content: `* Google Apps Script for Data Integration and Process Automation
-* Python for search engine optimization and language processing
-* Google BigQuery for reporting and data integration
-* Google Looker Studio for reporting, dashboards, and visualization
-* Google Analytics` },
-          { id: '3', content: "Digital analytics and web analytics" },
-          { id: '4', content: "Prioritize these recurring themes in social content: The Innovation Paradox, The ROI Shield, Technical Debt, Python for SEO, and Agentic Optimization." },
-          { id: '5', content: "Prioritize technical consulting ideas (e.g., Google Discover visibility issues, AI increasing ranking costs, intent clustering, programmatic gap analysis) and avoid salesy/off-brand concepts (e.g., \"AI agents that answer the phone\")." }
-        ],
-        showInput: false
-      }
-    ]
+    instructions: `### Content Themes
+- Google Search algorithm updates and ranking volatility.
+- Google AI features and developments (AI Overviews, LLMs).
+- Google technical SEO (Googlebot crawling, indexing limits, file types).
+- Google's financial performance and revenue reports.
+- Google Ads and PPC.
+- Content quality and performance.
+- Microsoft AI initiatives and publisher partnerships.
+- SEO industry news and commentary.
+- Technical implementation for search engines.
+- Google company news and personnel updates.
+- Google Apps Script, Python for SEO, BigQuery, Looker Studio, and Google Analytics.
+- **Recurring Themes**: The Innovation Paradox, The ROI Shield, Technical Debt, and Agentic Optimization.
+- **Priority**: Focus on technical consulting ideas; avoid salesy/off-brand concepts.`
   },
   {
     id: 'blog-writer',
@@ -98,37 +67,13 @@ export const INITIAL_AGENTS: Agent[] = [
     avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Penny&backgroundColor=c0aede',
     capabilities: ['Content Writing', 'SEO', 'Research', 'Image Generation'],
     lastAction: '11:33 AM',
-    guidelines: [
-      {
-        id: '1',
-        title: "Writing Style",
-        items: [
-          {
-            id: '1',
-            content: `**Sanford Consulting: Tone & Style Guide**
-
-1. Core Philosophy: The "Technical Peer" / "Accessible Expert"
-
-Sanford Consulting does not talk at clients; it talks with them as a high-level strategic partner. Maintain expert credibility while prioritizing clarity and minimalism. Explain the data so it makes sense to a CEO.
-
-The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
-          },
-          {
-            id: '2',
-            content: `# Tone Analysis
-
-- Write as an accessible expert: professional but casual, minimalist language, prioritize clarity
-- Prefer data-driven insights and actionable advice over commentary
-- Use clean structure with clear headings and bullet points
-- Keep wit for internal drafts; keep external blog posts in "Accessible Expert" voice
-- Start with question-based headlines that challenge assumptions or provoke curiosity about the topic
-- Use italicized text sparingly and only when it improves clarity
-- Insert skepticism about conventional wisdom early in the piece, but keep it measured and`
-          }
-        ],
-        showInput: true
-      }
-    ]
+    instructions: `### Writing Style & Philosophy
+**Sanford Consulting: Tone & Style Guide**
+- **Core Philosophy**: Talk *with* clients as a high-level strategic partner. Maintain expert credibility while prioritizing clarity and minimalism.
+- **Brand Promise**: Get Found. Get Cited. Get Qualified Leads.
+- **Tone**: Write as an accessible expert: professional but casual, minimalist language, prioritize clarity.
+- **Approach**: Use data-driven insights and actionable advice. Start with question-based headlines that challenge assumptions.
+- **Rules**: Prefer data-driven insights over commentary. Use clean structure with clear headings and bullet points. Keep wit for internal drafts. Insert skepticism about conventional wisdom early, but keep it measured.`
   },
   {
     id: 'sales-associate',
@@ -139,7 +84,7 @@ The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
     avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Stan&backgroundColor=d1f4d1',
     capabilities: ['Outreach', 'Lead Gen', 'CRM'],
     lastAction: '10:24 AM',
-    guidelines: []
+    instructions: ""
   },
   {
     id: 'legal-associate',
@@ -150,7 +95,7 @@ The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
     avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Linda&backgroundColor=e8e8e8',
     capabilities: ['Legal Research', 'Compliance', 'Contracts'],
     lastAction: '27 Feb',
-    guidelines: []
+    instructions: ""
   },
   {
     id: 'receptionist',
@@ -161,7 +106,7 @@ The Brand Promise: Get Found. Get Cited. Get Qualified Leads.`
     avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Rachel&backgroundColor=ffd6d6',
     capabilities: ['Call Handling', 'Inquiries', 'Support'],
     lastAction: '10:01 AM',
-    guidelines: []
+    instructions: ""
   },
 ];
 
