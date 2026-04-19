@@ -1054,6 +1054,105 @@ export const sendSmsTool = tool(
   }
 );
 
+/**
+ * HubSpot Helpers
+ */
+async function hubspotRequest(apiKey: string, endpoint: string, options: RequestInit = {}) {
+  const response = await fetch(`https://api.hubapi.com${endpoint}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+  const data = await response.json() as any;
+  if (!response.ok) throw new Error(data.message || `HubSpot API error: ${response.status}`);
+  return data;
+}
+
+export const publishHubspotPostTool = tool(
+  async ({ title, content, blogId }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const row = await db.prepare("SELECT access_token FROM hubspot_connections WHERE workspace_id = ?").get(workspaceId) as any;
+      if (!row?.access_token) return "[FAILED] HubSpot is not connected. Connect it via Settings -> Integrations.";
+
+      // 1. Create the blog post draft
+      const post = await hubspotRequest(row.access_token, "/cms/v3/blogs/posts", {
+        method: "POST",
+        body: JSON.stringify({
+          name: title,
+          postBody: content,
+          contentGroupId: blogId, // Required to specify which blog to post to
+          postSummary: content.substring(0, 200) + "..."
+        })
+      });
+
+      return `[SUCCESS] HubSpot blog draft "${title}" created. POST_ID: ${post.id}. URL: ${post.url}`;
+    } catch (err: any) {
+      console.error("publish_hubspot_post error:", err);
+      return `[FAILED] Could not create HubSpot post: ${err.message}`;
+    }
+  },
+  {
+    name: "publish_hubspot_post",
+    description: "Create a draft blog post in HubSpot CMS. Use this to stage content for the agency's primary blog. Keywords: hubspot blog, post article, cms draft.",
+    schema: z.object({
+      title: z.string().describe("The title of the blog post."),
+      content: z.string().describe("The HTML or plain text body of the post."),
+      blogId: z.string().describe("The HubSpot Blog/Content Group ID.")
+    })
+  }
+);
+
+export const syncHubspotLeadTool = tool(
+  async ({ name, email, company }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const row = await db.prepare("SELECT access_token FROM hubspot_connections WHERE workspace_id = ?").get(workspaceId) as any;
+      if (!row?.access_token) return "[FAILED] HubSpot is not connected.";
+
+      // 1. Create/Update Contact
+      const [firstName, ...lastNameParts] = name.split(" ");
+      const contact = await hubspotRequest(row.access_token, "/crm/v3/objects/contacts", {
+        method: "POST",
+        body: JSON.stringify({
+          properties: {
+            email,
+            firstname: firstName,
+            lastname: lastNameParts.join(" "),
+            company
+          }
+        })
+      }).catch(async (e) => {
+        // If conflict (409), try to update instead
+        if (e.message.includes("already exists")) {
+          return await hubspotRequest(row.access_token, `/crm/v3/objects/contacts/${email}?idProperty=email`, {
+            method: "PATCH",
+            body: JSON.stringify({ properties: { company } })
+          });
+        }
+        throw e;
+      });
+
+      return `[SUCCESS] Lead ${name} synced to HubSpot CRM. CONTACT_ID: ${contact.id}`;
+    } catch (err: any) {
+      console.error("sync_hubspot_lead error:", err);
+      return `[FAILED] Could not sync lead to HubSpot: ${err.message}`;
+    }
+  },
+  {
+    name: "sync_hubspot_lead",
+    description: "Sync a lead from our local CRM into your HubSpot CRM. Use this to move promising prospects into your primary sales pipeline. Keywords: sync hubspot, export lead, crm sync.",
+    schema: z.object({
+      name: z.string().describe("Lead's full name."),
+      email: z.string().describe("Lead's email address."),
+      company: z.string().optional().describe("Lead's company name.")
+    })
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   searchGoogleDriveTool,
@@ -1076,5 +1175,7 @@ export const allTools = [
   listSlackChannelsTool,
   sendTeamsMessageTool,
   manageNotionTool,
-  sendSmsTool
+  sendSmsTool,
+  publishHubspotPostTool,
+  syncHubspotLeadTool
 ];

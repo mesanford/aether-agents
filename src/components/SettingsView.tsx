@@ -995,16 +995,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     {
       id: 'hubspot',
       category: 'CRM & Communications',
-      name: 'HubSpot',
+      name: 'HubSpot (CRM & CMS)',
       icon: Building2,
-      description: 'Sync leads into your CRM',
+      description: 'Sync leads into your CRM and manage blog drafts',
       connected: hubspotStatus.connected,
       allowReconnect: true,
-      services: hubspotStatus.accountName
-        ? [{ name: hubspotStatus.accountName, connected: true }]
-        : hubspotStatus.portalId
-          ? [{ name: `Portal ${hubspotStatus.portalId}`, connected: true }]
-          : [],
+      services: [
+        hubspotStatus.accountName ? { name: hubspotStatus.accountName, connected: true } : null,
+        hubspotStatus.portalId ? { name: `Portal ${hubspotStatus.portalId}`, connected: true } : null,
+      ].filter((val): val is { name: string; connected: boolean } => val !== null),
       onConnect: () => setIsHubSpotModalOpen(true),
       onDisconnect: handleDisconnectHubSpot,
       isLoading: hubspotSaving || hubspotDisconnecting,
