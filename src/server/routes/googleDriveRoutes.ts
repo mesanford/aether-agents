@@ -1,13 +1,15 @@
 import express from 'express';
-import { generateAuthUrl, exchangeCodeForTokens, initializeWorkspaceFolder } from '../../services/googleDriveService.ts';
+import { generateAuthUrl, exchangeCodeForTokens, initializeWorkspaceFolder, getOAuthClient } from '../../services/googleDriveService.ts';
 
 export function registerGoogleDriveRoutes({ app, db, requireAuth, requireWorkspaceAccess }: any) {
   
   // 1. Kickoff the Auth Flow
   app.get('/api/workspaces/:workspaceId/integrations/google/auth', requireAuth, requireWorkspaceAccess, async (req: express.Request, res: express.Response) => {
     const { workspaceId } = req.params;
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const redirectUri = `${baseUrl}/api/integrations/google/callback`;
     const state = JSON.stringify({ workspaceId });
-    const url = generateAuthUrl(state);
+    const url = generateAuthUrl(state, redirectUri);
     res.json({ url });
   });
 
@@ -20,15 +22,18 @@ export function registerGoogleDriveRoutes({ app, db, requireAuth, requireWorkspa
       }
 
       const { workspaceId } = JSON.parse(state as string);
-      
-      const tokens = await exchangeCodeForTokens(code as string);
-      
-      // We must get the auth client again purely using these tokens to init the folder
-      const { getOAuthClient } = require('../../services/googleDriveService.ts');
-      const auth = getOAuthClient();
+
+      // Reconstruct the same redirect URI used when generating the auth URL
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+      const redirectUri = `${baseUrl}/api/integrations/google/callback`;
+
+      const tokens = await exchangeCodeForTokens(code as string, redirectUri);
+
+      // Build an auth client with the returned tokens to initialize the folder
+      const auth = getOAuthClient(redirectUri);
       auth.setCredentials(tokens);
 
-      const workspace = await await db.prepare('SELECT name FROM workspaces WHERE id = ?').get(workspaceId);
+      const workspace = await db.prepare('SELECT name FROM workspaces WHERE id = ?').get(workspaceId);
       const workspaceName = workspace?.name || 'Workspace';
 
       const folderId = await initializeWorkspaceFolder(auth, workspaceName);

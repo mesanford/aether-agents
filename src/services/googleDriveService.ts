@@ -7,16 +7,16 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'mock-client-id';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'mock-client-secret';
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/api/integrations/google/callback';
 
-export const getOAuthClient = (): OAuth2Client => {
+export const getOAuthClient = (redirectUri?: string): OAuth2Client => {
   return new google.auth.OAuth2(
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
-    REDIRECT_URI
+    redirectUri || REDIRECT_URI
   );
 };
 
-export const generateAuthUrl = (stateString: string): string => {
-  const oauth2Client = getOAuthClient();
+export const generateAuthUrl = (stateString: string, redirectUri?: string): string => {
+  const oauth2Client = getOAuthClient(redirectUri);
   return oauth2Client.generateAuthUrl({
     access_type: 'offline', // Request a refresh token
     prompt: 'consent', // Force consent prompt to ensure refresh token is always provided
@@ -28,8 +28,8 @@ export const generateAuthUrl = (stateString: string): string => {
   });
 };
 
-export const exchangeCodeForTokens = async (code: string) => {
-  const oauth2Client = getOAuthClient();
+export const exchangeCodeForTokens = async (code: string, redirectUri?: string) => {
+  const oauth2Client = getOAuthClient(redirectUri);
   const { tokens } = await oauth2Client.getToken(code);
   return tokens;
 };
