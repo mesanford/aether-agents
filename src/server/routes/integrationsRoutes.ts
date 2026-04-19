@@ -1366,29 +1366,32 @@ export function registerIntegrationsRoutes({
       }
 
       try {
-        // Get managed connect URL from Zernio
-        const response = await fetch("https://zernio.com/api/v1/connect/linkedin", {
+        // 1. Get the first available Zernio profile ID
+        const profilesRes = await fetch("https://zernio.com/api/v1/profiles", {
           headers: { 'Authorization': `Bearer ${apiKey}` }
         });
-        const data = await response.json() as any;
+        const profilesData = await profilesRes.json() as any;
+        const profileId = profilesData.profiles?.[0]?.id;
 
-        if (!data.url) throw new Error("Zernio did not return a connect URL");
+        if (!profileId) {
+          throw new Error("No Zernio profile found. Please create a profile in your Zernio dashboard.");
+        }
 
-        // We wrap the Zernio URL in a simple page that can post a message back to our opener
-        // This keeps the "Success" toast and UI refresh working seamlessly
-        const successHtml = `
-          <html>
-            <body>
-              <script>
-                window.location.href = "${data.url}";
-              </script>
-            </body>
-          </html>
-        `;
-        res.json({ url: data.url });
+        // 2. Get managed connect URL from Zernio using the profileId
+        const connectRes = await fetch(`https://zernio.com/api/v1/connect/linkedin?profileId=${profileId}`, {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        const connectData = await connectRes.json() as any;
+
+        if (!connectData.authUrl) {
+          console.error("Zernio Connect Error Response:", connectData);
+          throw new Error(connectData.message || "Zernio did not return an authUrl");
+        }
+
+        res.json({ url: connectData.authUrl });
       } catch (err: any) {
-        console.error("Zernio Connect error:", err.message);
-        res.status(500).json({ error: "Failed to get Zernio connection URL" });
+        console.error("Zernio Connect sequence error:", err.message);
+        res.status(500).json({ error: `Connection failed: ${err.message}` });
       }
     }
   );
