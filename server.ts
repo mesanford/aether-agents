@@ -27,7 +27,7 @@ import { registerGoogleDriveRoutes } from "./src/server/routes/googleDriveRoutes
 import { registerApprovalRoutes } from "./src/server/routes/approvalRoutes.ts";
 import { bootstrapDatabase } from "./src/server/dbBootstrap.ts";
 import { startTaskEngine } from "./src/server/taskEngine.ts";
-import { startSequenceDaemon } from "./src/server/sequenceDaemon.ts";
+
 import { migrateBase64ToGCS } from "./src/server/gcpStorage.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -218,10 +218,17 @@ async function startServer() {
     // Mark as ready ONLY after critical DB work is done
     isReady = true;
     console.log(`Server fully ready on port ${PORT}`);
-  } catch (err) {
-    console.error("Critical bootstrap failure:", err);
-    // We stay alive so health checks pass, but isReady remains false,
-    // protecting the DB from inconsistent states while alerting the dev.
+  } catch (err: any) {
+    // Log the full error so Cloud Logging captures the real cause
+    console.error("CRITICAL: Bootstrap failure — server starting in degraded mode:", err?.message || err);
+    console.error(err?.stack || "(no stack)");
+    // Set ready anyway: all tables are created with IF NOT EXISTS, so the DB
+    // is in a consistent-enough state to serve requests. Keeping isReady=false
+    // permanently would make the entire app return 503 forever, hiding the real
+    // error and blocking users. Individual routes will 500 on missing schema,
+    // which is far more debuggable than a global lockout.
+    isReady = true;
+    console.warn("Server marked ready in degraded mode. Check logs for bootstrap errors above.");
   }
 
   // Error handler

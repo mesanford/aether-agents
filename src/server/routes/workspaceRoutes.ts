@@ -1694,13 +1694,14 @@ export function registerWorkspaceRoutes({
         if (row.status === "dead_lettered") queue.deadLettered = row.count;
       }
 
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const deduped24hRow = await db.prepare(`
         SELECT COUNT(*) as count
         FROM audit_logs
         WHERE workspace_id = ?
           AND action = 'task.automation.job.deduped'
-          AND datetime(created_at) >= datetime('now', '-1 day')
-      `).get(req.workspaceId) as { count: number } | undefined;
+          AND created_at >= ?
+      `).get(req.workspaceId, since24h) as { count: number } | undefined;
       queue.deduped24h = deduped24hRow?.count || 0;
 
       const automationRows = await db.prepare(`

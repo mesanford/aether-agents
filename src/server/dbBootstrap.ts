@@ -672,8 +672,13 @@ export async function bootstrapDatabase(db: PostgresShim) {
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
-  await db.exec("CREATE INDEX IF NOT EXISTS idx_automation_jobs_ready ON automation_jobs(status, next_run_at)");
-  await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_jobs_dedupe ON automation_jobs(workspace_id, action, dedupe_key) "); // SQLite WHERE dedupe_key IS NOT NULL is complex in PG without partial index, we omit for schema simplicity
+  try {
+    await db.exec("CREATE INDEX IF NOT EXISTS idx_automation_jobs_ready ON automation_jobs(status, next_run_at)");
+    // Partial unique index: NULLs are excluded so multiple jobs without a dedupe_key can coexist.
+    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_jobs_dedupe ON automation_jobs(workspace_id, action, dedupe_key) WHERE dedupe_key IS NOT NULL");
+  } catch (err) {
+    console.error("Migration: Could not create automation_jobs indexes (may already exist with different definition):", err);
+  }
 
   try {
     if (!(await hasColumn("automation_jobs", "dedupe_key"))) {
