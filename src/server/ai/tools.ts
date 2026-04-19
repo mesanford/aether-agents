@@ -378,36 +378,62 @@ export const generateImageTool = tool(
 export const scheduleSocialPostTool = tool(
   async (args, config) => {
     try {
-      const isDraft = args.mode === 'draft';
-      const publishNow = args.mode === 'publish_now';
+      // 1. Resolve Account IDs for the requested platforms
+      const accountsRes = await zernioFetch('/accounts');
+      const connectedAccounts = accountsRes.accounts || [];
       
+      const targetPlatforms = Array.isArray(args.platforms) ? args.platforms : [args.platforms];
+      const platformPayloads = [];
+
+      for (const p of targetPlatforms) {
+        const lowerP = p.toLowerCase().trim();
+        const account = connectedAccounts.find((a: any) => a.platform.toLowerCase() === lowerP);
+        
+        if (!account) {
+          return `[FAILED] Platform '${p}' is not connected in Zernio. Please connect it in the Integrations panel first.`;
+        }
+
+        platformPayloads.push({
+          platform: lowerP,
+          accountId: account.id,
+          // Support platform-specific text if provided in overrides
+          platformSpecificContent: args.platformOverrides?.[lowerP] || null
+        });
+      }
+
+      // 2. Build the unified Zernio request
+      const requestBody: any = {
+        content: args.content,
+        platforms: platformPayloads,
+        mediaUrls: args.mediaUrls || [],
+        publishNow: args.publishNow || false,
+      };
+
+      if (args.scheduledFor) {
+        requestBody.scheduledFor = args.scheduledFor;
+      }
+
       const res = await zernioFetch('/posts', {
         method: 'POST',
-        body: JSON.stringify({
-          platform: args.platform.toLowerCase(),
-          content: args.content,
-          is_draft: isDraft,
-          publish_now: publishNow,
-          media_urls: args.mediaUrls || "",
-          title: args.title || ""
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      return `[SUCCESS] ${publishNow ? 'Published' : 'Scheduled'} to ${args.platform} via Zernio. Post ID: ${res.id}`;
+      return `[SUCCESS] Content processed via Zernio for platforms: ${targetPlatforms.join(', ')}. Post ID: ${res.id}`;
     } catch (err: any) {
-      console.error("Zernio social post error:", err);
-      return `[FAILED] Could not process post via Zernio: ${err.message}`;
+      console.error("Zernio multi-post error:", err);
+      return `[FAILED] Could not process multi-platform post: ${err.message}`;
     }
   },
   {
     name: "schedule_social_post",
-    description: "Create, schedule, or publish a social media post across 14 platforms (twitter, linkedin, instagram, etc.) via Zernio. Use 'draft' mode to save without publishing. Keywords: post, tweet, linkedin, schedule, publish.",
+    description: "Standardized tool to create, schedule, or publish social media content across 14+ platforms via Zernio. Handles cross-posting, multiple images/videos, and platform-specific text overrides automatically. Keywords: post, cross-post, tweet, linkedin, instagram, schedule, publish.",
     schema: z.object({ 
-      platform: z.string().describe("Target platform: e.g. linkedin, twitter, instagram"), 
-      content: z.string().describe("The full post text."), 
-      mode: z.enum(['draft', 'schedule', 'publish_now']).default('schedule'),
-      mediaUrls: z.string().optional().describe("Comma-separated image/video URLs."),
-      title: z.string().optional().describe("Optional title.")
+      platforms: z.array(z.string()).describe("List of target platforms (e.g., ['twitter', 'linkedin', 'instagram'])."),
+      content: z.string().describe("The base post text used for all platforms unless overridden."), 
+      publishNow: z.boolean().default(false).describe("Set to true to bypass scheduling and post immediately."),
+      scheduledFor: z.string().optional().describe("ISO 8601 timestamp for future scheduling."),
+      mediaUrls: z.array(z.string()).optional().describe("Array of image or video URLs to attach."),
+      platformOverrides: z.record(z.string()).optional().describe("Optional map of platform-specific text (e.g. { 'twitter': 'Short version for X' }) to handle different character limits.")
     })
   }
 );
