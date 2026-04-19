@@ -261,10 +261,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [wordpressSaving, setWordpressSaving] = useState(false);
   const [wordpressDisconnecting, setWordpressDisconnecting] = useState(false);
   const [wordpressForm, setWordpressForm] = useState({ siteUrl: '', username: '', appPassword: '' });
-  const [isLinkedInModalOpen, setIsLinkedInModalOpen] = useState(false);
   const [linkedinSaving, setLinkedinSaving] = useState(false);
   const [linkedinDisconnecting, setLinkedinDisconnecting] = useState(false);
-  const [linkedinForm, setLinkedinForm] = useState({ accessToken: '', authorUrn: '' });
   const [isBufferModalOpen, setIsBufferModalOpen] = useState(false);
   const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
   const [isTeamsModalOpen, setIsTeamsModalOpen] = useState(false);
@@ -614,20 +612,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     if (!token || !activeWorkspaceId) return;
     setLinkedinSaving(true);
     try {
-      const result = await apiFetch<LinkedInStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/linkedin`, {
-        method: 'POST',
+      const { url } = await apiFetch<{ url: string }>(`/api/workspaces/${activeWorkspaceId}/integrations/linkedin/connect`, {
+        method: 'GET',
         token,
         onAuthFailure: () => onLogout(),
-        body: JSON.stringify(linkedinForm),
       });
-      setLinkedinStatus(result);
-      onConnectedServicesChange((current: any) => ({ ...current, linkedin: result.connected }));
-      setIsLinkedInModalOpen(false);
-      setLinkedinForm({ accessToken: '', authorUrn: '' });
+
+      const popup = window.open(url, 'linkedin-workspace-auth', 'width=500,height=650,scrollbars=yes');
+      if (!popup) {
+        toast.error('Your browser blocked the authentication popup. Please allow popups for this site and try again.');
+        setLinkedinSaving(false);
+        return;
+      }
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.provider !== 'linkedin') return;
+        
+        if (event.data?.type === 'WORKSPACE_AUTH_SUCCESS') {
+          window.removeEventListener('message', handleMessage);
+          popup?.close();
+          fetchStatus();
+          setLinkedinSaving(false);
+        } else if (event.data?.type === 'WORKSPACE_AUTH_ERROR') {
+          window.removeEventListener('message', handleMessage);
+          popup?.close();
+          toast.error(`Connection failed: ${event.data.error}`);
+          setLinkedinSaving(false);
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      // Poll for popup close
+      const timer = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(timer);
+          window.removeEventListener('message', handleMessage);
+          setLinkedinSaving(false);
+          fetchStatus();
+        }
+      }, 500);
+
     } catch (err) {
       console.error('Failed to connect LinkedIn:', err);
-      toast.error('Failed to connect LinkedIn. Use a token with the Share on LinkedIn product and w_member_social scope.');
-    } finally {
+      toast.error('Failed to initiate LinkedIn connection.');
       setLinkedinSaving(false);
     }
   };
@@ -976,7 +1003,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         linkedinStatus.accountName,
         linkedinStatus.authorUrn,
       ].filter(Boolean).map((value) => ({ name: String(value), connected: true })),
-      onConnect: () => setIsLinkedInModalOpen(true),
+      onConnect: handleConnectLinkedIn,
       onDisconnect: handleDisconnectLinkedIn,
       isLoading: linkedinSaving || linkedinDisconnecting,
     },
@@ -1654,67 +1681,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       <AnimatePresence>
-        {isLinkedInModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6"
-            onClick={() => !linkedinSaving && setIsLinkedInModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-6">
-                <h2 className="font-display text-xl font-bold text-stone-900">{linkedinStatus.connected ? 'Update LinkedIn Credentials' : 'Connect LinkedIn'}</h2>
-                <p className="mt-1 text-sm text-stone-500">{linkedinStatus.connected ? 'Replace the stored access token with a new one.' : 'Paste a LinkedIn member token with the Share on LinkedIn product and `w_member_social` scope.'}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Access Token</label>
-                  <textarea
-                    value={linkedinForm.accessToken}
-                    onChange={(event) => setLinkedinForm((current) => ({ ...current, accessToken: event.target.value }))}
-                    rows={4}
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Author URN (optional)</label>
-                  <input
-                    value={linkedinForm.authorUrn}
-                    onChange={(event) => setLinkedinForm((current) => ({ ...current, authorUrn: event.target.value }))}
-                    placeholder="urn:li:person:abc123"
-                    className="w-full rounded-xl border border-warm-200 bg-warm-50 px-4 py-3 text-sm outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsLinkedInModalOpen(false)}
-                  className="rounded-xl border border-warm-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-warm-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConnectLinkedIn}
-                  disabled={linkedinSaving}
-                  className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                >
-                  {linkedinSaving ? 'Saving...' : linkedinStatus.connected ? 'Update LinkedIn' : 'Connect LinkedIn'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
         {isBufferModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
