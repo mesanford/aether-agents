@@ -134,17 +134,15 @@ export default function App() {
           setIsLoading(false);
         }
         setConnectedServices({
-          gmail: gsData?.gmail ?? false,
-          calendar: gsData?.calendar ?? false,
-          drive: gsData?.drive ?? false,
+          gmail: data.gmail,
+          calendar: data.calendar,
+          drive: data.drive,
           slack: false,
           teams: false,
           notion: false,
           linkedin: false,
           buffer: false,
           twilio: false,
-          analytics: gsData?.analytics ?? false,
-          searchConsole: gsData?.searchConsole ?? false,
           wordpress: false,
           hubspot: false,
         });

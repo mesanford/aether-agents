@@ -41,8 +41,6 @@ interface GoogleStatus {
   gmail: boolean;
   calendar: boolean;
   drive: boolean;
-  analytics: boolean;
-  searchConsole: boolean;
 }
 
 interface WordPressStatus {
@@ -423,12 +421,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setIntegrationsHealth(health);
         setWordpressStatus(wordpress);
         setHubspotStatus(hubspot);
-        setAnalyticsProperties(Array.isArray(propertiesData.properties) ? propertiesData.properties : []);
-        setSearchConsoleSites(Array.isArray(sitesData.sites) ? sitesData.sites : []);
-        setGoogleDefaults({
-          analyticsPropertyId: defaults.analyticsPropertyId,
-          searchConsoleSiteUrl: defaults.searchConsoleSiteUrl,
-        });
         setAutomationSettings({
           linkedinMode: automation.linkedinMode === 'publish' ? 'publish' : 'off',
           bufferMode: automation.bufferMode === 'queue' ? 'queue' : 'off',
@@ -440,17 +432,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           approvalModeLinkedin: (automation as any).approvalModeLinkedin === 'approval' ? 'approval' : 'auto',
           approvalModeBuffer: (automation as any).approvalModeBuffer === 'approval' ? 'approval' : 'auto',
         });
-        onGoogleDefaultsChange({
-          analyticsPropertyId: defaults.analyticsPropertyId,
-          searchConsoleSiteUrl: defaults.searchConsoleSiteUrl,
-        });
         onConnectedServicesChange((current: any) => ({
           ...current,
           gmail: data.gmail,
           calendar: data.calendar,
           drive: data.drive,
-          analytics: data.analytics,
-          searchConsole: data.searchConsole,
           slack: slack.connected,
           teams: teams.connected,
           notion: notion.connected,
@@ -999,8 +985,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         { name: 'Gmail', connected: googleStatus.gmail },
         { name: 'Calendar', connected: googleStatus.calendar },
         { name: 'Drive / Docs / Slides', connected: googleStatus.drive },
-        { name: 'Google Analytics', connected: googleStatus.analytics },
-        { name: 'Search Console', connected: googleStatus.searchConsole },
         knowledgeDriveStatus?.connected
           ? { name: `Knowledge Drive: ${knowledgeDriveStatus.folderId}`, connected: true }
           : { name: 'Knowledge Drive (not set up)', connected: false },
@@ -1491,64 +1475,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   );
                 })}
               </div>
-
-              {googleStatus.connected && (googleStatus.analytics || googleStatus.searchConsole) && (
-                <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
-                  <h3 className="text-base font-bold text-stone-900 mb-1">Google Data Defaults</h3>
-                  <p className="text-sm text-stone-500 mb-4">Choose which GA4 property and Search Console site agents should use by default.</p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default GA4 Property</label>
-                      <select
-                        value={googleDefaults.analyticsPropertyId || ''}
-                        onChange={(event) => setGoogleDefaults((current) => ({
-                          ...current,
-                          analyticsPropertyId: event.target.value || null,
-                        }))}
-                        className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
-                      >
-                        <option value="">Auto-select first available property</option>
-                        {analyticsProperties.map((property) => (
-                          <option key={property.propertyId} value={property.propertyId}>
-                            {property.displayName}{property.account ? ` (${property.account})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Search Console Site</label>
-                      <select
-                        value={googleDefaults.searchConsoleSiteUrl || ''}
-                        onChange={(event) => setGoogleDefaults((current) => ({
-                          ...current,
-                          searchConsoleSiteUrl: event.target.value || null,
-                        }))}
-                        className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
-                      >
-                        <option value="">Auto-select first available site</option>
-                        {searchConsoleSites.map((site) => (
-                          <option key={site.siteUrl} value={site.siteUrl}>
-                            {site.siteUrl}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleSaveGoogleDefaults}
-                      disabled={savingGoogleDefaults}
-                      className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-warm-200 disabled:text-stone-400"
-                    >
-                      {savingGoogleDefaults ? 'Saving...' : 'Save Defaults'}
-                    </button>
-                  </div>
-                </div>
-              )}
 
               <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
                 <h3 className="text-base font-bold text-stone-900 mb-1">Scheduled Social Automation</h3>
