@@ -699,11 +699,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       isLoading: googleConnecting || googleDisconnecting,
     },
     {
-      id: 'linkedin',
+      id: 'social-media',
       category: 'Social & Content',
-      name: 'LinkedIn',
+      name: 'Social Media',
       icon: Linkedin,
-      description: 'Publish artifact copy directly to LinkedIn via Zernio',
+      description: 'Publish and schedule content to 14+ social platforms via Zernio',
       connected: Boolean(linkedinStatus?.connected),
       allowReconnect: true,
       services: [
@@ -1027,7 +1027,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">LinkedIn Mode</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Social Posting</label>
                     <select
                       value={automationSettings.linkedinMode}
                       onChange={(event) => setAutomationSettings((current) => ({
@@ -1037,11 +1037,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:ring-2 focus:ring-brand-500 outline-none"
                     >
                       <option value="off">Off</option>
-                      <option value="publish">Auto publish</option>
+                      <option value="publish">Auto-publish (All Platforms)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">LinkedIn Approval</label>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Publishing Guard</label>
                     <select
                       value={automationSettings.approvalModeLinkedin}
                       onChange={(event) => setAutomationSettings((current) => ({
@@ -1051,8 +1051,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       disabled={automationSettings.linkedinMode === 'off'}
                       className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
                     >
-                      <option value="auto">Auto-publish</option>
-                      <option value="approval">Require approval</option>
+                      <option value="auto">Publish Immediately</option>
+                      <option value="approval">Hold for Review</option>
                     </select>
                   </div>
                 </div>
