@@ -1396,6 +1396,58 @@ export function registerIntegrationsRoutes({
     }
   );
 
+  // 3. Zernio Platform Invitation (for clients)
+  app.get(
+    "/api/workspaces/:id/integrations/:platform/invite",
+    requireAuth,
+    requireWorkspaceAccess,
+    requireWorkspaceRole("owner", "admin"),
+    async (req: any, res) => {
+      const apiKey = process.env.ZERNIO_API_KEY;
+      const { platform } = req.params;
+      
+      if (!apiKey) {
+        return res.status(500).json({ error: "ZERNIO_API_KEY not configured" });
+      }
+
+      try {
+        // 1. Get the first available Zernio profile ID
+        const profilesRes = await fetch("https://zernio.com/api/v1/profiles", {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        const profilesData = await profilesRes.json() as any;
+        const profileId = profilesData.profiles?.[0]?.id;
+
+        if (!profileId) {
+          throw new Error("No Zernio profile found.");
+        }
+
+        // 2. Create platform invitation
+        const inviteRes = await fetch("https://zernio.com/api/v1/platform-invites", {
+          method: "POST",
+          headers: { 
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            platform: platform.toLowerCase(),
+            profileId: profileId
+          })
+        });
+        
+        const inviteData = await inviteRes.json() as any;
+        if (!inviteData.url) {
+          throw new Error(inviteData.message || "Zernio did not return an invite URL");
+        }
+
+        res.json({ url: inviteData.url });
+      } catch (err: any) {
+        console.error("Zernio Invite error:", err.message);
+        res.status(500).json({ error: `Failed to generate invite: ${err.message}` });
+      }
+    }
+  );
+
   app.get("/api/workspaces/:id/integrations/twilio/status", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
     const row = await db.prepare("SELECT account_sid, from_number, updated_at FROM twilio_connections WHERE workspace_id = ?").get(req.workspaceId) as any;
     return res.json({

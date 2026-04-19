@@ -298,6 +298,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     searchConsoleSiteUrl: null,
   });
   const [savingGoogleDefaults, setSavingGoogleDefaults] = useState(false);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState<string | null>(null);
+
+  const handleGenerateInvite = async (platform: string) => {
+    if (!token || !activeWorkspaceId) return;
+    setIsGeneratingInvite(platform);
+    try {
+      const { url } = await apiFetch<{ url: string }>(`/api/workspaces/${activeWorkspaceId}/integrations/${platform}/invite`, {
+        method: 'GET',
+        token,
+        onAuthFailure: () => onLogout(),
+      });
+
+      await navigator.clipboard.writeText(url);
+      toast.success(`${platform.charAt(0).toUpperCase() + platform.slice(1)} invite link copied to clipboard! Send this to your client.`);
+    } catch (err: any) {
+      console.error(`Failed to generate ${platform} invite:`, err);
+      toast.error(err.message || `Failed to generate ${platform} invite.`);
+    } finally {
+      setIsGeneratingInvite(null);
+    }
+  };
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings>({
     linkedinMode: 'off',
     bufferMode: 'off',
@@ -548,10 +569,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     if (!token || !activeWorkspaceId) return;
     setKnowledgeConnecting(true);
     try {
-      const { url } = await apiFetch<{url: string}>(`/api/workspaces/${activeWorkspaceId}/integrations/google/auth`, { token });
-      window.location.href = url;
-    } catch (e) {
+      // Use the existing Google Workspace token — no separate OAuth needed
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/google/init`, {
+        method: 'POST',
+        token,
+      });
+      toast.success('Knowledge Drive folder created!');
+      fetchStatus();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to create Knowledge Drive folder. Make sure Google Workspace is connected first.');
       console.error(e);
+    } finally {
       setKnowledgeConnecting(false);
     }
   };
@@ -973,24 +1001,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         { name: 'Drive / Docs / Slides', connected: googleStatus.drive },
         { name: 'Google Analytics', connected: googleStatus.analytics },
         { name: 'Search Console', connected: googleStatus.searchConsole },
+        knowledgeDriveStatus?.connected
+          ? { name: `Knowledge Drive: ${knowledgeDriveStatus.folderId}`, connected: true }
+          : { name: 'Knowledge Drive (not set up)', connected: false },
       ],
       onConnect: handleConnectGoogle,
       onDisconnect: handleDisconnectGoogle,
       isLoading: googleConnecting || googleDisconnecting,
     },
-    {
-      id: 'knowledge-drive',
-      category: 'Team & Productivity',
-      name: 'AgencyOS Knowledge Drive',
-      icon: Folder,
-      description: 'Auto-syncs a shared Google Drive folder for Agent search access',
-      connected: knowledgeDriveStatus?.connected || false,
-      allowReconnect: false,
-      services: knowledgeDriveStatus?.connected ? [{ name: `Folder ID: ${knowledgeDriveStatus.folderId}`, connected: true }] : [],
-      onConnect: handleConnectKnowledgeDrive,
-      onDisconnect: handleDisconnectKnowledgeDrive,
-      isLoading: knowledgeConnecting || knowledgeDisconnecting,
-    },
+
     {
       id: 'linkedin',
       category: 'Social & Content',
@@ -1005,7 +1024,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       ].filter(Boolean).map((value) => ({ name: String(value), connected: true })),
       onConnect: handleConnectLinkedIn,
       onDisconnect: handleDisconnectLinkedIn,
-      isLoading: linkedinSaving || linkedinDisconnecting,
+      onGenerateInvite: () => handleGenerateInvite('linkedin'),
+      isLoading: linkedinSaving || linkedinDisconnecting || isGeneratingInvite === 'linkedin',
     },
     {
       id: 'buffer',
@@ -1434,7 +1454,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           )}
 
                           {integration.connected && (
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-wrap items-center gap-4">
                               {integration.allowReconnect && (
                                 <button
                                   onClick={integration.onConnect}
@@ -1443,6 +1463,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 >
                                   <RefreshCw className="w-3 h-3" />
                                   Update Credentials
+                                </button>
+                              )}
+                              {integration.onGenerateInvite && (
+                                <button
+                                  onClick={integration.onGenerateInvite}
+                                  disabled={integration.isLoading}
+                                  className="text-xs font-medium text-brand-500 hover:text-brand-700 flex items-center gap-1 transition-colors disabled:opacity-60"
+                                >
+                                  <UserPlus className="w-3 h-3" />
+                                  {isGeneratingInvite === integration.id ? 'Generating...' : 'Invite Client'}
                                 </button>
                               )}
                               <button
@@ -1454,8 +1484,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 {integration.isLoading ? 'Disconnecting...' : 'Disconnect'}
                               </button>
                             </div>
-                          )}
-                          </div>
+                          )}                          </div>
                         ))}
                       </div>
                     </div>
