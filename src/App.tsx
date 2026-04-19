@@ -167,8 +167,7 @@ export default function App() {
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/twilio/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/wordpress/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/hubspot/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
-      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/google/defaults`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ analyticsPropertyId: null, searchConsoleSiteUrl: null })),
-    ]).then(([slackData, teamsData, notionData, linkedinData, bufferData, twilioData, wordpressData, hubspotData, googleDefaultsData]: [any, any, any, any, any, any, any, any, any]) => {
+    ]).then(([slackData, teamsData, notionData, linkedinData, bufferData, twilioData, wordpressData, hubspotData]: [any, any, any, any, any, any, any, any]) => {
       setConnectedServices((current) => ({
         ...current,
         slack: slackData?.connected ?? false,
@@ -180,10 +179,6 @@ export default function App() {
         wordpress: wordpressData?.connected ?? false,
         hubspot: hubspotData?.connected ?? false,
       }));
-      setGoogleContextDefaults({
-        analyticsPropertyId: googleDefaultsData?.analyticsPropertyId ?? null,
-        searchConsoleSiteUrl: googleDefaultsData?.searchConsoleSiteUrl ?? null,
-      });
     }).catch((err) => {
       console.error('Failed to fetch workspace integration status', err);
     });

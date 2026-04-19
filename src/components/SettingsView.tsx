@@ -292,11 +292,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isGoogleVoiceModalOpen, setIsGoogleVoiceModalOpen] = useState(false);
   const [googleVoiceForm, setGoogleVoiceForm] = useState({ phoneNumber: '+19206058097' });
 
-  const [googleDefaults, setGoogleDefaults] = useState<GoogleDefaults>({
-    analyticsPropertyId: null,
-    searchConsoleSiteUrl: null,
-  });
-  const [savingGoogleDefaults, setSavingGoogleDefaults] = useState(false);
   const [isGeneratingInvite, setIsGeneratingInvite] = useState<string | null>(null);
 
   const handleGenerateInvite = async (platform: string) => {
@@ -389,10 +384,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           token,
           onAuthFailure: () => onLogout(),
         });
-        const defaults = await apiFetch<GoogleDefaults>(`/api/workspaces/${activeWorkspaceId}/integrations/google/defaults`, {
-          token,
-          onAuthFailure: () => onLogout(),
-        }).catch(() => ({ analyticsPropertyId: null, searchConsoleSiteUrl: null }));
         const automation = await apiFetch<AutomationSettings>(`/api/workspaces/${activeWorkspaceId}/automation-settings`, {
           token,
           onAuthFailure: () => onLogout(),
@@ -435,26 +426,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       }
     } catch {
       // ignore
-    }
-  };
-
-  const handleSaveGoogleDefaults = async () => {
-    if (!token || !activeWorkspaceId) return;
-    setSavingGoogleDefaults(true);
-    try {
-      const result = await apiFetch<GoogleDefaults>(`/api/workspaces/${activeWorkspaceId}/integrations/google/defaults`, {
-        method: 'PUT',
-        token,
-        onAuthFailure: () => onLogout(),
-        body: JSON.stringify(googleDefaults),
-      });
-      setGoogleDefaults(result);
-      onGoogleDefaultsChange(result);
-    } catch (err) {
-      console.error('Failed to save Google defaults:', err);
-      toast.error('Failed to save Google defaults.');
-    } finally {
-      setSavingGoogleDefaults(false);
     }
   };
 
