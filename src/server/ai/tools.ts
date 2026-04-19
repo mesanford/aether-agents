@@ -8,6 +8,31 @@ import { ShadowGitServer } from '../lib/git/shadow';
 
 const SHADOW_DIR = path.resolve(process.cwd(), '.shadow-workspace');
 
+/**
+ * Helper to call the Zernio API.
+ */
+async function zernioFetch(endpoint: string, options: RequestInit = {}) {
+  const apiKey = process.env.ZERNIO_API_KEY;
+  if (!apiKey) {
+    throw new Error("Zernio API key is missing. Please add ZERNIO_API_KEY to your environment.");
+  }
+
+  const response = await fetch(`https://zernio.com/api/v1${endpoint}`, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const data = await response.json() as any;
+  if (!response.ok) {
+    throw new Error(data.message || `Zernio API error: ${response.status}`);
+  }
+  return data;
+}
+
 export const queryBrainTool = tool(
   async ({ query }, config) => {
     const workspaceId = config?.configurable?.workspace_id || 1;
@@ -352,44 +377,37 @@ export const generateImageTool = tool(
 
 export const scheduleSocialPostTool = tool(
   async (args, config) => {
-    if (!config?.configurable?.thread_id) return `[FAILED] Missing conversation thread context needed to associate this post.`;
-    const threadId = config.configurable.thread_id as string;
-    const workspaceId = config.configurable?.workspace_id || 1;
-    const assigneeId = threadId.replace('thread_', '').split('_')[1] || 'social-media-manager';
-    
-    let fetchedImageUrl = null;
-    if (args.mediaAssetId) {
-      try {
-        const media = await db.prepare('SELECT thumbnail FROM media_assets WHERE id = ?').get(args.mediaAssetId) as any;
-        if (media?.thumbnail) fetchedImageUrl = media.thumbnail;
-      } catch (err) {
-        console.error("Failed to load media asset for social post", err);
-      }
+    try {
+      const isDraft = args.mode === 'draft';
+      const publishNow = args.mode === 'publish_now';
+      
+      const res = await zernioFetch('/posts', {
+        method: 'POST',
+        body: JSON.stringify({
+          platform: args.platform.toLowerCase(),
+          content: args.content,
+          is_draft: isDraft,
+          publish_now: publishNow,
+          media_urls: args.mediaUrls || "",
+          title: args.title || ""
+        }),
+      });
+
+      return `[SUCCESS] ${publishNow ? 'Published' : 'Scheduled'} to ${args.platform} via Zernio. Post ID: ${res.id}`;
+    } catch (err: any) {
+      console.error("Zernio social post error:", err);
+      return `[FAILED] Could not process post via Zernio: ${err.message}`;
     }
-
-    const draftArtifact = JSON.stringify({
-      title: `Draft: ${args.platform} Post`,
-      body: args.content,
-      bullets: [`Target: ${args.platform}`],
-      imageUrl: fetchedImageUrl
-    });
-
-    const taskId = `task-${Date.now()}`;
-    await db.prepare(`
-      INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, artifact_payload, due_date, selected_media_asset_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(taskId, workspaceId, `Social Drop on ${args.platform}`, `Stage Content: ${args.content?.substring(0, 50)}...`, assigneeId, 'todo', 'social_post', draftArtifact, args.date || 'Soon', args.mediaAssetId || null);
-
-    return `[SUCCESS] Scheduled to ${args.platform} for ${args.date}. Content queued for Task Engine execution. ID: ${taskId}`;
   },
   {
     name: "schedule_social_post",
-    description: "REQUIRED TOOL: You MUST use this tool to create drafts, plan, organize, or schedule a post. Do not output conversational drafts. Use this tool so the post physically saves to their calendar. Keywords: plan, draft, write, organize, queue, strategy, social. The 'content' field must be the COMPLETE, fully-written post text including all body copy, emojis, and hashtags exactly as it should appear when published. The 'mediaAssetId' field should be populated if you generated an image for this post. The 'date' field MUST be in ISO 8601 format.",
+    description: "Create, schedule, or publish a social media post across 14 platforms (twitter, linkedin, instagram, etc.) via Zernio. Use 'draft' mode to save without publishing. Keywords: post, tweet, linkedin, schedule, publish.",
     schema: z.object({ 
-      platform: z.string(), 
-      content: z.string(), 
-      date: z.string().optional().describe("MUST use ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ). Use your system prompt LiveContext to calculate this."), 
-      mediaAssetId: z.number().optional() 
+      platform: z.string().describe("Target platform: e.g. linkedin, twitter, instagram"), 
+      content: z.string().describe("The full post text."), 
+      mode: z.enum(['draft', 'schedule', 'publish_now']).default('schedule'),
+      mediaUrls: z.string().optional().describe("Comma-separated image/video URLs."),
+      title: z.string().optional().describe("Optional title.")
     })
   }
 );
@@ -489,62 +507,28 @@ export const updateCrmTool = tool(
 );
 
 export const linkedinOutreachTool = tool(
-  async ({ sequenceId, leadName, leadId }, config) => {
-    const workspaceId = config?.configurable?.workspace_id || 1;
-    
+  async ({ contactEmail, sequenceId }, config) => {
     try {
-      // 1. Find the sequence
-      let sequence;
-      if (Number.isInteger(Number(sequenceId))) {
-        sequence = await db.prepare("SELECT id, title FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
-      } else {
-        sequence = await db.prepare("SELECT id, title FROM sales_sequences WHERE title = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
-      }
+      // Zernio uses a unified 'enroll_contacts' flow
+      const res = await zernioFetch(`/sequences/${sequenceId}/enroll`, {
+        method: 'POST',
+        body: JSON.stringify({
+          emails: [contactEmail]
+        }),
+      });
 
-      if (!sequence) {
-        return `[FAILED] Sequence '${sequenceId}' not found in workspace ${workspaceId}.`;
-      }
-
-      // 2. Find the lead
-      let lead;
-      if (leadId) {
-        lead = await db.prepare("SELECT id, name FROM leads WHERE id = ? AND workspace_id = ?").get(leadId, workspaceId) as any;
-      } else if (leadName) {
-        lead = await db.prepare("SELECT id, name FROM leads WHERE name = ? AND workspace_id = ?").get(leadName, workspaceId) as any;
-      }
-
-      if (!lead) {
-        return `[FAILED] Lead '${leadId || leadName}' not found in workspace ${workspaceId}.`;
-      }
-
-      // 3. Check for existing enrollment
-      const existing = await db.prepare("SELECT id FROM sequence_enrollments WHERE lead_id = ? AND sequence_id = ? AND workspace_id = ?").get(lead.id, sequence.id, workspaceId);
-      if (existing) {
-        return `[ALREADY ENROLLED] Lead ${lead.name} is already enrolled in sequence '${sequence.title}'.`;
-      }
-
-      // 4. Enroll
-      await db.prepare(`
-        INSERT INTO sequence_enrollments (workspace_id, lead_id, sequence_id, status, current_step_idx)
-        VALUES (?, ?, ?, 'Active', 0)
-      `).run(workspaceId, lead.id, sequence.id);
-
-      // 5. Update lead status
-      await db.prepare("UPDATE leads SET status = 'In Sequence', sequence = ? WHERE id = ?").run(sequence.title, lead.id);
-
-      return `[SUCCESS] Lead ${lead.name} successfully enrolled into outbound sequence '${sequence.title}'.`;
+      return `[SUCCESS] Contact ${contactEmail} enrolled in Zernio sequence ${sequenceId}.`;
     } catch (err: any) {
-      console.error("linkedin_outreach error:", err);
-      return `[FAILED] Could not enroll lead: ${err.message}`;
+      console.error("Zernio outreach error:", err);
+      return `[FAILED] Could not enroll in Zernio sequence: ${err.message}`;
     }
   },
   {
     name: "linkedin_outreach",
-    description: "Enroll a prospect into an automated LinkedIn or Email sequence. Use this to start the agency's automated outreach process for a specific lead. Keywords: start sequence, enroll lead, outreach, automate contact.",
+    description: "Enroll a contact into an automated outreach sequence via Zernio. Use this for LinkedIn or Email sequences managed in your Zernio dashboard.",
     schema: z.object({ 
-      sequenceId: z.string().describe("The ID or exact title of the sequence to enroll them in."), 
-      leadName: z.string().optional().describe("The name of the lead to enroll (if leadId is unknown)."),
-      leadId: z.number().optional().describe("The database ID of the lead (preferred).")
+      contactEmail: z.string().describe("The email of the contact to enroll."),
+      sequenceId: z.string().describe("The Zernio Sequence ID.")
     })
   }
 );
