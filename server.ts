@@ -50,33 +50,17 @@ async function startServer() {
   // 1. GLOBAL MIDDLEWARE
   app.use(express.json({ limit: "5mb" }));
 
-  // 2. READINESS GUARD
-  // Returns 503 for non-essential /api/* routes until DB bootstrap completes.
-  let isReady = false;
-  app.use((req, res, next) => {
-    // Always allow non-API requests (static assets, etc.)
-    if (!req.path.startsWith("/api")) {
-      return next();
-    }
-
-    // Allow essential routes to bypass readiness
-    const isEssential = (
-      req.method === "DELETE" || // Allow workspace deletions
-      req.path === "/api/auth/me" ||
-      req.path.includes("/status") ||
-      req.path.includes("/members") ||
-      // LinkedIn OAuth: connect initiation and callback must be reachable before
-      // bootstrap completes, since the user can trigger them immediately on page
-      // load and LinkedIn's redirect can arrive at any point.
-      req.path.includes("/integrations/linkedin/connect") ||
-      req.path === "/api/auth/linkedin/callback"
-    );
-
-    if (!isReady && !isEssential) {
-      res.status(503).json({ error: "Server is starting up, please retry shortly." });
-      return;
-    }
-    next();
+  // 2. LIVENESS ENDPOINT
+  // Tracks bootstrap state for observability — does NOT block any traffic.
+  // Blocking requests during bootstrap caused 503 storms on every cold start;
+  // individual routes will 500 on DB errors if something is truly wrong.
+  let bootstrapDone = false;
+  let bootstrapError: string | null = null;
+  app.get("/api/health", (_req, res) => {
+    res.json({
+      status: bootstrapDone ? (bootstrapError ? "degraded" : "ok") : "starting",
+      bootstrapError: bootstrapError ?? undefined,
+    });
   });
 
   // 3. SECURITY & LOGGING TOOLS
@@ -215,20 +199,17 @@ async function startServer() {
     migrateBase64ToGCS(db).catch(err => console.error("GCS migration error:", err));
     startTaskEngine({ db, pollIntervalMs: 60000, aiClient, googleClientId: process.env.GOOGLE_CLIENT_ID, googleClientSecret: process.env.GOOGLE_CLIENT_SECRET });
     
-    // Mark as ready ONLY after critical DB work is done
-    isReady = true;
+    bootstrapDone = true;
     console.log(`Server fully ready on port ${PORT}`);
   } catch (err: any) {
     // Log the full error so Cloud Logging captures the real cause
-    console.error("CRITICAL: Bootstrap failure — server starting in degraded mode:", err?.message || err);
+    bootstrapError = err?.message || String(err);
+    console.error("CRITICAL: Bootstrap failure — server starting in degraded mode:", bootstrapError);
     console.error(err?.stack || "(no stack)");
-    // Set ready anyway: all tables are created with IF NOT EXISTS, so the DB
-    // is in a consistent-enough state to serve requests. Keeping isReady=false
-    // permanently would make the entire app return 503 forever, hiding the real
-    // error and blocking users. Individual routes will 500 on missing schema,
-    // which is far more debuggable than a global lockout.
-    isReady = true;
-    console.warn("Server marked ready in degraded mode. Check logs for bootstrap errors above.");
+    // Do NOT crash or block: tables use IF NOT EXISTS so the DB is in a
+    // consistent-enough state. Individual routes will surface their own errors.
+    bootstrapDone = true;
+    console.warn("Server running in degraded mode. Check /api/health for details.");
   }
 
   // Error handler
