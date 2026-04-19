@@ -24,6 +24,8 @@ type RegisterIntegrationsRoutesArgs = {
   requireAuth: express.RequestHandler;
   requireWorkspaceAccess: express.RequestHandler;
   requireWorkspaceRole: (...roles: string[]) => express.RequestHandler;
+  linkedinClientId?: string;
+  linkedinClientSecret?: string;
 };
 
 export function registerIntegrationsRoutes({
@@ -35,6 +37,8 @@ export function registerIntegrationsRoutes({
   requireAuth,
   requireWorkspaceAccess,
   requireWorkspaceRole,
+  linkedinClientId,
+  linkedinClientSecret,
 }: RegisterIntegrationsRoutesArgs) {
   const WEBHOOK_PROVIDERS = ["hubspot", "wordpress", "linkedin"] as const;
   type WebhookProvider = typeof WEBHOOK_PROVIDERS[number];
@@ -1337,6 +1341,11 @@ export function registerIntegrationsRoutes({
             updated_at = CURRENT_TIMESTAMP
         `).run(req.workspaceId, accessToken.trim(), verified.authorUrn, verified.accountName);
 
+        writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.linkedin.connected", "linkedin_connections", {
+          authorUrn: verified.authorUrn,
+          accountName: verified.accountName,
+        });
+
         return res.json({
           connected: true,
           authorUrn: verified.authorUrn,
@@ -1784,6 +1793,7 @@ export function registerIntegrationsRoutes({
     requireWorkspaceAccess,
     requireWorkspaceRole("owner", "admin"), async (req: any, res) => {
       await db.prepare("DELETE FROM linkedin_connections WHERE workspace_id = ?").run(req.workspaceId);
+      writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.linkedin.disconnected", "linkedin_connections", {});
       return res.json({ success: true });
     },
   );
@@ -2180,4 +2190,108 @@ export function registerIntegrationsRoutes({
       }
     },
   );
+
+  // ============================================================================
+  // LinkedIn OAuth Connection
+  // ============================================================================
+
+  app.get(
+    "/api/workspaces/:id/integrations/linkedin/connect",
+    requireAuth,
+    requireWorkspaceAccess,
+    requireWorkspaceRole("owner", "admin"),
+    async (req: any, res) => {
+      if (!linkedinClientId || !linkedinClientSecret) {
+        return res.status(500).json({ error: "LinkedIn OAuth credentials not configured" });
+      }
+      
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const redirectUri = `${baseUrl}/api/auth/linkedin/callback`;
+      const statePayload = Buffer.from(JSON.stringify({ type: "linkedin_workspace", workspaceId: Number(req.workspaceId) })).toString("base64");
+      
+      const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${linkedinClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${statePayload}&scope=openid%20profile%20email%20w_member_social`;
+      res.json({ url });
+    }
+  );
+
+  app.get("/api/auth/linkedin/callback", async (req, res) => {
+    const { code, state, error, error_description } = req.query;
+    if (error) {
+      return res.send(`<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_ERROR', error: '${error_description || error}', provider: 'linkedin'},'*');window.close();</script></body></html>`);
+    }
+
+    if (!code || !state) {
+      return res.status(400).send("Missing code or state");
+    }
+
+    let workspaceId: number | null = null;
+    try {
+      const parsed = JSON.parse(Buffer.from(state as string, "base64").toString());
+      if (parsed.type === "linkedin_workspace" && parsed.workspaceId) {
+        workspaceId = parsed.workspaceId;
+      }
+    } catch {
+      return res.status(400).send("Invalid state");
+    }
+
+    if (!workspaceId) {
+      return res.status(400).send("Missing workspace ID in state");
+    }
+
+    try {
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const redirectUri = `${baseUrl}/api/auth/linkedin/callback`;
+
+      // Exchange code for token
+      const tokenResponse = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code: code as string,
+          client_id: linkedinClientId!,
+          client_secret: linkedinClientSecret!,
+          redirect_uri: redirectUri,
+        }).toString(),
+      });
+
+      if (!tokenResponse.ok) {
+        const errData = await tokenResponse.text();
+        throw new Error(`Failed to get access token: ${errData}`);
+      }
+
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+
+      // Get user info
+      const userInfoResponse = await fetch("https://api.linkedin.com/v2/userinfo", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!userInfoResponse.ok) {
+        const errData = await userInfoResponse.text();
+        throw new Error(`Failed to get user info: ${errData}`);
+      }
+
+      const userInfo = await userInfoResponse.json();
+      const authorUrn = `urn:li:person:${userInfo.sub}`;
+      const accountName = userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`;
+
+      // Upsert connection
+      await db.prepare(`
+        INSERT INTO linkedin_connections (workspace_id, access_token, author_urn, account_name)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(workspace_id) DO UPDATE SET
+          access_token = excluded.access_token,
+          author_urn = excluded.author_urn,
+          account_name = excluded.account_name,
+          updated_at = CURRENT_TIMESTAMP
+      `).run(workspaceId, accessToken, authorUrn, accountName);
+
+      return res.send("<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_SUCCESS', provider: 'linkedin'},'*');window.close();</script></body></html>");
+    } catch (err: any) {
+      console.error("LinkedIn OAuth error:", err);
+      return res.send(`<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_ERROR', error: '${err.message.replace(/'/g, "\\'")}', provider: 'linkedin'},'*');window.close();</script></body></html>`);
+    }
+  });
 }

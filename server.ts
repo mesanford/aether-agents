@@ -154,6 +154,8 @@ async function startServer() {
     db,
     googleClientId: process.env.GOOGLE_CLIENT_ID,
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    linkedinClientId: process.env.LINKEDIN_CLIENT_ID,
+    linkedinClientSecret: process.env.LINKEDIN_CLIENT_SECRET,
     getUserIdFromRequest,
     requireAuth: requireAuth as express.RequestHandler,
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
