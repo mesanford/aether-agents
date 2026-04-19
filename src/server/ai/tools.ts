@@ -1004,6 +1004,56 @@ export const manageNotionTool = tool(
   }
 );
 
+/**
+ * Twilio helper (adapted from integrationsRoutes)
+ */
+async function sendTwilioSms(accountSid: string, authToken: string, from: string, to: string, body: string) {
+  const auth = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`;
+  const payload = new URLSearchParams({ From: from, To: to, Body: body });
+
+  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+    method: "POST",
+    headers: {
+      Authorization: auth,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: payload,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `Twilio API error: ${response.status}`);
+  }
+
+  return response.json() as Promise<{ sid?: string; status?: string }>;
+}
+
+export const sendSmsTool = tool(
+  async ({ to, body }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const row = await db.prepare("SELECT account_sid, auth_token, from_number FROM twilio_connections WHERE workspace_id = ?").get(workspaceId) as any;
+      if (!row) {
+        return "[FAILED] Twilio is not connected. The user must connect it via Settings -> Integrations.";
+      }
+
+      const message = await sendTwilioSms(row.account_sid, row.auth_token, row.from_number, to.trim(), body.trim());
+      return `[SUCCESS] SMS sent to ${to}. SID: ${message.sid}. Status: ${message.status}`;
+    } catch (err: any) {
+      console.error("send_sms tool error:", err);
+      return `[FAILED] Could not send SMS: ${err.message}`;
+    }
+  },
+  {
+    name: "send_sms",
+    description: "Send a real SMS message to a phone number. Use this for urgent notifications, lead follow-ups, or meeting reminders. Keywords: sms, text, phone message, send mobile.",
+    schema: z.object({ 
+      to: z.string().describe("Recipient's phone number in E.164 format (e.g. +15551234567)."), 
+      body: z.string().describe("The text message content.") 
+    })
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   searchGoogleDriveTool,
@@ -1025,5 +1075,6 @@ export const allTools = [
   sendSlackMessageTool,
   listSlackChannelsTool,
   sendTeamsMessageTool,
-  manageNotionTool
+  manageNotionTool,
+  sendSmsTool
 ];

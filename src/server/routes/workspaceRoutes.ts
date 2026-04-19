@@ -299,7 +299,6 @@ export function registerWorkspaceRoutes({
         "DELETE FROM wordpress_connections WHERE workspace_id = ?",
         "DELETE FROM hubspot_connections WHERE workspace_id = ?",
         "DELETE FROM linkedin_connections WHERE workspace_id = ?",
-        "DELETE FROM buffer_connections WHERE workspace_id = ?",
         "DELETE FROM twilio_connections WHERE workspace_id = ?",
         "DELETE FROM slack_connections WHERE workspace_id = ?",
         "DELETE FROM teams_connections WHERE workspace_id = ?",

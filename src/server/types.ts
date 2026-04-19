@@ -20,7 +20,6 @@ export type ConnectedServices = {
   teams?: boolean;
   notion?: boolean;
   linkedin?: boolean;
-  buffer?: boolean;
   twilio?: boolean;
   wordpress?: boolean;
   hubspot?: boolean;

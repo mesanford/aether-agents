@@ -163,18 +163,16 @@ export default function App() {
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/teams/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/notion/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/linkedin/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
-      apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/buffer/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false, profiles: [] })),
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/twilio/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/wordpress/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
       apiFetch(`/api/workspaces/${activeWorkspaceId}/integrations/hubspot/status`, { token, onAuthFailure: () => handleLogout() }).catch(() => ({ connected: false })),
-    ]).then(([slackData, teamsData, notionData, linkedinData, bufferData, twilioData, wordpressData, hubspotData]: [any, any, any, any, any, any, any, any]) => {
+    ]).then(([slackData, teamsData, notionData, linkedinData, twilioData, wordpressData, hubspotData]: [any, any, any, any, any, any, any]) => {
       setConnectedServices((current) => ({
         ...current,
         slack: slackData?.connected ?? false,
         teams: teamsData?.connected ?? false,
         notion: notionData?.connected ?? false,
         linkedin: linkedinData?.connected ?? false,
-        buffer: bufferData?.connected ?? false,
         twilio: twilioData?.connected ?? false,
         wordpress: wordpressData?.connected ?? false,
         hubspot: hubspotData?.connected ?? false,

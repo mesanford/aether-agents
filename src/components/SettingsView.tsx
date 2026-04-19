@@ -128,14 +128,11 @@ interface GoogleDefaults {
 
 interface AutomationSettings {
   linkedinMode: 'off' | 'publish';
-  bufferMode: 'off' | 'queue';
   teamsMode: 'off' | 'send';
   notionMode: 'off' | 'create';
-  bufferProfileId: string | null;
   notionParentPageId: string | null;
   requireArtifactImage: boolean;
   approvalModeLinkedin: 'auto' | 'approval';
-  approvalModeBuffer: 'auto' | 'approval';
 }
 
 interface IntegrationHealthFailure {
@@ -262,19 +259,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [wordpressForm, setWordpressForm] = useState({ siteUrl: '', username: '', appPassword: '' });
   const [linkedinSaving, setLinkedinSaving] = useState(false);
   const [linkedinDisconnecting, setLinkedinDisconnecting] = useState(false);
-  const [isBufferModalOpen, setIsBufferModalOpen] = useState(false);
   const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
   const [isTeamsModalOpen, setIsTeamsModalOpen] = useState(false);
   const [isNotionModalOpen, setIsNotionModalOpen] = useState(false);
-  const [bufferSaving, setBufferSaving] = useState(false);
   const [slackSaving, setSlackSaving] = useState(false);
   const [teamsSaving, setTeamsSaving] = useState(false);
   const [notionSaving, setNotionSaving] = useState(false);
-  const [bufferDisconnecting, setBufferDisconnecting] = useState(false);
   const [slackDisconnecting, setSlackDisconnecting] = useState(false);
   const [teamsDisconnecting, setTeamsDisconnecting] = useState(false);
   const [notionDisconnecting, setNotionDisconnecting] = useState(false);
-  const [bufferAccessToken, setBufferAccessToken] = useState('');
   const [slackForm, setSlackForm] = useState({ botToken: '', defaultChannel: '' });
   const [teamsForm, setTeamsForm] = useState({ webhookUrl: '', defaultChannelName: '' });
   const [notionForm, setNotionForm] = useState({ integrationToken: '', defaultParentPageId: '' });
@@ -286,11 +279,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [twilioSaving, setTwilioSaving] = useState(false);
   const [twilioDisconnecting, setTwilioDisconnecting] = useState(false);
   const [twilioForm, setTwilioForm] = useState({ accountSid: '', authToken: '', fromNumber: '' });
-  const [analyticsProperties, setAnalyticsProperties] = useState<AnalyticsProperty[]>([]);
-  const [searchConsoleSites, setSearchConsoleSites] = useState<SearchConsoleSite[]>([]);
-  const [googleVoiceStatus, setGoogleVoiceStatus] = useState({ connected: false, phoneNumber: '' });
-  const [isGoogleVoiceModalOpen, setIsGoogleVoiceModalOpen] = useState(false);
-  const [googleVoiceForm, setGoogleVoiceForm] = useState({ phoneNumber: '+19206058097' });
 
   const [isGeneratingInvite, setIsGeneratingInvite] = useState<string | null>(null);
 
@@ -315,14 +303,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings>({
     linkedinMode: 'off',
-    bufferMode: 'off',
     teamsMode: 'off',
     notionMode: 'off',
-    bufferProfileId: null,
     notionParentPageId: null,
     requireArtifactImage: false,
     approvalModeLinkedin: 'auto',
-    approvalModeBuffer: 'auto',
   });
   const [savingAutomationSettings, setSavingAutomationSettings] = useState(false);
   const [integrationsHealth, setIntegrationsHealth] = useState<IntegrationHealth | null>(null);
@@ -352,10 +337,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           token,
           onAuthFailure: () => onLogout(),
         }).catch(() => ({ connected: false, authorUrn: null, accountName: null }));
-        const buffer = await apiFetch<BufferStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/buffer/status`, {
-          token,
-          onAuthFailure: () => onLogout(),
-        }).catch(() => ({ connected: false, profiles: [] }));
         const slack = await apiFetch<SlackStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/slack/status`, {
           token,
           onAuthFailure: () => onLogout(),
@@ -387,27 +368,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         const automation = await apiFetch<AutomationSettings>(`/api/workspaces/${activeWorkspaceId}/automation-settings`, {
           token,
           onAuthFailure: () => onLogout(),
-        }).catch(() => ({ linkedinMode: 'off', bufferMode: 'off', teamsMode: 'off', notionMode: 'off', bufferProfileId: null, notionParentPageId: null, requireArtifactImage: false }));
+        }).catch(() => ({ linkedinMode: 'off', teamsMode: 'off', notionMode: 'off', notionParentPageId: null, requireArtifactImage: false }));
 
-        setLinkedinStatus(linkedin);  setBufferStatus({ connected: buffer.connected, profiles: Array.isArray(buffer.profiles) ? buffer.profiles : [] });
-      setSlackStatus(slack);
-  setTeamsStatus(teams);
+        setLinkedinStatus(linkedin);
+        setSlackStatus(slack);
+        setTeamsStatus(teams);
         setNotionStatus(notion);
-      setTwilioStatus(twilio);
-      setWebhookSecrets(Array.isArray(webhookSecretResponse.providers) ? webhookSecretResponse.providers : []);
-      setIntegrationsHealth(health);
+        setTwilioStatus(twilio);
+        setWebhookSecrets(Array.isArray(webhookSecretResponse.providers) ? webhookSecretResponse.providers : []);
+        setIntegrationsHealth(health);
         setWordpressStatus(wordpress);
         setHubspotStatus(hubspot);
         setAutomationSettings({
           linkedinMode: automation.linkedinMode === 'publish' ? 'publish' : 'off',
-          bufferMode: automation.bufferMode === 'queue' ? 'queue' : 'off',
           teamsMode: automation.teamsMode === 'send' ? 'send' : 'off',
           notionMode: automation.notionMode === 'create' ? 'create' : 'off',
-          bufferProfileId: automation.bufferProfileId || null,
           notionParentPageId: automation.notionParentPageId || null,
           requireArtifactImage: Boolean(automation.requireArtifactImage),
           approvalModeLinkedin: (automation as any).approvalModeLinkedin === 'approval' ? 'approval' : 'auto',
-          approvalModeBuffer: (automation as any).approvalModeBuffer === 'approval' ? 'approval' : 'auto',
         });
         onConnectedServicesChange((current: any) => ({
           ...current,
@@ -418,7 +396,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           teams: teams.connected,
           notion: notion.connected,
           linkedin: linkedin.connected,
-          buffer: buffer.connected,
           twilio: twilio.connected,
           wordpress: wordpress.connected,
           hubspot: hubspot.connected,
@@ -969,22 +946,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       isLoading: linkedinSaving || linkedinDisconnecting || isGeneratingInvite === 'linkedin',
     },
     {
-      id: 'buffer',
-      category: 'Social & Content',
-      name: 'Buffer',
-      icon: ExternalLink,
-      description: 'Queue social posts to your connected Buffer channels',
-      connected: bufferStatus.connected,
-      allowReconnect: true,
-      services: bufferStatus.profiles.map((profile) => ({
-        name: profile.formattedUsername || profile.serviceUsername || `${profile.service} profile`,
-        connected: true,
-      })),
-      onConnect: () => setIsBufferModalOpen(true),
-      onDisconnect: handleDisconnectBuffer,
-      isLoading: bufferSaving || bufferDisconnecting,
-    },
-    {
       id: 'slack',
       category: 'Team & Productivity',
       name: 'Slack',
@@ -1051,31 +1012,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     {
       id: 'twilio',
       category: 'CRM & Communications',
-      name: 'Twilio SMS',
-      icon: Mail,
-      description: 'Send SMS updates and notifications from agent workflows',
+      name: 'Twilio (Phone & SMS)',
+      icon: Phone,
+      description: 'Manage phone lines and SMS workflows for the Receptionist agent',
       connected: twilioStatus.connected,
       allowReconnect: true,
       services: [
-        twilioStatus.accountSid ? `SID ${twilioStatus.accountSid}` : null,
+        twilioStatus.accountSid ? `SID ${twilioStatus.accountSid.substring(0, 8)}...` : null,
         twilioStatus.fromNumber,
-      ].filter(Boolean).map((value) => ({ name: String(value), connected: true })),
+      ].filter((val): val is string => typeof val === 'string' && val.length > 0).map((value) => ({ name: value, connected: true })),
       onConnect: () => setIsTwilioModalOpen(true),
       onDisconnect: handleDisconnectTwilio,
       isLoading: twilioSaving || twilioDisconnecting,
-    },
-    {
-      id: 'googlevoice',
-      category: 'CRM & Communications',
-      name: 'Google Voice',
-      icon: Phone,
-      description: 'Select a Google Voice number for your Receptionist agent',
-      connected: googleVoiceStatus.connected,
-      allowReconnect: true,
-      services: googleVoiceStatus.phoneNumber ? [{ name: googleVoiceStatus.phoneNumber, connected: true }] : [],
-      onConnect: () => setIsGoogleVoiceModalOpen(true),
-      onDisconnect: () => setGoogleVoiceStatus({ connected: false, phoneNumber: '' }),
-      isLoading: false,
     },
     {
       id: 'wordpress',
@@ -1470,37 +1418,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Buffer Mode</label>
-                    <select
-                      value={automationSettings.bufferMode}
-                      onChange={(event) => setAutomationSettings((current) => ({
-                        ...current,
-                        bufferMode: event.target.value === 'queue' ? 'queue' : 'off',
-                      }))}
-                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
-                    >
-                      <option value="off">Off</option>
-                      <option value="queue">Auto queue</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Buffer Approval</label>
-                    <select
-                      value={automationSettings.approvalModeBuffer}
-                      onChange={(event) => setAutomationSettings((current) => ({
-                        ...current,
-                        approvalModeBuffer: event.target.value === 'approval' ? 'approval' : 'auto',
-                      }))}
-                      disabled={automationSettings.bufferMode === 'off'}
-                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50"
-                    >
-                      <option value="auto">Auto-queue (no review)</option>
-                      <option value="approval">Require approval</option>
-                    </select>
-                  </div>
-
-                  <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Teams Mode</label>
                     <select
                       value={automationSettings.teamsMode}
@@ -1527,25 +1444,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     >
                       <option value="off">Off</option>
                       <option value="create">Auto create page</option>
-                    </select>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-stone-400">Default Buffer Profile</label>
-                    <select
-                      value={automationSettings.bufferProfileId || ''}
-                      onChange={(event) => setAutomationSettings((current) => ({
-                        ...current,
-                        bufferProfileId: event.target.value || null,
-                      }))}
-                      className="w-full rounded-xl border border-warm-200 bg-warm-50 px-3 py-2 text-sm text-stone-700 focus:border-transparent focus:ring-2 focus:ring-brand-500 outline-none"
-                    >
-                      <option value="">Use Buffer default profile</option>
-                      {bufferStatus.profiles.map((profile) => (
-                        <option key={profile.id} value={profile.id}>
-                          {profile.formattedUsername || profile.serviceUsername || `${profile.service} profile`}
-                        </option>
-                      ))}
                     </select>
                   </div>
 
