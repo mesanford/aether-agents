@@ -1088,7 +1088,118 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </motion.div>
           </div>
         )}
-        {/* ... Other Modals ... */}
+
+        {isTeamsModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold text-stone-900 mb-4">Connect Teams</h3>
+              <div className="space-y-4">
+                <textarea placeholder="Webhook URL" rows={3} className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={teamsForm.webhookUrl} onChange={e => setTeamsForm({...teamsForm, webhookUrl: e.target.value})} />
+                <input placeholder="Channel Name" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={teamsForm.defaultChannelName} onChange={e => setTeamsForm({...teamsForm, defaultChannelName: e.target.value})} />
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setIsTeamsModalOpen(false)} className="px-4 py-2 text-stone-500 font-bold">Cancel</button>
+                  <button onClick={handleConnectTeams} disabled={teamsSaving} className="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold">Connect</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isNotionModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold text-stone-900 mb-4">Connect Notion</h3>
+              <div className="space-y-4">
+                <textarea placeholder="Integration Token" rows={3} className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={notionForm.integrationToken} onChange={e => setNotionForm({...notionForm, integrationToken: e.target.value})} />
+                <input placeholder="Default Parent Page ID" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={notionForm.defaultParentPageId} onChange={e => setNotionForm({...notionForm, defaultParentPageId: e.target.value})} />
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setIsNotionModalOpen(false)} className="px-4 py-2 text-stone-500 font-bold">Cancel</button>
+                  <button onClick={handleConnectNotion} disabled={notionSaving} className="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold">Connect</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isHubSpotModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold text-stone-900 mb-4">Connect HubSpot</h3>
+              <div className="space-y-4">
+                <textarea placeholder="Private App Token" rows={4} className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={hubspotToken} onChange={e => setHubspotToken(e.target.value)} />
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setIsHubSpotModalOpen(false)} className="px-4 py-2 text-stone-500 font-bold">Cancel</button>
+                  <button onClick={handleConnectHubSpot} disabled={hubspotSaving} className="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold">Connect</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isTwilioModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold text-stone-900 mb-4">Connect Twilio</h3>
+              <div className="space-y-4">
+                <input placeholder="Account SID" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={twilioForm.accountSid} onChange={e => setTwilioForm({...twilioForm, accountSid: e.target.value})} />
+                <input type="password" placeholder="Auth Token" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={twilioForm.authToken} onChange={e => setTwilioForm({...twilioForm, authToken: e.target.value})} />
+                <input placeholder="From Number (+1...)" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={twilioForm.fromNumber} onChange={e => setTwilioForm({...twilioForm, fromNumber: e.target.value})} />
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setIsTwilioModalOpen(false)} className="px-4 py-2 text-stone-500 font-bold">Cancel</button>
+                  <button onClick={handleConnectTwilio} disabled={twilioSaving} className="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold">Connect</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isWordPressModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold text-stone-900 mb-4">Connect WordPress</h3>
+              <div className="space-y-4">
+                <input placeholder="Site URL (https://...)" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={wordpressForm.siteUrl} onChange={e => setWordpressForm({...wordpressForm, siteUrl: e.target.value})} />
+                <input placeholder="Username" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={wordpressForm.username} onChange={e => setWordpressForm({...wordpressForm, username: e.target.value})} />
+                <input type="password" placeholder="Application Password" className="w-full p-3 bg-warm-50 border border-warm-200 rounded-xl text-sm" value={wordpressForm.appPassword} onChange={e => setWordpressForm({...wordpressForm, appPassword: e.target.value})} />
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setIsWordPressModalOpen(false)} className="px-4 py-2 text-stone-500 font-bold">Cancel</button>
+                  <button onClick={handleConnectWordPress} disabled={wordpressSaving} className="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold">Connect</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showDeleteWorkspaceModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl shadow-xl p-8">
+              <h3 className="text-xl font-bold text-red-600 mb-4">Delete Workspace?</h3>
+              <p className="text-stone-600 mb-8 font-medium leading-relaxed">Are you absolutely sure? All agents, tasks, leads, and integration data will be permanently wiped.</p>
+              <div className="flex justify-end gap-3 pt-6 border-t border-warm-200">
+                <button onClick={() => setShowDeleteWorkspaceModal(false)} disabled={isDeletingWorkspace} className="px-4 py-2 text-stone-500 font-bold">Cancel</button>
+                <button 
+                  onClick={async () => {
+                    setIsDeletingWorkspace(true);
+                    try {
+                      await apiFetch(`/api/workspaces/${activeWorkspaceId}`, { method: 'DELETE', token: token || undefined });
+                      toast.success('Workspace deleted.');
+                      window.location.reload();
+                    } catch (err: any) {
+                      toast.error(err.message || 'Failed to delete workspace.');
+                      setIsDeletingWorkspace(false);
+                      setShowDeleteWorkspaceModal(false);
+                    }
+                  }}
+                  disabled={isDeletingWorkspace}
+                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold flex items-center gap-2"
+                >
+                  {isDeletingWorkspace && <Loader className="w-4 h-4 animate-spin" />}
+                  Delete Everything
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
