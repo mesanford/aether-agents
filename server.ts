@@ -62,9 +62,14 @@ async function startServer() {
     // Allow essential routes to bypass readiness
     const isEssential = (
       req.method === "DELETE" || // Allow workspace deletions
-      req.path === "/api/auth/me" || 
-      req.path.includes("/status") || 
-      req.path.includes("/members")
+      req.path === "/api/auth/me" ||
+      req.path.includes("/status") ||
+      req.path.includes("/members") ||
+      // LinkedIn OAuth: connect initiation and callback must be reachable before
+      // bootstrap completes, since the user can trigger them immediately on page
+      // load and LinkedIn's redirect can arrive at any point.
+      req.path.includes("/integrations/linkedin/connect") ||
+      req.path === "/api/auth/linkedin/callback"
     );
 
     if (!isReady && !isEssential) {

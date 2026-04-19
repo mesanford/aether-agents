@@ -1,0 +1,45 @@
+114-export async function bootstrapDatabase(db: PostgresShim) {
+115-  async function hasColumn(tableName: string, colName: string): Promise<boolean> {
+116:    const res = await db.prepare("SELECT column_name FROM information_schema.columns WHERE table_name = ? AND column_name = ?").get(tableName, colName);
+117-    return !!res;
+118-  }
+--
+452-              }).join('\n\n');
+453-              
+454:              await db.prepare("UPDATE agents SET instructions = ? WHERE id = ?").run(instructions, agent.id);
+455-            }
+456-          } catch (err) {
+--
+674-  `);
+675-  await db.exec("CREATE INDEX IF NOT EXISTS idx_automation_jobs_ready ON automation_jobs(status, next_run_at)");
+676:  await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_jobs_dedupe ON automation_jobs(workspace_id, action, dedupe_key) "); // SQLite WHERE dedupe_key IS NOT NULL is complex in PG without partial index, we omit for schema simplicity
+677-
+678-  try {
+--
+698-  const usersWithoutWorkspaces = await db.prepare(`
+699-    SELECT id, name, email FROM users
+700:    WHERE id NOT IN (SELECT user_id FROM workspace_members)
+701-  `).all() as Array<{ id: number; name: string | null; email: string }>;
+702-
+--
+710-  const defaultWorkspace = await db.prepare("SELECT id FROM workspaces ORDER BY id ASC LIMIT 1").get() as { id: number } | undefined;
+711-  if (defaultWorkspace?.id) {
+712:    await db.prepare("UPDATE leads SET workspace_id = ? WHERE workspace_id IS NULL").run(defaultWorkspace.id);
+713-  }
+714-
+715-  async function seedWorkspace(workspaceId: number | string | bigint) {
+716:    const agentCount = await db.prepare("SELECT COUNT(*) as count FROM agents WHERE workspace_id = ?").get(workspaceId) as { count: string };
+717-    if (Number(agentCount?.count) > 0) return;
+718-
+--
+753-      { prefix: 'receptionist:%',         avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Rachel&backgroundColor=ffd6d6' },
+754-    ];
+755:    const updateAgentAvatar = db.prepare("UPDATE agents SET avatar = ? WHERE id LIKE ? AND avatar LIKE '%/7.x/%'");
+756-    for (const { prefix, avatar } of agentAvatarMigrations) {
+757-      await updateAgentAvatar.run(avatar, prefix);
+--
+765-      { senderId: 'receptionist', avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Rachel&backgroundColor=ffd6d6' },
+766-    ];
+767:    const updateMessageAvatar = db.prepare("UPDATE messages SET sender_avatar = ? WHERE sender_id LIKE ? AND sender_avatar LIKE '%/7.x/%'");
+768-    for (const { senderId, avatar } of agentSenderAvatarMigrations) {
+769-      await updateMessageAvatar.run(avatar, `${senderId}%`);

@@ -59,6 +59,7 @@ export class PostgresShim {
       run: async (...args: any[]) => {
         // Flatten args if they are passed as an array to simulate better-sqlite3 flexible args
         const flatArgs = Array.isArray(args[0]) && args.length === 1 ? args[0] : args;
+        console.log("RUN SQL:", pgSql, flatArgs);
         const result = await this.pool.query(pgSql, flatArgs);
         // Better sqlite3 `run` returns { changes, lastInsertRowid }.
         // Note: lastInsertRowid won't be accurate unless `RETURNING id` is appended manually to the query, 
@@ -67,11 +68,13 @@ export class PostgresShim {
       },
       get: async (...args: any[]) => {
         const flatArgs = Array.isArray(args[0]) && args.length === 1 ? args[0] : args;
+        console.log("GET SQL:", pgSql, flatArgs);
         const { rows } = await this.pool.query(pgSql, flatArgs);
         return rows[0] || undefined;
       },
       all: async (...args: any[]) => {
         const flatArgs = Array.isArray(args[0]) && args.length === 1 ? args[0] : args;
+        console.log("ALL SQL:", pgSql, flatArgs);
         const { rows } = await this.pool.query(pgSql, flatArgs);
         return rows;
       }
@@ -83,6 +86,7 @@ export class PostgresShim {
    */
   async exec(sql: string) {
     // Often contains multiple statements delimited by ;
+    console.log("EXEC SQL:", sql);
     await this.pool.query(sql);
   }
 }
