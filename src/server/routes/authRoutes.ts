@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
+import { initializeWorkspaceFolder } from "../../services/googleDriveService.ts";
 import type { PostgresShim } from "../db.ts";
 
 type RegisterAuthRoutesArgs = {
@@ -187,12 +188,14 @@ export function registerAuthRoutes({
 
     let isWorkspaceConnect = false;
     let workspaceUserId: number | null = null;
+    let connectWorkspaceId: number | null = null;
     if (state) {
       try {
         const parsed = JSON.parse(Buffer.from(state as string, "base64").toString());
         if (parsed.type === "workspace") {
           isWorkspaceConnect = true;
           workspaceUserId = parsed.userId;
+          connectWorkspaceId = parsed.workspaceId ?? null;
         }
       } catch {
         // ignore invalid state payload
@@ -213,6 +216,24 @@ export function registerAuthRoutes({
             expiry_date = excluded.expiry_date,
             scopes = excluded.scopes
         `).run(workspaceUserId, tokens.access_token, tokens.refresh_token || null, tokens.expiry_date || null, tokens.scope || "");
+
+        // If a workspaceId was passed, initialize the Knowledge Drive folder using the fresh tokens
+        if (connectWorkspaceId) {
+          try {
+            const authClient2 = new OAuth2Client(googleClientId, googleClientSecret, redirectUri);
+            authClient2.setCredentials(tokens);
+            const workspace = await db.prepare("SELECT name FROM workspaces WHERE id = ?").get(connectWorkspaceId) as any;
+            const workspaceName = workspace?.name || "Workspace";
+            const folderId = await initializeWorkspaceFolder(authClient2, workspaceName);
+            await db.prepare(
+              "UPDATE workspaces SET google_folder_id = ? WHERE id = ?"
+            ).run(folderId, connectWorkspaceId);
+          } catch (folderErr) {
+            console.error("[Google] Failed to initialize Knowledge Drive folder:", folderErr);
+            // Non-fatal — tokens are saved, folder can be retried via /init
+          }
+        }
+
         return res.send("<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_SUCCESS'},'*');window.close();</script></body></html>");
       }
 
