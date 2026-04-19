@@ -1200,24 +1200,29 @@ export function registerIntegrationsRoutes({
   );
 
   app.get("/api/workspaces/:id/integrations/webhooks/secrets", requireAuth, requireWorkspaceAccess, async (req: any, res) => {
-    const rows = (await db.prepare(`
-      SELECT provider, secret, rotated_at
-      FROM workspace_webhook_secrets
-      WHERE workspace_id = ? AND is_active = true
-      ORDER BY provider ASC
-    `).all?.(req.workspaceId) || []) as Array<{ provider: string; secret: string; rotated_at: string | null }>;
+    try {
+      const rows = (await db.prepare(`
+        SELECT provider, secret, rotated_at
+        FROM workspace_webhook_secrets
+        WHERE workspace_id = ? AND is_active = 1
+        ORDER BY provider ASC
+      `).all(req.workspaceId)) as Array<{ provider: string; secret: string; rotated_at: string | null }>;
 
-    return res.json({
-      providers: WEBHOOK_PROVIDERS.map((provider) => {
-        const row = rows.find((item) => item.provider === provider);
-        return {
-          provider,
-          configured: Boolean(row),
-          lastRotatedAt: row?.rotated_at || null,
-          secretPreview: row?.secret ? `••••${row.secret.slice(-6)}` : null,
-        };
-      }),
-    });
+      return res.json({
+        providers: WEBHOOK_PROVIDERS.map((provider) => {
+          const row = rows.find((item) => item.provider === provider);
+          return {
+            provider,
+            configured: Boolean(row),
+            lastRotatedAt: row?.rotated_at || null,
+            secretPreview: row?.secret ? `••••${row.secret.slice(-6)}` : null,
+          };
+        }),
+      });
+    } catch (err) {
+      console.error("[webhooks/secrets] GET failed:", err);
+      return res.status(500).json({ error: "Failed to load webhook secrets" });
+    }
   });
 
   app.post(
@@ -1232,12 +1237,12 @@ export function registerIntegrationsRoutes({
 
       const secret = generateSecretToken();
       await db.prepare(
-        "UPDATE workspace_webhook_secrets SET is_active = false WHERE workspace_id = ? AND provider = ? AND is_active = true",
+        "UPDATE workspace_webhook_secrets SET is_active = 0 WHERE workspace_id = ? AND provider = ? AND is_active = 1",
       ).run(req.workspaceId, provider);
 
       await db.prepare(`
         INSERT INTO workspace_webhook_secrets (workspace_id, provider, secret, created_by_user_id, is_active, rotated_at)
-        VALUES (?, ?, ?, ?, true, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
       `).run(req.workspaceId, provider, secret, req.userId || null);
 
       writeIntegrationAuditLog(req.workspaceId, req.userId || null, "integration.webhook_secret.rotated", "workspace_webhook_secrets", {
@@ -1270,7 +1275,7 @@ export function registerIntegrationsRoutes({
       }
 
       const activeSecretRow = await db.prepare(
-        "SELECT secret FROM workspace_webhook_secrets WHERE workspace_id = ? AND provider = ? AND is_active = true",
+        "SELECT secret FROM workspace_webhook_secrets WHERE workspace_id = ? AND provider = ? AND is_active = 1",
       ).get(workspaceId, provider) as { secret: string } | undefined;
 
       if (!activeSecretRow || activeSecretRow.secret !== receivedSecret) {

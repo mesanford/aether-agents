@@ -646,11 +646,17 @@ export async function bootstrapDatabase(db: PostgresShim) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       rotated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
-      FOREIGN KEY (created_by_user_id) REFERENCES users(id),
-      UNIQUE(workspace_id, provider, is_active)
+      FOREIGN KEY (created_by_user_id) REFERENCES users(id)
     )
   `);
-  await db.exec("CREATE INDEX IF NOT EXISTS idx_workspace_webhook_secrets_lookup ON workspace_webhook_secrets(workspace_id, provider, is_active)");
+  // Partial unique index: only one ACTIVE secret allowed per workspace+provider.
+  // Inactive (rotated) secrets can accumulate without constraint violations.
+  try {
+    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_webhook_secrets_active ON workspace_webhook_secrets(workspace_id, provider) WHERE is_active = 1");
+    await db.exec("CREATE INDEX IF NOT EXISTS idx_workspace_webhook_secrets_lookup ON workspace_webhook_secrets(workspace_id, provider, is_active)");
+  } catch (err) {
+    console.error("Migration: Could not create workspace_webhook_secrets indexes (may already exist):", err);
+  }
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS automation_jobs (
