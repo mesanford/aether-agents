@@ -98,11 +98,21 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
   // to be the first (and only) message of that role in the array.
   const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
 
-  const response = await llm.invoke([
+  // Gemini CRITICAL RULE: Function call turns (AI message with tool_calls) MUST be followed by function response turns (ToolMessage).
+  // We cannot inject a HumanMessage here if the last message was an AI message with tool calls.
+  const lastMsg = conversationMessages[conversationMessages.length - 1];
+  const isAIWithTools = lastMsg?.getType() === 'ai' && (lastMsg as AIMessage).tool_calls?.length;
+
+  const finalMessages = [
     new SystemMessage(systemPrompt),
-    ...conversationMessages,
-    new HumanMessage(`Routing context: Current Task: ${state.task}. Determine whether to end or assign the next specialist.`)
-  ]);
+    ...conversationMessages
+  ];
+
+  if (!isAIWithTools) {
+    finalMessages.push(new HumanMessage(`Routing context: Current Task: ${state.task}. Determine whether to end or assign the next specialist.`));
+  }
+
+  const response = await llm.invoke(finalMessages);
 
   try {
     let rawContent = response.content as string;
