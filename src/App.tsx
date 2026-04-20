@@ -125,14 +125,18 @@ export default function App() {
         apiFetch('/api/integrations/google/status', { token, onAuthFailure: () => handleLogout() }).catch(() => ({})),
       ]).then(([wsData, gsData]: [any, any]) => {
         setWorkspaces(wsData);
+        
+        // Ensure activeWorkspaceId is valid
         if (wsData.length > 0) {
-          const isValid = wsData.find((w: any) => w.id === activeWorkspaceId);
-          if (!isValid) {
+          const stillValid = wsData.find((w: any) => w.id === activeWorkspaceId);
+          if (!stillValid) {
             setActiveWorkspaceId(wsData[0].id);
           }
-        } else if (wsData.length === 0) {
-          setIsLoading(false);
+        } else {
+          setActiveWorkspaceId(null);
         }
+
+        setIsLoading(false);
         setConnectedServices({
           gmail: gsData.gmail,
           calendar: gsData.calendar,
@@ -503,6 +507,97 @@ export default function App() {
           <div className="w-8 h-8 border-4 border-warm-200 border-t-brand-500 rounded-full animate-spin" />
           <p className="text-sm text-stone-400 font-medium">Loading workspace...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (workspaces.length === 0) {
+    return (
+      <div className="flex h-screen bg-warm-50 items-center justify-center p-6 text-center">
+        <Toaster position="top-center" />
+        <div className="max-w-md">
+          <div className="w-20 h-20 bg-brand-100 rounded-3xl flex items-center justify-center text-brand-600 mx-auto mb-8 shadow-inner">
+            <Layout className="w-10 h-10" />
+          </div>
+          <h1 className="font-display text-3xl font-bold text-stone-900 mb-3">No workspaces found</h1>
+          <p className="text-stone-500 mb-8 leading-relaxed">It looks like you don't have any workspaces yet. Create one now to start collaborating with your agent team.</p>
+          <button
+            onClick={() => {
+              setWorkspaceNameDraft('');
+              setShowWorkspacePrompt(true);
+            }}
+            className="w-full py-4 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-2xl shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 group"
+          >
+            <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            Create Your First Workspace
+          </button>
+        </div>
+
+        {showWorkspacePrompt && (
+          <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-xl max-w-md w-full relative">
+              <button onClick={() => setShowWorkspacePrompt(false)} className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-600 hover:bg-warm-100 rounded-full transition-colors">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+              <h3 className="font-display text-xl font-bold text-stone-900 mb-2">Create Workspace</h3>
+              <p className="text-stone-500 text-sm mb-6">Enter a name for your new workspace.</p>
+              <input
+                type="text"
+                autoFocus
+                value={workspaceNameDraft}
+                onChange={(e) => setWorkspaceNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && workspaceNameDraft.trim() && token) {
+                    apiFetch('/api/workspaces', {
+                      method: 'POST',
+                      token,
+                      onAuthFailure: () => handleLogout(),
+                      body: JSON.stringify({ name: workspaceNameDraft.trim() })
+                    }).then(newWs => {
+                      setWorkspaces(prev => [...prev, newWs]);
+                      setMessages({});
+                      setActiveWorkspaceId(newWs.id);
+                      setShowWorkspacePrompt(false);
+                      toast.success('Workspace created! Agents are starting up...');
+                    });
+                  }
+                }}
+                placeholder="e.g. Acme Corp"
+                className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
+              />
+              <div className="flex items-center gap-3 mt-8">
+                <button
+                  onClick={() => setShowWorkspacePrompt(false)}
+                  className="flex-1 px-5 py-2.5 font-bold text-stone-600 hover:bg-warm-100 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    if (workspaceNameDraft.trim() && token) {
+                      apiFetch('/api/workspaces', {
+                        method: 'POST',
+                        token,
+                        onAuthFailure: () => handleLogout(),
+                        body: JSON.stringify({ name: workspaceNameDraft.trim() })
+                      }).then(newWs => {
+                        setWorkspaces(prev => [...prev, newWs]);
+                        setMessages({});
+                        setActiveWorkspaceId(newWs.id);
+                        setShowWorkspacePrompt(false);
+                        toast.success('Workspace created! Agents are starting up...');
+                      });
+                    }
+                  }}
+                  disabled={!workspaceNameDraft.trim()}
+                  className="flex-1 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all"
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
