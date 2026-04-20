@@ -249,7 +249,13 @@ export function registerWorkspaceRoutes({
       const workspaceId = result.id;
 
       await db.prepare("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)").run(workspaceId, req.userId, "owner");
-      await seedWorkspace(workspaceId).catch(console.error);
+      
+      // Seed workspace SYNCHRONOUSLY — don't respond until agents & tasks exist
+      try {
+        await seedWorkspace(workspaceId);
+      } catch (seedErr: any) {
+        console.error(`[Workspace] Failed to seed workspace ${workspaceId}:`, seedErr?.message || seedErr);
+      }
 
       res.json({ id: workspaceId, name, role: "owner" });
     } catch {

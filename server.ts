@@ -81,15 +81,19 @@ async function startServer() {
   let _seedWorkspaceFn: ((workspaceId: string | number | bigint) => Promise<void>) | undefined;
 
   const seedWorkspaceWrapper = async (id: string | number | bigint) => {
-    // If bootstrap hasn't finished, wait a bit or retry
+    // If bootstrap hasn't finished yet, wait with retries
     if (!_seedWorkspaceFn) {
-      console.warn(`[Server] seedWorkspace called before bootstrap finished for WS ${id}. Retrying in 2s...`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.warn(`[Server] seedWorkspace called before bootstrap finished for WS ${id}. Waiting...`);
+      for (let attempt = 0; attempt < 10 && !_seedWorkspaceFn; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
     }
     if (_seedWorkspaceFn) {
+      console.log(`[Server] Seeding workspace ${id}...`);
       await _seedWorkspaceFn(id);
+      console.log(`[Server] Workspace ${id} seeded successfully.`);
     } else {
-      console.error(`[Server] Failed to seed workspace ${id}: bootstrap still not finished.`);
+      console.error(`[Server] FAILED to seed workspace ${id}: bootstrap never completed. New workspace will have no agents or tasks.`);
     }
   };
 

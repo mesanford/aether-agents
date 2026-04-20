@@ -826,8 +826,12 @@ export async function bootstrapDatabase(db: PostgresShim) {
   }
 
   async function seedWorkspace(workspaceId: number | string | bigint) {
+    console.log(`[Seed] Starting seed for workspace ${workspaceId}...`);
     const agentCount = await db.prepare("SELECT COUNT(*) as count FROM agents WHERE workspace_id = ?").get(workspaceId) as { count: string };
-    if (Number(agentCount?.count) > 0) return;
+    if (Number(agentCount?.count) > 0) {
+      console.log(`[Seed] Workspace ${workspaceId} already has ${agentCount.count} agents — skipping seed.`);
+      return;
+    }
 
     const insertAgent = db.prepare("INSERT INTO agents (id, workspace_id, name, role, status, description, avatar, capabilities, instructions, personality, last_action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
     const insertTask = db.prepare("INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, due_date, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
@@ -865,6 +869,7 @@ export async function bootstrapDatabase(db: PostgresShim) {
       const kbId = `${k.id}:${workspaceId}`;
       await insertKnowledge.run(kbId, workspaceId, k.title, k.content, k.author);
     }
+    console.log(`[Seed] Workspace ${workspaceId} seeded: ${INITIAL_AGENTS_SEED.length} agents, ${INITIAL_TASKS_SEED.length} tasks, ${INITIAL_MESSAGES_SEED.length} messages, ${INITIAL_KNOWLEDGE_SEED.length} knowledge docs.`);
   }
 
   try {
