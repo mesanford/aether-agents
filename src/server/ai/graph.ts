@@ -253,8 +253,25 @@ async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
 
   if (estimatedTokens > 4000 && msgs.length > 4) {
      console.log(`[COMPACTION] Triggering summary compaction. Estimated tokens: ${estimatedTokens}`);
-     const workingMemory = msgs.slice(-4);
-     const oldMemory = msgs.slice(0, -4);
+     
+     // Find a safe boundary to slice: do not cut between an AIMessage with tool_calls and its ToolMessages.
+     let sliceIdx = msgs.length - 4;
+     while (sliceIdx > 0) {
+        const msg = msgs[sliceIdx];
+        const prevMsg = msgs[sliceIdx - 1];
+        // If current is Tool, it MUST stay with the preceding AI message.
+        if (msg.getType() === 'tool') {
+           sliceIdx--;
+           continue;
+        }
+        // If previous is AI with tool calls, current (even if not tool) should probably stay if it's related,
+        // but strictly Gemini requires Tool after AI-with-tools. 
+        // We ensure we don't start the working memory with a Tool message.
+        break;
+     }
+
+     const workingMemory = msgs.slice(sliceIdx);
+     const oldMemory = msgs.slice(0, sliceIdx);
      
      // Truncate excessively long individual messages in the summary prompt to prevent "too many tokens" on the summary call itself
      const formattedOldMemory = oldMemory.map(m => {
@@ -282,9 +299,12 @@ ${formattedOldMemory}`;
      } catch (summaryErr) {
        console.error("[COMPACTION] Summary generation failed:", summaryErr);
        // Fallback: If summary fails, just drop the oldest half of messages to recover context window
-       const halfway = Math.floor(msgs.length / 2);
+       let sliceIdx = Math.floor(msgs.length / 2);
+       while (sliceIdx > 0 && msgs[sliceIdx].getType() === 'tool') {
+          sliceIdx--;
+       }
        return {
-          messages: { type: 'REPLACE_MESSAGES', messages: msgs.slice(-halfway) }
+          messages: { type: 'REPLACE_MESSAGES', messages: msgs.slice(sliceIdx) }
        } as any;
      }
   }
