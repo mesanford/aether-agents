@@ -118,18 +118,46 @@ export async function bootstrapDatabase(db: PostgresShim) {
 
   function parseNaturalDate(natural: string): string {
     const now = new Date();
+    
     const timeMatch = natural.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!timeMatch) return new Date(now.getTime() + 120000).toISOString();
+    let hours = 0;
+    let minutes = 0;
+    let hasTime = false;
     
-    const [_, hoursStr, minutesStr, period] = timeMatch;
-    let hours = parseInt(hoursStr, 10);
-    const minutes = parseInt(minutesStr, 10);
+    if (timeMatch) {
+      hasTime = true;
+      const [_, hoursStr, minutesStr, period] = timeMatch;
+      hours = parseInt(hoursStr, 10);
+      minutes = parseInt(minutesStr, 10);
+      
+      if (period.toUpperCase() === 'PM' && hours < 12) hours += 12;
+      if (period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    }
     
-    if (period.toUpperCase() === 'PM' && hours < 12) hours += 12;
-    if (period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    if (!natural.toLowerCase().includes("today") && !natural.toLowerCase().includes("tomorrow")) {
+      const parsed = Date.parse(natural);
+      if (!isNaN(parsed)) {
+        const d = new Date(parsed);
+        if (hasTime) {
+           d.setHours(hours, minutes, 0);
+        }
+        return d.toISOString();
+      }
+    }
     
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
-    // If time has passed, set to very soon (2-5 mins from now) to trigger immediately
+
+    if (natural.toLowerCase().includes("tomorrow")) {
+      date.setDate(date.getDate() + 1);
+      if (!hasTime) date.setHours(9, 0, 0);
+      return date.toISOString();
+    }
+    
+    if (!hasTime) {
+      return new Date(now.getTime() + 120000).toISOString();
+    }
+    
+    // If time has passed today, set to very soon (2-5 mins from now) to trigger immediately
     if (date.getTime() <= now.getTime()) {
       return new Date(now.getTime() + 120000).toISOString();
     }
@@ -170,10 +198,7 @@ export async function bootstrapDatabase(db: PostgresShim) {
       target_audience TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       is_onboarded BOOLEAN DEFAULT false,
-      google_access_token TEXT,
-      google_refresh_token TEXT,
       google_folder_id TEXT,
-      google_token_expiry BIGINT,
       FOREIGN KEY (owner_id) REFERENCES users(id)
     )
   `);
@@ -182,11 +207,8 @@ export async function bootstrapDatabase(db: PostgresShim) {
     if (!(await hasColumn("workspaces", "is_onboarded"))) {
       await db.exec("ALTER TABLE workspaces ADD COLUMN is_onboarded BOOLEAN DEFAULT false");
     }
-    if (!(await hasColumn("workspaces", "google_access_token"))) {
-      await db.exec("ALTER TABLE workspaces ADD COLUMN google_access_token TEXT");
-      await db.exec("ALTER TABLE workspaces ADD COLUMN google_refresh_token TEXT");
+    if (!(await hasColumn("workspaces", "google_folder_id"))) {
       await db.exec("ALTER TABLE workspaces ADD COLUMN google_folder_id TEXT");
-      await db.exec("ALTER TABLE workspaces ADD COLUMN google_token_expiry BIGINT");
     }
   } catch (err) {
     console.error("Migration error for workspaces:", err);
@@ -597,11 +619,20 @@ export async function bootstrapDatabase(db: PostgresShim) {
       title TEXT NOT NULL,
       content TEXT NOT NULL,
       author TEXT,
+      user_id INTEGER,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
+
+  try {
+    await db.exec("ALTER TABLE knowledge_documents ADD COLUMN user_id INTEGER");
+  } catch (err: any) {
+    if (!err.message.includes("duplicate column name")) {
+      console.warn("Could not add user_id column to knowledge_documents:", err.message);
+    }
+  }
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS approval_requests (

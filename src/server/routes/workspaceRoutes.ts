@@ -1831,7 +1831,14 @@ export function registerWorkspaceRoutes({
 
   app.get("/api/workspaces/:id/knowledge", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const rows = await db.prepare("SELECT id, title, content, author, created_at, updated_at FROM knowledge_documents WHERE workspace_id = ? ORDER BY updated_at DESC").all(req.workspaceId);
+      const rows = await db.prepare(`
+        SELECT kd.id, kd.title, kd.content, kd.author, kd.user_id, kd.created_at, kd.updated_at,
+               u.name as user_name, u.avatar as user_avatar
+        FROM knowledge_documents kd
+        LEFT JOIN users u ON kd.user_id = u.id
+        WHERE kd.workspace_id = ? 
+        ORDER BY kd.updated_at DESC
+      `).all(req.workspaceId);
       res.json(rows);
     } catch {
       res.status(500).json({ error: "Failed to fetch knowledge documents" });
@@ -1843,8 +1850,20 @@ export function registerWorkspaceRoutes({
       const { title, content, author } = req.body;
       if (!title || !content) return res.status(400).json({ error: "Title and content are required" });
       const docId = `doc-${Date.now()}`;
-      await db.prepare("INSERT INTO knowledge_documents (id, workspace_id, title, content, author) VALUES (?, ?, ?, ?, ?)").run(docId, req.workspaceId, title, content, author || "System");
-      res.status(201).json({ id: docId, title, content, author });
+      const userId = req.userId || null;
+      await db.prepare("INSERT INTO knowledge_documents (id, workspace_id, title, content, author, user_id) VALUES (?, ?, ?, ?, ?, ?)").run(docId, req.workspaceId, title, content, author || "System", userId);
+      
+      let userName = null;
+      let userAvatar = null;
+      if (userId) {
+        const user: any = await db.prepare("SELECT name, avatar FROM users WHERE id = ?").get(userId);
+        if (user) {
+          userName = user.name;
+          userAvatar = user.avatar;
+        }
+      }
+      
+      res.status(201).json({ id: docId, title, content, author, user_id: userId, user_name: userName, user_avatar: userAvatar });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to create knowledge document" });
