@@ -40,7 +40,7 @@ import { agentRegistry, agentIds } from './agents';
 
 // Initialize the LLM
 const llm = new ChatGoogleGenerativeAI({
-  model: 'gemini-3.1-flash-lite-preview',
+  model: 'gemini-3-flash-preview',
   temperature: 0,
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
 });
@@ -243,27 +243,46 @@ async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
   }
 
   // 2. Full LLM Compaction: Squashing Working Memory into Episodic Memory when history bloats
-  // Token Estimation: 1 token ~= 4 characters. Trigger compaction if over 6000 estimated tokens.
+  // Token Estimation: 1 token ~= 4 characters. Trigger compaction if over 4000 estimated tokens.
   const totalChars = msgs.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0);
   const estimatedTokens = totalChars / 4;
 
-  if (estimatedTokens > 6000 && msgs.length > 4) {
+  if (estimatedTokens > 4000 && msgs.length > 4) {
+     console.log(`[COMPACTION] Triggering summary compaction. Estimated tokens: ${estimatedTokens}`);
      const workingMemory = msgs.slice(-4);
      const oldMemory = msgs.slice(0, -4);
      
+     // Truncate excessively long individual messages in the summary prompt to prevent "too many tokens" on the summary call itself
+     const formattedOldMemory = oldMemory.map(m => {
+        const type = m.getType();
+        let content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+        if (content.length > 10000) {
+           content = content.substring(0, 10000) + "... [TRUNCATED FOR SUMMARY]";
+        }
+        return `[${type}]: ${content}`;
+     }).join('\n');
+
      const summaryPrompt = `Summarize the following agent conversation into a highly concise strategic gist. 
 Preserve core identifiers (Paths, API keys, Campaign IDs).
-Previous Gist to merge: ${state.episodicGist}
+Previous Gist to merge: ${state.episodicGist || 'None'}
 
 New events to merge:
-${oldMemory.map(m => `[${m.getType()}]: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n')}`;
+${formattedOldMemory}`;
 
-     const gistResponse = await llm.invoke([new HumanMessage(summaryPrompt)]);
-
-     return {
-        episodicGist: gistResponse.content as string,
-        messages: { type: 'REPLACE_MESSAGES', messages: workingMemory }
-     } as any;
+     try {
+       const gistResponse = await llm.invoke([new HumanMessage(summaryPrompt)]);
+       return {
+          episodicGist: gistResponse.content as string,
+          messages: { type: 'REPLACE_MESSAGES', messages: workingMemory }
+       } as any;
+     } catch (summaryErr) {
+       console.error("[COMPACTION] Summary generation failed:", summaryErr);
+       // Fallback: If summary fails, just drop the oldest half of messages to recover context window
+       const halfway = Math.floor(msgs.length / 2);
+       return {
+          messages: { type: 'REPLACE_MESSAGES', messages: msgs.slice(-halfway) }
+       } as any;
+     }
   }
 
   return {};

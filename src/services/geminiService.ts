@@ -43,7 +43,7 @@ export async function getAgentResponse(
       method: 'POST',
       token,
       onAuthFailure: () => onAuthFailure?.(),
-      timeoutMs: 45000,
+      timeoutMs: 120000,
       body: JSON.stringify({
         threadId,
         message,

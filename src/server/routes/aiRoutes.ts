@@ -253,7 +253,7 @@ export function registerAiRoutes({
 
     } catch (error: any) {
       console.error('Delegation Error:', error);
-      return res.status(500).json({ error: 'Failed to delegating to agency neural network.' });
+      return res.status(500).json({ error: "Failed to delegate to AI specialist.", details: error.message });
     }
   });
 
@@ -340,7 +340,7 @@ export function registerAiRoutes({
       }`;
 
       const aiResponse = await aiClient.models.generateContent({
-        model: "gemini-3.1-flash-lite-preview",
+        model: "gemini-3-flash-preview",
         contents: prompt,
         config: {
           responseMimeType: "application/json"
