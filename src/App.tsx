@@ -878,8 +878,10 @@ export default function App() {
                 activeWorkspaceRole={activeWorkspace?.role}
                 onLogout={handleLogout}
                 onConnectedServicesChange={setConnectedServices}
-                onGoogleDefaultsChange={setGoogleContextDefaults}
                 onUserUpdate={(updatedUser) => setUser(updatedUser)}
+                onWorkspaceUpdate={(updatedWs) => {
+                  setWorkspaces(prev => prev.map(w => w.id === updatedWs.id ? updatedWs : w));
+                }}
                 defaultTab={settingsDefaultTab}
               />
             ) : (
@@ -891,7 +893,6 @@ export default function App() {
                 workspaceRole={activeWorkspace?.role ?? null}
                 gmailConnected={connectedServices.gmail}
                 linkedinConnected={connectedServices.linkedin}
-                bufferConnected={connectedServices.buffer}
                 wordpressConnected={connectedServices.wordpress}
                 hubspotConnected={connectedServices.hubspot}
                 onAuthFailure={handleLogout}

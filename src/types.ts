@@ -67,6 +67,7 @@ export interface Message {
   imageUrl?: string;
   timestamp: number;
   type: 'user' | 'agent' | 'system';
+  metadata?: any;
 }
 
 export interface Lead {

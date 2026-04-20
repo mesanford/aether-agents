@@ -680,6 +680,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const handleConnectWordPress = async () => {
+    if (!token || !activeWorkspaceId) return;
+    setWordpressSaving(true);
+    try {
+      const result = await apiFetch<WordPressStatus>(`/api/workspaces/${activeWorkspaceId}/integrations/wordpress`, {
+        method: 'POST',
+        token,
+        onAuthFailure: () => onLogout(),
+        body: JSON.stringify(wordpressForm),
+      });
+      setWordpressStatus(result);
+      onConnectedServicesChange((current: any) => ({ ...current, wordpress: result.connected }));
+      setIsWordPressModalOpen(false);
+      toast.success('WordPress connected successfully');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to connect WordPress');
+    } finally {
+      setWordpressSaving(false);
+    }
+  };
+
   const integrations = [
     {
       id: 'google-workspace',

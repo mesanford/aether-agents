@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Agent, AgentPersonality, Message, GuidelineSection, GuidelineItem, Lead } from '../types';
-import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play, Timer } from 'lucide-react';
+import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play, Timer, Loader2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import toast from 'react-hot-toast';
@@ -2713,7 +2713,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   disabled={!taskScheduleForm.repeat || !taskScheduleForm.dueDate || isUpdatingTask}
                   className="flex-1 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-lg shadow-brand-500/20 transition-all disabled:opacity-50"
                 >
-                  {isUpdatingTask ? <Loader className="w-5 h-5 animate-spin mx-auto" /> : 'Confirm Schedule'}
+                  {isUpdatingTask ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Confirm Schedule'}
                 </button>
               </div>
             </motion.div>
