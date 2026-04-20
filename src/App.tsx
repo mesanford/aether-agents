@@ -960,10 +960,11 @@ export default function App() {
                     body: JSON.stringify({ name: workspaceNameDraft.trim() })
                   }).then(newWs => {
                     setWorkspaces(prev => [...prev, newWs]);
+                    setMessages({});
                     setActiveWorkspaceId(newWs.id);
                     setShowWorkspacePrompt(false);
-                  });
-                }
+                    toast.success('Workspace created! Agents are starting up...');
+                  });                }
               }}
               placeholder="e.g. Acme Corp"
               className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
@@ -985,10 +986,11 @@ export default function App() {
                       body: JSON.stringify({ name: workspaceNameDraft.trim() })
                     }).then(newWs => {
                       setWorkspaces(prev => [...prev, newWs]);
+                      setMessages({});
                       setActiveWorkspaceId(newWs.id);
                       setShowWorkspacePrompt(false);
-                    });
-                  }
+                      toast.success('Workspace created! Agents are starting up...');
+                    });                  }
                 }}
                 disabled={!workspaceNameDraft.trim()}
                 className="flex-1 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all"
