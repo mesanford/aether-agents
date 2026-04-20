@@ -67,6 +67,10 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeAgentId, setActiveAgentId] = useState<string>('');
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
+  const [lastViewedTimestamps, setLastViewedTimestamps] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('sanford-last-viewed');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [connectedServices, setConnectedServices] = useState<ConnectedServices>({});
   // Start loading=true if we already have a token (returning user)
   const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('sanford-token'));
@@ -210,41 +214,65 @@ export default function App() {
     }
   }, [activeWorkspaceId]);
 
-  // Poll every 30s for new autonomous messages written by the task engine
   useEffect(() => {
-    if (!activeAgentId || !token || !activeWorkspaceId) return;
+    if (activeAgentId) {
+      setLastViewedTimestamps(prev => {
+        const next = { ...prev, [activeAgentId]: Date.now() };
+        localStorage.setItem('sanford-last-viewed', JSON.stringify(next));
+        return next;
+      });
+    }
+  }, [activeAgentId]);
+
+  // Poll every 30s for new autonomous messages across the whole workspace
+  useEffect(() => {
+    if (!token || !activeWorkspaceId) return;
     const poll = setInterval(() => {
       apiFetch(
-        `/api/workspaces/${activeWorkspaceId}/messages?agentId=${encodeURIComponent(activeAgentId)}`,
+        `/api/workspaces/${activeWorkspaceId}/messages`,
         { token, onAuthFailure: () => handleLogout() }
       ).then((data: any) => {
         if (!Array.isArray(data)) return;
-        setMessages(prev => {
-          const existing = prev[activeAgentId] || [];
-          const existingIds = new Set(existing.map((m: Message) => m.id));
-          const toAdd: Message[] = data
-            .filter((m: any) => !existingIds.has(m.id))
-            .map((m: any) => ({
-              id: m.id,
-              senderId: m.senderId,
-              senderName: m.senderName,
-              senderAvatar: m.senderAvatar,
-              content: m.content,
-              imageUrl: m.imageUrl,
-              timestamp: Number(m.timestamp),
-              type: m.type,
-              metadata: m.metadata,
-            }));
-          if (toAdd.length === 0) return prev;
-          return {
-            ...prev,
-            [activeAgentId]: [...existing, ...toAdd].sort((a, b) => a.timestamp - b.timestamp),
+        
+        const grouped: Record<string, Message[]> = {};
+        data.forEach((m: any) => {
+          const msg: Message = {
+            id: m.id,
+            senderId: m.senderId,
+            senderName: m.senderName,
+            senderAvatar: m.senderAvatar,
+            content: m.content,
+            imageUrl: m.imageUrl,
+            timestamp: Number(m.timestamp),
+            type: m.type,
+            metadata: m.metadata,
           };
+          
+          let agentId = msg.senderId;
+          if (msg.senderId === 'user') {
+             agentId = (msg.content.match(/\[Direct message to (.*?)\]/) || [])[1] || activeAgentId || 'global';
+          }
+          
+          if (!grouped[agentId]) grouped[agentId] = [];
+          grouped[agentId].push(msg);
+        });
+
+        setMessages(prev => {
+          let hasChange = false;
+          const next = { ...prev };
+          Object.entries(grouped).forEach(([id, msgs]) => {
+            const sorted = msgs.sort((a, b) => a.timestamp - b.timestamp);
+            if (next[id]?.length !== sorted.length) {
+              next[id] = sorted;
+              hasChange = true;
+            }
+          });
+          return hasChange ? next : prev;
         });
       }).catch(() => {});
     }, 30000);
     return () => clearInterval(poll);
-  }, [activeAgentId, activeWorkspaceId, token]);
+  }, [activeWorkspaceId, token, activeAgentId]);
 
   // Poll for pending approvals every 60s
   useEffect(() => {
@@ -308,7 +336,7 @@ export default function App() {
           id: `hist_${i}`,
           senderId: m.role === 'user' ? 'user' : m.sender,
           senderName: m.role === 'user' ? user.name : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.name || DEFAULT_AGENT_NAMES[m.sender] || 'System'),
-          senderAvatar: m.role === 'user' ? (user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}`) : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.sender}`),
+          senderAvatar: m.role === 'user' ? (user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}&backgroundColor=f5f5f4`) : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.sender}&backgroundColor=f5f5f4`),
           content: m.content,
           timestamp: Date.now(),
           type: m.role === 'user' ? 'user' : 'agent'
@@ -674,7 +702,7 @@ export default function App() {
       id: Date.now().toString(),
       senderId: 'user',
       senderName: user.name,
-      senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}`,
+      senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}&backgroundColor=f5f5f4`,
       content,
       timestamp: Date.now(),
       type: 'user'
@@ -713,7 +741,7 @@ export default function App() {
       id: (Date.now() + 1).toString(),
       senderId: sender || 'system',
       senderName: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.name || DEFAULT_AGENT_NAMES[sender || ''] || 'System',
-      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system',
+      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system&backgroundColor=f5f5f4',
       content: stripAgentJson(text),
       timestamp: Date.now(),
       type: 'agent'
@@ -778,7 +806,7 @@ export default function App() {
         </button>
         <div className="font-display font-bold text-stone-900">Sanford AI</div>
         <div className="w-10 h-10 rounded-full bg-warm-100 overflow-hidden border border-warm-200">
-          <img src={user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.email}`} alt="User" />
+          <img src={user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user?.email}&backgroundColor=f5f5f4`} alt="User" />
         </div>
       </div>
 
@@ -886,7 +914,7 @@ export default function App() {
               activeView === 'settings' ? "border-brand-500 scale-110" : "border-warm-200 hover:border-warm-300"
             )}
           >
-            <img src={user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.email}`} alt="User" />
+            <img src={user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user?.email}&backgroundColor=f5f5f4`} alt="User" />
           </button>
         </div>
       </aside>
@@ -930,9 +958,15 @@ export default function App() {
                 key={agent.id}
                 agent={agent}
                 isActive={activeAgentId === agent.id}
+                isUnread={
+                  agentMessages.length > 0 && 
+                  agentMessages[agentMessages.length - 1].timestamp > (lastViewedTimestamps[agent.id] || 0) &&
+                  agentMessages[agentMessages.length - 1].type === 'agent'
+                }
                 lastMessage={lastAgentMessage ? {
                   content: lastAgentMessage.content,
                   timestamp: lastAgentMessage.timestamp,
+                  senderId: lastAgentMessage.senderId,
                   senderName: lastAgentMessage.senderName
                 } : undefined}
                 onClick={() => {

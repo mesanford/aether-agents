@@ -111,7 +111,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: '1',
       senderId: 'user',
       senderName: 'Marcus Sanford',
-      senderAvatar: 'https://api.dicebear.com/9.x/avataaars/svg?seed=marcus',
+      senderAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=marcus&backgroundColor=f5f5f4',
       content: "Sonny, please recreate the images for all scheduled and draft blog posts to fit our brand look and feel, just like you did for the \"Higher ed has an Innovation Paradox\" post.",
       timestamp: Date.now() - 1000000,
       type: 'user'
@@ -129,7 +129,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       id: '3',
       senderId: 'user',
       senderName: 'Marcus Sanford',
-      senderAvatar: 'https://api.dicebear.com/9.x/avataaars/svg?seed=marcus',
+      senderAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=marcus&backgroundColor=f5f5f4',
       content: "yes",
       timestamp: Date.now() - 100000,
       type: 'user'

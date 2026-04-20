@@ -1339,9 +1339,11 @@ export function registerWorkspaceRoutes({
 
   app.get("/api/workspaces/:id/messages", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      const { agentId } = req.query;
+      const { agentId, threadId } = req.query;
       let rows: any[];
-      if (agentId) {
+      if (threadId) {
+        rows = await db.prepare("SELECT * FROM messages WHERE workspace_id = ? AND thread_id = ? ORDER BY timestamp ASC").all(req.workspaceId, threadId as string);
+      } else if (agentId) {
         rows = await db.prepare("SELECT * FROM messages WHERE workspace_id = ? AND agent_id = ? ORDER BY timestamp ASC").all(req.workspaceId, agentId as string);
       } else {
         rows = await db.prepare("SELECT * FROM messages WHERE workspace_id = ? ORDER BY timestamp ASC").all(req.workspaceId);
@@ -1357,6 +1359,7 @@ export function registerWorkspaceRoutes({
         timestamp: m.timestamp,
         type: m.type,
         metadata: m.metadata ? JSON.parse(m.metadata) : null,
+        threadId: m.thread_id,
       }));
       res.json(messages);
     } catch {
@@ -1366,7 +1369,12 @@ export function registerWorkspaceRoutes({
 
   app.delete("/api/workspaces/:id/agents/:agentId/messages", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
-      await db.prepare("DELETE FROM messages WHERE workspace_id = ? AND agent_id = ?").run(req.workspaceId, req.params.agentId);
+      const { threadId } = req.query;
+      if (threadId) {
+        await db.prepare("DELETE FROM messages WHERE workspace_id = ? AND agent_id = ? AND thread_id = ?").run(req.workspaceId, req.params.agentId, threadId as string);
+      } else {
+        await db.prepare("DELETE FROM messages WHERE workspace_id = ? AND agent_id = ?").run(req.workspaceId, req.params.agentId);
+      }
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: "Failed to clear agent message history" });
@@ -1381,7 +1389,9 @@ export function registerWorkspaceRoutes({
       }
 
       const msgId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}:${req.workspaceId}`;
-      await db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(msgId, req.workspaceId, value.agentId, value.senderId, value.senderName, value.senderAvatar, value.content, value.imageUrl, value.timestamp, value.type);
+      await db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+        msgId, req.workspaceId, value.agentId, value.senderId, value.senderName, value.senderAvatar, value.content, value.imageUrl, value.timestamp, value.type, (req.body as any).threadId || null
+      );
       res.json({ id: msgId });
     } catch {
       res.status(500).json({ error: "Failed to save message" });

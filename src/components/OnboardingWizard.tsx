@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Building2, Users, BookOpen, ChevronRight, ChevronLeft, Loader2, Sparkles } from 'lucide-react';
+import { Building2, Users, BookOpen, MessageSquare, ChevronRight, ChevronLeft, Loader2, Sparkles } from 'lucide-react';
 import { apiFetch } from '../services/apiClient';
 import toast from 'react-hot-toast';
 import { Agent } from '../types';
@@ -12,9 +12,18 @@ interface OnboardingWizardProps {
   onAuthFailure: () => void;
 }
 
-export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ 
-  token, 
-  activeWorkspaceId, 
+const AGENT_CONTEXT_QUESTIONS: Record<string, string> = {
+  'executive-assistant': 'Are there VIP senders or domains I should always prioritize? Any email rules or tone preferences for replies?',
+  'social-media-manager': 'Which platforms matter most to you? Who are 2–3 competitors or accounts you want to benchmark against?',
+  'blog-writer': 'What topics, keywords, or subject areas should content focus on? Who is your target reader?',
+  'sales-associate': 'Who is your ideal customer? (industry, company size, decision-maker title, geography)',
+  'legal-associate': 'What jurisdiction(s) and types of contracts do you deal with most? Any specific compliance frameworks (GDPR, HIPAA, SOC 2)?',
+  'receptionist': "What's your standard flow for a new inbound lead? What are your 3–5 most common FAQs?",
+};
+
+export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
+  token,
+  activeWorkspaceId,
   onComplete,
   onAuthFailure
 }) => {
@@ -57,8 +66,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentNames, setAgentNames] = useState<Record<string, string>>({});
 
-  // Step 3: Playbooks
+  // Step 3: Playbook
   const [playbookContent, setPlaybookContent] = useState('');
+
+  // Step 4: Per-agent context
+  const [agentContexts, setAgentContexts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const fetchAgents = async () => {
@@ -74,6 +86,14 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     };
     fetchAgents();
   }, [activeWorkspaceId, token, onAuthFailure]);
+
+  // Agents that get per-agent context questions (exclude team-chat)
+  const briefableAgents = agents.filter(a => !a.id.startsWith('team-chat'));
+
+  const getAgentQuestion = (agent: Agent): string => {
+    const baseId = agent.id.split(':')[0];
+    return AGENT_CONTEXT_QUESTIONS[baseId] || 'What should I know about your business to serve you well?';
+  };
 
   const handleNext = async () => {
     if (step === 1) {
@@ -98,7 +118,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     } else if (step === 2) {
       setIsSaving(true);
       try {
-        // Save all agent name changes
         await Promise.all(
           agents.map(agent => {
             if (agentNames[agent.id] && agentNames[agent.id] !== agent.name) {
@@ -118,26 +137,51 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       } finally {
         setIsSaving(false);
       }
+    } else if (step === 3) {
+      if (!playbookContent.trim()) {
+        toast.error('Please provide at least a brief playbook overview.');
+        return;
+      }
+      setIsSaving(true);
+      try {
+        await apiFetch(`/api/workspaces/${activeWorkspaceId}/knowledge`, {
+          method: 'POST',
+          token,
+          onAuthFailure,
+          body: JSON.stringify({ title: 'Core Company Playbook', content: playbookContent, author: 'Founder' })
+        });
+        setStep(4);
+      } catch (err) {
+        toast.error('Failed to save playbook.');
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
   const handleComplete = async () => {
-    if (!playbookContent.trim()) {
-      toast.error('Please provide at least a brief playbook overview.');
-      return;
-    }
-    
     setIsSaving(true);
     try {
-      // 1. Save The Playbook
-      await apiFetch(`/api/workspaces/${activeWorkspaceId}/knowledge`, {
-        method: 'POST',
-        token,
-        onAuthFailure,
-        body: JSON.stringify({ title: 'Core Company Playbook', content: playbookContent, author: 'Founder' })
-      });
+      // Save per-agent context as individual knowledge documents
+      const contextSaves = briefableAgents
+        .filter(agent => agentContexts[agent.id]?.trim())
+        .map(agent => {
+          const agentName = agentNames[agent.id] || agent.name;
+          return apiFetch(`/api/workspaces/${activeWorkspaceId}/knowledge`, {
+            method: 'POST',
+            token,
+            onAuthFailure,
+            body: JSON.stringify({
+              title: `${agentName}: Setup Context`,
+              content: agentContexts[agent.id].trim(),
+              author: agentName,
+            })
+          });
+        });
 
-      // 2. Mark workspace as onboarded
+      await Promise.all(contextSaves);
+
+      // Mark workspace as onboarded
       await apiFetch(`/api/workspaces/${activeWorkspaceId}/complete-onboarding`, {
         method: 'POST',
         token,
@@ -153,6 +197,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     }
   };
 
+  const stepIcons = [Building2, Users, BookOpen, MessageSquare];
+  const totalSteps = 4;
+
   return (
     <div className="fixed inset-0 z-50 bg-warm-50 overflow-y-auto flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-3xl">
@@ -161,28 +208,30 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
             <Sparkles className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-3xl font-extrabold text-stone-900 tracking-tight">Welcome to AgencyOS</h2>
-          <p className="mt-3 text-lg text-stone-500">Let's set up your autonomous workforce in three simple steps.</p>
+          <p className="mt-3 text-lg text-stone-500">Let's set up your autonomous workforce in four simple steps.</p>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between relative">
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-warm-200 rounded-full" />
-            <div 
+            <div
               className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-brand-600 rounded-full transition-all duration-500"
-              style={{ width: `${((step - 1) / 2) * 100}%` }}
+              style={{ width: `${((step - 1) / (totalSteps - 1)) * 100}%` }}
             />
-            
-            {[1, 2, 3].map(i => (
-              <div 
-                key={i}
-                className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors duration-300 ${
-                  step >= i ? 'bg-brand-600 text-white shadow-md' : 'bg-white text-stone-400 border-2 border-warm-200'
-                }`}
-              >
-                {i === 1 ? <Building2 className="w-4 h-4" /> : i === 2 ? <Users className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
-              </div>
-            ))}
+            {[1, 2, 3, 4].map(i => {
+              const Icon = stepIcons[i - 1];
+              return (
+                <div
+                  key={i}
+                  className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors duration-300 ${
+                    step >= i ? 'bg-brand-600 text-white shadow-md' : 'bg-white text-stone-400 border-2 border-warm-200'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -200,7 +249,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                   <h3 className="text-2xl font-bold text-stone-900">Company Overview</h3>
                   <p className="text-stone-500 mt-2">Before your agents can act, they need to know what your business is all about.</p>
                 </div>
-                
+
                 <div className="mb-8 p-5 bg-gradient-to-r from-brand-50 to-indigo-50 border border-brand-100 rounded-xl relative overflow-hidden">
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1">
@@ -214,7 +263,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                       />
                     </div>
                     <div className="flex items-end">
-                      <button 
+                      <button
                         onClick={handleSmartScrape}
                         disabled={isScraping}
                         className="h-[42px] px-4 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-bold text-sm transition-colors flex items-center justify-center disabled:opacity-50"
@@ -293,23 +342,60 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                 <div className="mb-6">
                   <button onClick={() => setStep(2)} className="text-brand-600 hover:text-brand-700 font-medium text-sm flex items-center mb-4"><ChevronLeft className="w-4 h-4 mr-1" /> Back</button>
                   <h3 className="text-2xl font-bold text-stone-900">Core Playbook</h3>
-                  <p className="text-stone-500 mt-2">This forms the absolute foundational "Knowledge Document" that all agents will reference before acting.</p>
+                  <p className="text-stone-500 mt-2">This forms the foundational knowledge document that all agents reference before acting — your brand voice, rules, and operating principles.</p>
                 </div>
 
                 <div>
                   <textarea
                     value={playbookContent}
                     onChange={e => setPlaybookContent(e.target.value)}
-                    placeholder="E.g., Our tone is professional yet punchy. We never use exclamation points. We focus obsessively on ROI and metrics when speaking to customers..."
+                    placeholder="e.g. Our tone is professional yet direct. We never use exclamation points. We focus obsessively on ROI and metrics when speaking to clients. We target mid-market B2B firms in the US..."
                     className="w-full text-base py-4 px-5 border border-warm-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 h-[40vh]"
                   />
+                </div>
+              </motion.div>
+            )}
+
+            {step === 4 && (
+              <motion.div
+                key="step4"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="p-8 sm:p-10"
+              >
+                <div className="mb-6">
+                  <button onClick={() => setStep(3)} className="text-brand-600 hover:text-brand-700 font-medium text-sm flex items-center mb-4"><ChevronLeft className="w-4 h-4 mr-1" /> Back</button>
+                  <h3 className="text-2xl font-bold text-stone-900">Brief Your Team</h3>
+                  <p className="text-stone-500 mt-2">Give each agent the specific context they need. This gets saved as a knowledge document so they hit the ground running. All fields are optional but highly recommended.</p>
+                </div>
+
+                <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-2">
+                  {briefableAgents.map(agent => (
+                    <div key={agent.id} className="p-4 border border-warm-200 rounded-xl bg-warm-50">
+                      <div className="flex items-center gap-3 mb-3">
+                        <img src={agent.avatar} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                        <div>
+                          <p className="font-bold text-stone-900 text-sm">{agentNames[agent.id] || agent.name}</p>
+                          <p className="text-xs text-stone-500">{agent.role}</p>
+                        </div>
+                      </div>
+                      <label className="block text-xs font-semibold text-stone-600 mb-2">{getAgentQuestion(agent)}</label>
+                      <textarea
+                        value={agentContexts[agent.id] || ''}
+                        onChange={e => setAgentContexts(prev => ({ ...prev, [agent.id]: e.target.value }))}
+                        placeholder="Optional — you can always add this later via the Knowledge Base or by chatting with this agent."
+                        className="w-full text-sm py-2.5 px-3 border border-warm-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 h-20 resize-none"
+                      />
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
           <div className="px-8 py-6 bg-warm-50 border-t border-warm-200 flex justify-end">
-            {step < 3 ? (
+            {step < 4 ? (
               <button
                 onClick={handleNext}
                 disabled={isSaving}
