@@ -48,6 +48,54 @@ type SeedMessage = {
   metadata?: any;
 };
 
+type SeedKnowledge = {
+  id: string;
+  title: string;
+  content: string;
+  author: string;
+};
+
+const INITIAL_KNOWLEDGE_SEED: SeedKnowledge[] = [
+  {
+    id: "kb-playbook",
+    title: "Sanford Consulting: Brand Voice & Strategy",
+    author: "System",
+    content: `# Brand Voice & Strategy Playbook
+**Philosophy**: We are "Accessible Experts." We talk WITH clients as high-level strategic partners, not AT them.
+**Brand Promise**: Get Found. Get Cited. Get Qualified Leads.
+**Tone**: Professional but casual, minimalist language, prioritizing clarity and data-driven insights.
+**Guidelines**:
+- Prefer data over commentary.
+- Use question-based headlines to challenge assumptions.
+- Insert healthy skepticism about conventional wisdom early.`
+  },
+  {
+    id: "kb-legal",
+    title: "Standard Agency Terms & Compliance",
+    author: "Linda",
+    content: `# Standard Agency Terms & Compliance
+**Service Scope**: Digital Strategy, Content Creation, Lead Generation, and Technical SEO.
+**Payment Terms**: Net-15 upon artifact approval.
+**Compliance Rules**:
+- All social posts must include necessary disclosures (e.g. #ad if applicable).
+- Lead data must be handled according to GDPR/CCPA standards.
+- No legal advice provided; all outputs are "Strategic Recommendations" for review.`
+  },
+  {
+    id: "kb-outreach",
+    title: "Lead Qualification & Outreach SOP",
+    author: "Stan",
+    content: `# Lead Qualification & Outreach SOP
+**Ideal Customer Profile (ICP)**:
+- Mid-market B2B firms ($10M - $100M revenue).
+- Higher Education institutions (Marketing/Innovation departments).
+- Government contractors (GovCon) looking for branding upgrades.
+**Outreach Philosophy**:
+- Personalization First: Mention a specific recent achievement or post.
+- Value First: Provide 1 actionable insight before asking for a call.`
+  }
+];
+
 const INITIAL_LEADS_SEED: SeedLead[] = [
   { name: "Ryan Dietz", role: "Director, Analytics", company: "Annalect", location: "Savannah, GA, US", email: "ryan.dietz@annalect.com", status: "New Lead", sequence: "None", linkedin_url: "https://linkedin.com/in/ryandietz", avatar: "RD" },
   { name: "Puviarasan Sivananth...", role: "Analytics Lead", company: "Aeropay", location: "Chicago, IL, US", email: "puviarasan.sivanantham@...", status: "New Lead", sequence: "None", linkedin_url: "https://linkedin.com/in/puviarasan", avatar: "PS" },
@@ -784,6 +832,7 @@ export async function bootstrapDatabase(db: PostgresShim) {
     const insertAgent = db.prepare("INSERT INTO agents (id, workspace_id, name, role, status, description, avatar, capabilities, instructions, personality, last_action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
     const insertTask = db.prepare("INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, due_date, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
     const insertMessage = db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
+    const insertKnowledge = db.prepare("INSERT INTO knowledge_documents (id, workspace_id, title, content, author) VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
 
     for (const a of INITIAL_AGENTS_SEED) {
       const agentId = `${a.id}:${workspaceId}`;
@@ -811,6 +860,10 @@ export async function bootstrapDatabase(db: PostgresShim) {
       const freshTimestamp = Date.now();
       const metadata = m.metadata ? JSON.stringify(m.metadata) : null;
       await insertMessage.run(msgId, workspaceId, agentId, m.senderId, m.senderName, m.senderAvatar, m.content, m.imageUrl, freshTimestamp, m.type, metadata);
+    }
+    for (const k of INITIAL_KNOWLEDGE_SEED) {
+      const kbId = `${k.id}:${workspaceId}`;
+      await insertKnowledge.run(kbId, workspaceId, k.title, k.content, k.author);
     }
   }
 
