@@ -1350,6 +1350,7 @@ export function registerWorkspaceRoutes({
         imageUrl: m.image_url,
         timestamp: m.timestamp,
         type: m.type,
+        metadata: m.metadata ? JSON.parse(m.metadata) : null,
       }));
       res.json(messages);
     } catch {

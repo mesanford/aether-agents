@@ -77,7 +77,20 @@ async function startServer() {
   const aiRateLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 30, keyPrefix: "ai" });
 
   // 4. ROUTE REGISTRATION
-  let seedWorkspace: ((workspaceId: string | number | bigint) => Promise<void>) | undefined;
+  let _seedWorkspaceFn: ((workspaceId: string | number | bigint) => Promise<void>) | undefined;
+
+  const seedWorkspaceWrapper = async (id: string | number | bigint) => {
+    // If bootstrap hasn't finished, wait a bit or retry
+    if (!_seedWorkspaceFn) {
+      console.warn(`[Server] seedWorkspace called before bootstrap finished for WS ${id}. Retrying in 2s...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    if (_seedWorkspaceFn) {
+      await _seedWorkspaceFn(id);
+    } else {
+      console.error(`[Server] Failed to seed workspace ${id}: bootstrap still not finished.`);
+    }
+  };
 
   registerAuthRoutes({
     app,
@@ -86,7 +99,7 @@ async function startServer() {
     googleClientId: process.env.GOOGLE_CLIENT_ID,
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
     authRateLimiter,
-    seedWorkspace: async (id) => { if (seedWorkspace) await seedWorkspace(id); },
+    seedWorkspace: seedWorkspaceWrapper,
   });
 
   function buildLiveDataSection(liveContext?: LiveContext): string {
@@ -123,7 +136,7 @@ async function startServer() {
     getAllowedMessageCreate,
     isNonEmptyString,
     writeAuditLog,
-    seedWorkspace: async (id) => { if (seedWorkspace) await seedWorkspace(id); },
+    seedWorkspace: seedWorkspaceWrapper,
   });
 
   registerAiRoutes({
@@ -194,7 +207,7 @@ async function startServer() {
   // 7. BACKGROUND BOOTSTRAP (Non-blocking for the listener)
   try {
     const bootstrapResult = await bootstrapDatabase(db);
-    seedWorkspace = bootstrapResult.seedWorkspace;
+    _seedWorkspaceFn = bootstrapResult.seedWorkspace;
     
     migrateBase64ToGCS(db).catch(err => console.error("GCS migration error:", err));
     startTaskEngine({ db, pollIntervalMs: 60000, aiClient, googleClientId: process.env.GOOGLE_CLIENT_ID, googleClientSecret: process.env.GOOGLE_CLIENT_SECRET });

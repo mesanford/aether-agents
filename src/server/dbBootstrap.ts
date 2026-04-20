@@ -635,10 +635,19 @@ export async function bootstrapDatabase(db: PostgresShim) {
       image_url TEXT,
       timestamp BIGINT NOT NULL,
       type TEXT NOT NULL,
+      metadata TEXT,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
       FOREIGN KEY (agent_id) REFERENCES agents(id)
     )
   `);
+
+  try {
+    if (!(await hasColumn("messages", "metadata"))) {
+      await db.exec("ALTER TABLE messages ADD COLUMN metadata TEXT");
+    }
+  } catch (err) {
+    console.error("Migration failed for messages table:", err);
+  }
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS audit_logs (
@@ -748,7 +757,7 @@ export async function bootstrapDatabase(db: PostgresShim) {
 
     const insertAgent = db.prepare("INSERT INTO agents (id, workspace_id, name, role, status, description, avatar, capabilities, instructions, personality, last_action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
     const insertTask = db.prepare("INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, due_date, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
-    const insertMessage = db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
+    const insertMessage = db.prepare("INSERT INTO messages (id, workspace_id, agent_id, sender_id, sender_name, sender_avatar, content, image_url, timestamp, type, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING");
 
     for (const a of INITIAL_AGENTS_SEED) {
       const agentId = `${a.id}:${workspaceId}`;
@@ -763,12 +772,19 @@ export async function bootstrapDatabase(db: PostgresShim) {
         taskDescription: t.description,
         agentRole: seedAgent?.role,
       });
-      await insertTask.run(taskId, workspaceId, t.title, t.description || "", assigneeId, t.status, executionType, t.dueDate || "", t.repeat || "");
+
+      // USE ISO DATES for Task Engine compatibility
+      const dueDate = t.dueDate ? parseNaturalDate(t.dueDate) : "";
+      
+      await insertTask.run(taskId, workspaceId, t.title, t.description || "", assigneeId, t.status, executionType, dueDate, t.repeat || "");
     }
     for (const m of INITIAL_MESSAGES_SEED) {
       const msgId = `${m.id}:${workspaceId}`;
       const agentId = `${m.agentId}:${workspaceId}`;
-      await insertMessage.run(msgId, workspaceId, agentId, m.senderId, m.senderName, m.senderAvatar, m.content, m.imageUrl, m.timestamp, m.type);
+      // Use FRESH timestamps so they appear at the bottom of the chat
+      const freshTimestamp = Date.now();
+      const metadata = m.metadata ? JSON.stringify(m.metadata) : null;
+      await insertMessage.run(msgId, workspaceId, agentId, m.senderId, m.senderName, m.senderAvatar, m.content, m.imageUrl, freshTimestamp, m.type, metadata);
     }
   }
 
