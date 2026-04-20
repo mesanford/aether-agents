@@ -632,7 +632,7 @@ export default function App() {
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="w-10 h-10 flex items-center justify-center">
-          <img src={activeWorkspace?.logo || "https://api.marblism.com/favicon.ico"} alt="Logo" className="w-8 h-8 opacity-80" />
+          <img src={activeWorkspace?.logo || "/favicon.svg"} alt="Logo" className="w-8 h-8 opacity-80" />
         </div>
 
         {/* Workspace Switcher */}
