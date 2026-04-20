@@ -826,10 +826,10 @@ export async function bootstrapDatabase(db: PostgresShim) {
   }
 
   async function seedWorkspace(workspaceId: number | string | bigint) {
-    console.log(`[Seed] Starting seed for workspace ${workspaceId}...`);
+    console.log(`[SEED] Initializing workspace ${workspaceId}...`);
     const agentCount = await db.prepare("SELECT COUNT(*) as count FROM agents WHERE workspace_id = ?").get(workspaceId) as { count: string };
     if (Number(agentCount?.count) > 0) {
-      console.log(`[Seed] Workspace ${workspaceId} already has ${agentCount.count} agents — skipping seed.`);
+      console.log(`[SEED] Workspace ${workspaceId} already has ${agentCount.count} agents. Skipping seed.`);
       return;
     }
 
@@ -842,6 +842,8 @@ export async function bootstrapDatabase(db: PostgresShim) {
       const agentId = `${a.id}:${workspaceId}`;
       await insertAgent.run(agentId, workspaceId, a.name, a.role, "idle", a.description, a.avatar, a.capabilities, a.instructions, a.personality, a.lastAction);
     }
+    console.log(`[SEED] Created ${INITIAL_AGENTS_SEED.length} agents for WS ${workspaceId}`);
+
     for (const t of INITIAL_TASKS_SEED) {
       const taskId = `${t.id}:${workspaceId}`;
       const assigneeId = `${t.assigneeId}:${workspaceId}`;
@@ -857,6 +859,8 @@ export async function bootstrapDatabase(db: PostgresShim) {
       
       await insertTask.run(taskId, workspaceId, t.title, t.description || "", assigneeId, t.status, executionType, dueDate, t.repeat || "");
     }
+    console.log(`[SEED] Created ${INITIAL_TASKS_SEED.length} tasks for WS ${workspaceId}`);
+
     for (const m of INITIAL_MESSAGES_SEED) {
       const msgId = `${m.id}:${workspaceId}`;
       const agentId = `${m.agentId}:${workspaceId}`;
@@ -865,11 +869,14 @@ export async function bootstrapDatabase(db: PostgresShim) {
       const metadata = m.metadata ? JSON.stringify(m.metadata) : null;
       await insertMessage.run(msgId, workspaceId, agentId, m.senderId, m.senderName, m.senderAvatar, m.content, m.imageUrl, freshTimestamp, m.type, metadata);
     }
+    console.log(`[SEED] Created ${INITIAL_MESSAGES_SEED.length} intro messages for WS ${workspaceId}`);
+
     for (const k of INITIAL_KNOWLEDGE_SEED) {
       const kbId = `${k.id}:${workspaceId}`;
       await insertKnowledge.run(kbId, workspaceId, k.title, k.content, k.author);
     }
-    console.log(`[Seed] Workspace ${workspaceId} seeded: ${INITIAL_AGENTS_SEED.length} agents, ${INITIAL_TASKS_SEED.length} tasks, ${INITIAL_MESSAGES_SEED.length} messages, ${INITIAL_KNOWLEDGE_SEED.length} knowledge docs.`);
+    console.log(`[SEED] Populated ${INITIAL_KNOWLEDGE_SEED.length} knowledge documents for WS ${workspaceId}`);
+    console.log(`[SEED] Workspace ${workspaceId} fully seeded.`);
   }
 
   try {
