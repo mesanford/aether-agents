@@ -460,11 +460,10 @@ export const scheduleSocialPostTool = tool(
     description: "Standardized tool to create, schedule, or publish social media content across 14+ platforms via Zernio. Handles cross-posting, multiple images/videos, and platform-specific text overrides automatically. Keywords: post, cross-post, tweet, linkedin, instagram, schedule, publish.",
     schema: z.object({ 
       platforms: z.array(z.string()).describe("List of target platforms (e.g., ['twitter', 'linkedin', 'instagram'])."),
-      content: z.string().describe("The base post text used for all platforms unless overridden."), 
+      content: z.string().describe("The base post text used for all platforms."), 
       publishNow: z.boolean().default(false).describe("Set to true to bypass scheduling and post immediately."),
       scheduledFor: z.string().optional().describe("ISO 8601 timestamp for future scheduling."),
-      mediaUrls: z.array(z.string()).optional().describe("Array of image or video URLs to attach."),
-      platformOverrides: z.record(z.string(), z.string()).optional().describe("Optional map of platform-specific text (e.g. { 'twitter': 'Short version for X' }) to handle different character limits.")
+      mediaUrls: z.array(z.string()).optional().describe("Array of image or video URLs to attach.")
     })
   }
 );

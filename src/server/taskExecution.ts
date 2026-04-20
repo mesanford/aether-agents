@@ -382,7 +382,7 @@ export async function buildAiTaskExecutionResult({
     `- artifactBody: 1-2 sentences describing the completed work (max 300 characters)`,
     `- artifactBullets: exactly 3 concrete, specific bullet points about this task's real output`,
     `- artifactImageUrl: include ONLY a real image URL or data URL already present in the task context if this artifact should carry media; otherwise return null`,
-    `- messageContent: 1 sentence the agent posts in team chat confirming completion — use Markdown bold for the task title, e.g. **${taskTitle}**`,
+    `- messageContent: 2-3 sentences the agent posts in team chat confirming completion. Do NOT just say you finished — briefly highlight 1 key finding and recommend 1 concrete next step for the team. Use Markdown bold for the task title, e.g. **${taskTitle}**`,
     `- outputSummary: 1 short sentence for the task list summary line`,
     "",
     `Be specific to the task title and description. Do NOT produce generic placeholder text.`,
