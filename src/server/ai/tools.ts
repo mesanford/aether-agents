@@ -335,18 +335,28 @@ export const searchWebTool = tool(
 export const readWebsiteTool = tool(
   async ({ url }) => {
     try {
-      const response = await fetch(`https://r.jina.ai/${url}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+      const response = await fetch(`https://r.jina.ai/${url}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       if (!response.ok) throw new Error(`Jina.ai failed with status ${response.status}`);
       const markdown = await response.text();
       return markdown.substring(0, 15000); 
     } catch (err: any) {
       console.error("read_website error:", err);
+      if (err.name === 'AbortError') {
+        return `[FAILED] Website reading timed out after 30 seconds. The site might be too slow or blocking our reader. Try a different URL or search_web instead.`;
+      }
       return `[FAILED] Could not read website: ${err.message}. Make sure the URL is valid and starts with http:// or https://.`;
     }
   },
   {
     name: "read_website",
-    description: "Read the content of a specific website URL. Returns a clean markdown version of the page. Use this when you have a specific URL you want to analyze or extract information from. Keywords: read url, browse site, visit website, scrape page.",
+    description: "Read the content of any website URL. Use this whenever you need to research a company, analyze a competitor, verify information from a specific site, or gather data from the web. Returns a clean markdown version of the page content. Keywords: read url, browse site, visit website, scrape page, research, analyze site.",
     schema: z.object({
       url: z.string().describe("The full URL of the website to read (including https://).")
     })

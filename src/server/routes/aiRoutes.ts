@@ -192,7 +192,8 @@ export function registerAiRoutes({
         throw limitErr;
       }
 
-      // Invoke the Langgraph agency workflow
+      console.log(`[AI ROUTE] Invoking workflow for message: "${message.substring(0, 50)}..." | threadId: ${threadId}`);
+      
       const finalState = await workflow.invoke({
         messages: [new HumanMessage(message)],
         task: message,
@@ -202,7 +203,9 @@ export function registerAiRoutes({
         agentProfiles,
         tenantId: req.params.id,
         clientId: req.userId ? req.userId.toString() : 'unknown'
-      }, { ...config, recursionLimit: 50 });
+      }, { ...config, recursionLimit: 100 });
+
+      console.log(`[AI ROUTE] Workflow completed. currentAssignee: ${finalState.currentAssignee} | Sender: ${finalState.sender}`);
 
       const memoryState = await workflow.getState(config);
       const isPaused = memoryState.next && memoryState.next.includes('approval_node');

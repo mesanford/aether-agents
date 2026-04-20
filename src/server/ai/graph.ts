@@ -40,7 +40,7 @@ import { agentRegistry, agentIds } from './agents';
 
 // Initialize the LLM
 const llm = new ChatGoogleGenerativeAI({
-  model: 'gemini-3-flash-preview',
+  model: 'gemini-2.0-flash',
   temperature: 0,
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
 });
@@ -154,9 +154,12 @@ ${workspaceProfile ? `Workspace-Specific Prompt Profile:\n${workspaceProfile}` :
 ${state.dataAccessSection || ''}
 ${state.liveDataSection || ''}
 
-Guidelines:
-1. You have the freedom to converse naturally with the user. If you need clarification before using a tool, or just want to greet them or update them, respond directly in character.
-2. To perform any system action, use the relevant tools provided natively. Never output a draft as a conversational chat message — always use the appropriate tool so content saves to the client's UI.`;
+    Guidelines:
+1. You have the freedom to converse naturally with the user. If you need clarification before using a tool, respond directly in character.
+2. To perform any system action (e.g. searching the web, reading a website, drafting an email, or scheduling a task), use the relevant tools provided natively. 
+3. If the user provides a URL or asks you to "look at" a site, use 'read_website' immediately. If you need current facts or news, use 'search_web'.
+4. Never output a draft or a report as a conversational chat message if a specific tool exists to save that work to the system — always use the appropriate tool so content saves to the client's UI.
+5. If a tool fails, report the error to the user and ask for guidance or try an alternative approach.`;
 
     const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
     const response = await agentLLM.invoke([
