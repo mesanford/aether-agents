@@ -25,6 +25,8 @@ import {
   Menu,
   ClipboardCheck,
   Settings,
+  Layout,
+  Plus,
 } from 'lucide-react';
 import { Agent, AgentPersonality, AgentRole, AgentStatus, Message, Task, Workspace } from './types';
 import { AgentCard } from './components/AgentCard';
