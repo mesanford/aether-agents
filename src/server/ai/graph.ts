@@ -40,7 +40,7 @@ import { agentRegistry, agentIds } from './agents';
 
 // Initialize the LLM
 const llm = new ChatGoogleGenerativeAI({
-  model: 'gemini-2.0-flash',
+  model: 'gemini-3-flash-preview',
   temperature: 0,
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
 });
