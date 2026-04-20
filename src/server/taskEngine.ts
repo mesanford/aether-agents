@@ -941,6 +941,20 @@ export async function executePendingTasks({
 }
 
 export function startTaskEngine({ db, pollIntervalMs = 60000, aiClient, googleClientId, googleClientSecret }: TaskEngineOptions) {
+  // Recover any tasks stuck in 'running' from a previous container lifecycle
+  db.prepare("UPDATE tasks SET status = 'todo' WHERE status = 'running'")
+    .run()
+    .then((result) => {
+      if (result.changes > 0) {
+        console.log(`[Task Engine] Recovered ${result.changes} stuck task(s) from 'running' → 'todo'`);
+      }
+    })
+    .catch((err) => console.error("[Task Engine] Failed to recover stuck tasks:", err));
+
+  // Fire immediately on startup — don't wait for first interval tick
+  void executePendingTasks({ db, aiClient, googleClientId, googleClientSecret });
+  void processAutomationJobs(db);
+
   const interval = setInterval(() => {
     void executePendingTasks({ db, aiClient, googleClientId, googleClientSecret });
     void processAutomationJobs(db);

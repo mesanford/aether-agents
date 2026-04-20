@@ -211,8 +211,6 @@ async function startServer() {
     _seedWorkspaceFn = bootstrapResult.seedWorkspace;
     
     migrateBase64ToGCS(db).catch(err => console.error("GCS migration error:", err));
-    startTaskEngine({ db, pollIntervalMs: 60000, aiClient, googleClientId: process.env.GOOGLE_CLIENT_ID, googleClientSecret: process.env.GOOGLE_CLIENT_SECRET });
-    startSequenceDaemon(db);
     
     bootstrapDone = true;
     console.log(`Server fully ready on port ${PORT}`);
@@ -226,6 +224,12 @@ async function startServer() {
     bootstrapDone = true;
     console.warn("Server running in degraded mode. Check /api/health for details.");
   }
+
+  // 8. BACKGROUND JOBS — Always start regardless of bootstrap success.
+  // The task engine and sequence daemon query for work independently;
+  // they gracefully handle empty tables or missing data.
+  startTaskEngine({ db, pollIntervalMs: 60000, aiClient, googleClientId: process.env.GOOGLE_CLIENT_ID, googleClientSecret: process.env.GOOGLE_CLIENT_SECRET });
+  startSequenceDaemon(db);
 
   // Error handler
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
