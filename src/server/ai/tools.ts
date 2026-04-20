@@ -332,6 +332,27 @@ export const searchWebTool = tool(
   }
 );
 
+export const readWebsiteTool = tool(
+  async ({ url }) => {
+    try {
+      const response = await fetch(`https://r.jina.ai/${url}`);
+      if (!response.ok) throw new Error(`Jina.ai failed with status ${response.status}`);
+      const markdown = await response.text();
+      return markdown.substring(0, 15000); 
+    } catch (err: any) {
+      console.error("read_website error:", err);
+      return `[FAILED] Could not read website: ${err.message}. Make sure the URL is valid and starts with http:// or https://.`;
+    }
+  },
+  {
+    name: "read_website",
+    description: "Read the content of a specific website URL. Returns a clean markdown version of the page. Use this when you have a specific URL you want to analyze or extract information from. Keywords: read url, browse site, visit website, scrape page.",
+    schema: z.object({
+      url: z.string().describe("The full URL of the website to read (including https://).")
+    })
+  }
+);
+
 export const generateImageTool = tool(
   async ({ prompt, style }, config) => {
     try {
@@ -1240,6 +1261,7 @@ export const allTools = [
   draftEmailTool,
   readGoogleChatTool,
   searchWebTool,
+  readWebsiteTool,
   generateImageTool,
   scheduleSocialPostTool,
   publishBlogPostTool,
