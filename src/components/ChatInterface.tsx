@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Agent, AgentPersonality, Message, GuidelineSection, GuidelineItem, Lead } from '../types';
-import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play } from 'lucide-react';
+import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play, Timer } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import toast from 'react-hot-toast';
@@ -283,6 +283,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     status: 'idle',
     message: '',
   });
+
+  // Scheduling State
+  const [schedulingModal, setSchedulingModal] = useState<{ isOpen: boolean; taskId: string | null; taskTitle: string | null }>({
+    isOpen: false,
+    taskId: null,
+    taskTitle: null,
+  });
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -364,6 +372,37 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     status: 'idle',
     message: '',
   });
+
+  const handleUpdateSchedule = async (repeat: string, preferredTime: string) => {
+    if (!schedulingModal.taskId || !activeWorkspaceId) return;
+    
+    try {
+      setIsUpdatingTask(true);
+      const taskId = schedulingModal.taskId.includes(':') ? schedulingModal.taskId : `${schedulingModal.taskId}:${activeWorkspaceId}`;
+      
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${agent.id}/tools/update_agent_schedule`, {
+        method: 'POST',
+        token: token || undefined,
+        onAuthFailure: () => onAuthFailure?.(),
+        body: JSON.stringify({
+          taskId,
+          repeat,
+          preferredTime,
+        }),
+      });
+
+      toast.success('Schedule updated successfully');
+      setSchedulingModal({ isOpen: false, taskId: null, taskTitle: null });
+      
+      // Post a confirmation message
+      onSendMessage(`I've set my schedule to ${repeat} at ${preferredTime}.`);
+      fetchTasks();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update schedule');
+    } finally {
+      setIsUpdatingTask(false);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -2377,6 +2416,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     <div className="text-stone-700 text-[15px] leading-relaxed markdown-body">
                       <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                     </div>
+
+                    {msg.metadata?.taskId && (
+                      <button
+                        onClick={() => setSchedulingModal({ 
+                          isOpen: true, 
+                          taskId: msg.metadata.taskId, 
+                          taskTitle: msg.content.split('\n')[0].replace('Hi! ', '').replace('Hey there! ', '').replace('Stan reporting in. ', '').replace('Hello! ', '')
+                        })}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-white border border-brand-200 text-brand-600 rounded-xl text-[13px] font-bold hover:bg-brand-50 hover:border-brand-300 transition-all shadow-sm"
+                      >
+                        <Timer className="w-4 h-4" />
+                        Set {msg.senderName} Schedule
+                      </button>
+                    )}
+
                     {msg.imageUrl && (
                       <div className="mt-4 rounded-2xl overflow-hidden border border-warm-200 shadow-sm max-w-lg">
                         <img 
@@ -2594,6 +2648,78 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         </div>
       )}
+
+      {/* Schedule Picker Modal */}
+      <AnimatePresence>
+        {schedulingModal.isOpen && (
+          <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 shadow-2xl max-w-md w-full"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center text-brand-600">
+                  <Timer className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-stone-900">Configure Action Schedule</h3>
+                  <p className="text-stone-500 text-sm">Set how often this agent takes initiative.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-2">Repeat Frequency</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['daily', 'weekdays', 'weekly', 'monthly'].map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setTaskScheduleForm(prev => ({ ...prev, repeat: f }))}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold border transition-all capitalize",
+                          taskScheduleForm.repeat === f 
+                            ? "bg-brand-600 border-brand-600 text-white" 
+                            : "bg-white border-warm-200 text-stone-600 hover:border-brand-300"
+                        )}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-2">Start Time (24h format)</label>
+                  <input
+                    type="time"
+                    value={taskScheduleForm.dueDate}
+                    onChange={(e) => setTaskScheduleForm(prev => ({ ...prev, dueDate: e.target.value }))}
+                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-lg font-mono focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-8 pt-6 border-t border-warm-100">
+                <button 
+                  onClick={() => setSchedulingModal({ isOpen: false, taskId: null, taskTitle: null })}
+                  className="flex-1 px-5 py-2.5 font-bold text-stone-500 hover:bg-warm-50 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => handleUpdateSchedule(taskScheduleForm.repeat || 'daily', taskScheduleForm.dueDate || '09:00')}
+                  disabled={!taskScheduleForm.repeat || !taskScheduleForm.dueDate || isUpdatingTask}
+                  className="flex-1 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-lg shadow-brand-500/20 transition-all disabled:opacity-50"
+                >
+                  {isUpdatingTask ? <Loader className="w-5 h-5 animate-spin mx-auto" /> : 'Confirm Schedule'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

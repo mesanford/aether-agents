@@ -1219,5 +1219,6 @@ export const allTools = [
   sendSmsTool,
   publishHubspotPostTool,
   syncHubspotLeadTool,
-  listLocalLeadsTool
+  listLocalLeadsTool,
+  updateAgentScheduleTool
 ];
