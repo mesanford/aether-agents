@@ -23,12 +23,7 @@ export const INITIAL_AGENTS: Agent[] = [
     avatar: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4',
     capabilities: ['Inbox Management', 'Scheduling', 'Research'],
     lastAction: '2:12 PM',
-    instructions: `### Email Categorization
-- Flag RFP/RFI solicitations to Marcus only when the email explicitly uses the terms "RFP", "RFI", or "solicitation". 
-- Do not flag general job postings, job-matching, or freelance opportunities from platforms like Twine. 
-- Prioritize flagging official procurement notices, especially from .gov or .edu domains.
-
-### Email Tone and Style
+    instructions: `### Email Tone and Style
 - **Professional yet approachable**: Maintains business professionalism while being personable and conversational.
 - **Direct and concise**: Gets to the point quickly without unnecessary pleasantries or filler.
 - **Helpful and solution-oriented**: Focuses on providing information, solving problems, or moving projects forward.

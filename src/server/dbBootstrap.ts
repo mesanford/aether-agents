@@ -63,12 +63,7 @@ const INITIAL_LEADS_SEED: SeedLead[] = [
 
 const INITIAL_AGENTS_SEED: SeedAgent[] = [
   { id: "team-chat", name: "Team Chat", role: "Team Chat", description: "Collaborative space where all agents can communicate.", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Team&backgroundColor=b6f4ef", capabilities: JSON.stringify(["Collaboration", "Team Communication"]), instructions: "", personality: JSON.stringify({ tone: "warm", communicationStyle: "balanced", assertiveness: "medium", humor: "light", verbosity: "medium", signaturePhrase: "Let's align on the next move.", doNots: ["Do not dominate individual agent voices."] }), lastAction: "Just now" },
-  { id: "executive-assistant", name: "Eva", role: "Executive Assistant", description: "I'm here to help manage your inbox, categorize emails, and keep your schedule running smoothly.", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4", capabilities: JSON.stringify(["Inbox Management", "Scheduling", "Research"]), instructions: `### Email Categorization
-- Flag RFP/RFI solicitations to Marcus only when the email explicitly uses the terms "RFP", "RFI", or "solicitation". 
-- Do not flag general job postings. 
-- Prioritize flagging official procurement notices, especially from .gov or .edu domains.
-
-### Writing Style
+  { id: "executive-assistant", name: "Eva", role: "Executive Assistant", description: "I'm here to help manage your inbox, categorize emails, and keep your schedule running smoothly.", avatar: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Eva&backgroundColor=b6e3f4", capabilities: JSON.stringify(["Inbox Management", "Scheduling", "Research"]), instructions: `### Writing Style
 - Professional yet approachable. 
 - Direct and concise. 
 - Helpful and solution-oriented. 
