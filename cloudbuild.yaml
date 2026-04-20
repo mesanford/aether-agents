@@ -22,6 +22,8 @@ steps:
       - '--no-cpu-throttling'
       - '--min-instances'
       - '1'
+      - '--max-instances'
+      - '1'
       - '--port'
       - '8080'
       - '--timeout'

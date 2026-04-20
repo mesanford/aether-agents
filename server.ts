@@ -44,6 +44,10 @@ if (GEMINI_API_KEY) {
   aiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 }
 
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled promise rejection:', reason);
+});
+
 async function startServer() {
   const app = express();
   const PORT = Number.parseInt(process.env.PORT || "3001", 10);

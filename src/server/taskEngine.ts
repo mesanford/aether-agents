@@ -952,12 +952,16 @@ export function startTaskEngine({ db, pollIntervalMs = 60000, aiClient, googleCl
     .catch((err) => console.error("[Task Engine] Failed to recover stuck tasks:", err));
 
   // Fire immediately on startup — don't wait for first interval tick
-  void executePendingTasks({ db, aiClient, googleClientId, googleClientSecret });
-  void processAutomationJobs(db);
+  executePendingTasks({ db, aiClient, googleClientId, googleClientSecret })
+    .catch(err => console.error('[Task Engine] executePendingTasks error:', err));
+  processAutomationJobs(db)
+    .catch(err => console.error('[Task Engine] processAutomationJobs error:', err));
 
   const interval = setInterval(() => {
-    void executePendingTasks({ db, aiClient, googleClientId, googleClientSecret });
-    void processAutomationJobs(db);
+    executePendingTasks({ db, aiClient, googleClientId, googleClientSecret })
+      .catch(err => console.error('[Task Engine] executePendingTasks error:', err));
+    processAutomationJobs(db)
+      .catch(err => console.error('[Task Engine] processAutomationJobs error:', err));
   }, pollIntervalMs);
   console.log(`[Task Engine] Started. Polling every ${Math.round(pollIntervalMs / 1000)} seconds.`);
   return interval;

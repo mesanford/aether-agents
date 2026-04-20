@@ -105,8 +105,24 @@ export default function App() {
 
       setTasks(tasksData || []);
 
-      // Setup initial messages state
-      setMessages({});
+      // Populate messages from DB, grouped by agentId
+      const msgMap: Record<string, Message[]> = {};
+      (messagesData || []).forEach((m: any) => {
+        const key = m.agentId;
+        if (!msgMap[key]) msgMap[key] = [];
+        msgMap[key].push({
+          id: m.id,
+          senderId: m.senderId,
+          senderName: m.senderName,
+          senderAvatar: m.senderAvatar,
+          content: m.content,
+          imageUrl: m.imageUrl,
+          timestamp: Number(m.timestamp),
+          type: m.type,
+          metadata: m.metadata,
+        });
+      });
+      setMessages(msgMap);
 
 
       // Reset view when switching workspace
@@ -194,6 +210,42 @@ export default function App() {
     }
   }, [activeWorkspaceId]);
 
+  // Poll every 30s for new autonomous messages written by the task engine
+  useEffect(() => {
+    if (!activeAgentId || !token || !activeWorkspaceId) return;
+    const poll = setInterval(() => {
+      apiFetch(
+        `/api/workspaces/${activeWorkspaceId}/messages?agentId=${encodeURIComponent(activeAgentId)}`,
+        { token, onAuthFailure: () => handleLogout() }
+      ).then((data: any) => {
+        if (!Array.isArray(data)) return;
+        setMessages(prev => {
+          const existing = prev[activeAgentId] || [];
+          const existingIds = new Set(existing.map((m: Message) => m.id));
+          const toAdd: Message[] = data
+            .filter((m: any) => !existingIds.has(m.id))
+            .map((m: any) => ({
+              id: m.id,
+              senderId: m.senderId,
+              senderName: m.senderName,
+              senderAvatar: m.senderAvatar,
+              content: m.content,
+              imageUrl: m.imageUrl,
+              timestamp: Number(m.timestamp),
+              type: m.type,
+              metadata: m.metadata,
+            }));
+          if (toAdd.length === 0) return prev;
+          return {
+            ...prev,
+            [activeAgentId]: [...existing, ...toAdd].sort((a, b) => a.timestamp - b.timestamp),
+          };
+        });
+      }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(poll);
+  }, [activeAgentId, activeWorkspaceId, token]);
+
   // Poll for pending approvals every 60s
   useEffect(() => {
     if (!token || !activeWorkspaceId) return;
@@ -261,7 +313,14 @@ export default function App() {
           timestamp: Date.now(),
           type: m.role === 'user' ? 'user' : 'agent'
         }));
-        setMessages(prev => ({ ...prev, [activeAgentId]: historyMessages }));
+        setMessages(prev => {
+          const existing = prev[activeAgentId] || [];
+          const existingIds = new Set(existing.map((m: Message) => m.id));
+          const toAdd = historyMessages.filter((m: Message) => !existingIds.has(m.id));
+          if (toAdd.length === 0) return prev;
+          const merged = [...existing, ...toAdd].sort((a, b) => a.timestamp - b.timestamp);
+          return { ...prev, [activeAgentId]: merged };
+        });
       }
     }).catch(err => console.error("Failed to fetch history", err));
   }, [activeAgentId, activeWorkspaceId, token, user, agents]);
