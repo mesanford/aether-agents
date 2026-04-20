@@ -1198,14 +1198,20 @@ export const updateAgentScheduleTool = tool(
   async ({ taskId, repeat, preferredTime }, config) => {
     const workspaceId = config?.configurable?.workspace_id || 1;
     try {
-      // 1. Calculate the next execution date based on the preferred time
-      const [hours, minutes] = preferredTime.split(':').map(Number);
       const nextDate = new Date();
-      nextDate.setHours(hours, minutes, 0, 0);
       
-      // If the time has already passed today, set it for tomorrow
-      if (nextDate.getTime() <= Date.now()) {
-        nextDate.setDate(nextDate.getDate() + 1);
+      if (repeat.toLowerCase().includes("minute")) {
+        const mins = parseInt(repeat.match(/\d+/)?.[0] || "20", 10);
+        nextDate.setMinutes(nextDate.getMinutes() + mins);
+      } else {
+        // 1. Calculate the next execution date based on the preferred time
+        const [hours, minutes] = preferredTime.split(':').map(Number);
+        nextDate.setHours(hours, minutes, 0, 0);
+        
+        // If the time has already passed today, set it for tomorrow
+        if (nextDate.getTime() <= Date.now()) {
+          nextDate.setDate(nextDate.getDate() + 1);
+        }
       }
 
       await db.prepare("UPDATE tasks SET repeat = ?, due_date = ? WHERE id = ? AND workspace_id = ?")
@@ -1222,7 +1228,7 @@ export const updateAgentScheduleTool = tool(
     description: "Update the recurring schedule for a specific agent task. Use this when the user specifies how often and at what time they want a major action (like research or triage) to happen. Keywords: set schedule, change time, repeat frequency.",
     schema: z.object({
       taskId: z.string().describe("The ID of the task to update (e.g. 'Daily Research')."),
-      repeat: z.enum(['daily', 'weekly', 'weekdays', 'monthly']).describe("How often the task should repeat."),
+      repeat: z.string().describe("How often the task should repeat. Can be 'daily', 'weekly', 'weekdays', 'monthly' or a custom value like '20 minutes'."),
       preferredTime: z.string().describe("The time of day in 24-hour format (e.g. '09:00' or '17:30').")
     })
   }

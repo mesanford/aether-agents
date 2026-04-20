@@ -266,7 +266,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showClearHistoryModal, setShowClearHistoryModal] = useState(false);
   const [tasks, setTasks] = useState<any[]>([]);
   const [editingTaskScheduleId, setEditingTaskScheduleId] = useState<string | null>(null);
-  const [taskScheduleForm, setTaskScheduleForm] = useState<{repeat: string; dueDate: string}>({repeat: '', dueDate: ''});
+  const [taskScheduleForm, setTaskScheduleForm] = useState<{repeat: string; dueDate: string; interval?: string}>({repeat: '', dueDate: '', interval: '20'});
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
   const [instructionsDraft, setInstructionsDraft] = useState(agent.instructions);
   const [instructionsState, setInstructionsState] = useState<{ status: 'idle' | 'saving' | 'success' | 'error'; message: string }>({
@@ -380,13 +380,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setIsUpdatingTask(true);
       const taskId = schedulingModal.taskId.includes(':') ? schedulingModal.taskId : `${schedulingModal.taskId}:${activeWorkspaceId}`;
       
+      const finalRepeat = repeat === 'minutes' ? `${taskScheduleForm.interval || '20'} minutes` : repeat;
+
       await apiFetch(`/api/workspaces/${activeWorkspaceId}/agents/${agent.id}/tools/update_agent_schedule`, {
         method: 'POST',
         token: token || undefined,
         onAuthFailure: () => onAuthFailure?.(),
         body: JSON.stringify({
           taskId,
-          repeat,
+          repeat: finalRepeat,
           preferredTime,
         }),
       });
@@ -395,7 +397,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setSchedulingModal({ isOpen: false, taskId: null, taskTitle: null });
       
       // Post a confirmation message
-      onSendMessage(`I've set my schedule to ${repeat} at ${preferredTime}.`);
+      onSendMessage(`I've set my schedule to ${finalRepeat} at ${preferredTime}.`);
       fetchTasks();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update schedule');
@@ -2673,7 +2675,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <div>
                   <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-2">Repeat Frequency</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {['daily', 'weekdays', 'weekly', 'monthly'].map((f) => (
+                    {['daily', 'weekdays', 'weekly', 'monthly', 'minutes'].map((f) => (
                       <button
                         key={f}
                         onClick={() => setTaskScheduleForm(prev => ({ ...prev, repeat: f }))}
@@ -2690,15 +2692,29 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-2">Start Time (24h format)</label>
-                  <input
-                    type="time"
-                    value={taskScheduleForm.dueDate}
-                    onChange={(e) => setTaskScheduleForm(prev => ({ ...prev, dueDate: e.target.value }))}
-                    className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-lg font-mono focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                  />
-                </div>
+                {taskScheduleForm.repeat === 'minutes' ? (
+                  <div>
+                    <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-2">Every X Minutes</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="1440"
+                      value={taskScheduleForm.interval || '20'}
+                      onChange={(e) => setTaskScheduleForm(prev => ({ ...prev, interval: e.target.value }))}
+                      className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-lg font-mono focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-2">Start Time (24h format)</label>
+                    <input
+                      type="time"
+                      value={taskScheduleForm.dueDate}
+                      onChange={(e) => setTaskScheduleForm(prev => ({ ...prev, dueDate: e.target.value }))}
+                      className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-lg font-mono focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3 mt-8 pt-6 border-t border-warm-100">
@@ -2710,7 +2726,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 </button>
                 <button 
                   onClick={() => handleUpdateSchedule(taskScheduleForm.repeat || 'daily', taskScheduleForm.dueDate || '09:00')}
-                  disabled={!taskScheduleForm.repeat || !taskScheduleForm.dueDate || isUpdatingTask}
+                  disabled={!taskScheduleForm.repeat || (taskScheduleForm.repeat !== 'minutes' && !taskScheduleForm.dueDate) || isUpdatingTask}
                   className="flex-1 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-lg shadow-brand-500/20 transition-all disabled:opacity-50"
                 >
                   {isUpdatingTask ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Confirm Schedule'}
