@@ -27,6 +27,7 @@ import { registerGoogleDriveRoutes } from "./src/server/routes/googleDriveRoutes
 import { registerApprovalRoutes } from "./src/server/routes/approvalRoutes.ts";
 import { bootstrapDatabase } from "./src/server/dbBootstrap.ts";
 import { startTaskEngine } from "./src/server/taskEngine.ts";
+import { startSequenceDaemon } from "./src/server/sequenceDaemon.ts";
 
 import { migrateBase64ToGCS } from "./src/server/gcpStorage.ts";
 
@@ -211,6 +212,7 @@ async function startServer() {
     
     migrateBase64ToGCS(db).catch(err => console.error("GCS migration error:", err));
     startTaskEngine({ db, pollIntervalMs: 60000, aiClient, googleClientId: process.env.GOOGLE_CLIENT_ID, googleClientSecret: process.env.GOOGLE_CLIENT_SECRET });
+    startSequenceDaemon(db);
     
     bootstrapDone = true;
     console.log(`Server fully ready on port ${PORT}`);

@@ -899,6 +899,38 @@ export async function executePendingTasks({
             `[Task Engine] Teams/Notion automation enqueue skipped for task ${task.id}: ${channelErr.message}`,
           );
         }
+
+        // 7. Handle Repeating Tasks
+        if (task.repeat && task.repeat.toLowerCase() !== "none") {
+          const nextDueDate = new Date();
+          const repeat = task.repeat.toLowerCase();
+          
+          if (repeat.includes("weekday")) {
+            nextDueDate.setDate(nextDueDate.getDate() + 1);
+            // If result is Sat (6) or Sun (0), skip to Monday
+            while (nextDueDate.getDay() === 0 || nextDueDate.getDay() === 6) {
+              nextDueDate.setDate(nextDueDate.getDate() + 1);
+            }
+          } else if (repeat.includes("day")) {
+            nextDueDate.setDate(nextDueDate.getDate() + 1);
+          } else if (repeat.includes("week")) {
+            nextDueDate.setDate(nextDueDate.getDate() + 7);
+          } else if (repeat.includes("month")) {
+            nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+          } else if (repeat.includes("hour")) {
+            nextDueDate.setHours(nextDueDate.getHours() + 1);
+          } else if (repeat.includes("minute")) {
+            const mins = parseInt(repeat.match(/\d+/)?.[0] || "60", 10);
+            nextDueDate.setMinutes(nextDueDate.getMinutes() + mins);
+          } else {
+            // Default to tomorrow if unknown
+            nextDueDate.setDate(nextDueDate.getDate() + 1);
+          }
+
+          console.log(`[Task Engine] Rescheduling repeating task ${task.id} for ${nextDueDate.toISOString()}`);
+          await db.prepare("UPDATE tasks SET status = 'todo', due_date = ? WHERE id = ?")
+            .run(nextDueDate.toISOString(), task.id);
+        }
       } catch (err: any) {
         console.error(`[Task Engine] Failed to execute task ${task.id}: ${err.message}`);
         await db.prepare("UPDATE tasks SET status = 'todo', artifact_type = NULL, artifact_payload = NULL, output_summary = NULL, completed_at = NULL, last_error = ? WHERE id = ?")
