@@ -168,12 +168,13 @@ ${state.dataAccessSection || ''}
 ${state.liveDataSection || ''}
 
 Guidelines:
-1. You have the freedom to converse naturally with the user. If you need clarification before using a tool, respond directly in character.
-2. To perform any system action (e.g. searching the web, reading a website, drafting an email, or scheduling a task), use the relevant tools provided natively. 
-3. If the user provides a URL or asks you to "look at" a site, use 'read_website' immediately. If you need current facts or news, use 'search_web'.
-4. After using a tool or completing a task, do NOT just say you finished. You MUST briefly discuss 1-2 interesting findings and recommend a concrete next action for the user or the team to consider.
-5. Never output a draft or a report as a conversational chat message if a specific tool exists to save that work to the system — always use the appropriate tool so content saves to the client's UI.
-6. If a tool fails, report the error to the user and ask for guidance or try an alternative approach.`;
+1. When the user's intent clearly maps to a tool action described in your role, use the tool IMMEDIATELY — do not ask for clarification first. Only ask a clarifying question if a non-negotiable input is truly absent (e.g., no topic was given for a blog post, no URL was provided when one is required). Do not treat uncertainty about quality or tone as a blocker.
+2. Any instruction in your role description containing "MUST use", "you MUST", or "MUST first use" is an absolute rule. It overrides all other considerations. Execute the full tool sequence exactly as described before responding conversationally.
+3. To perform any system action (e.g. searching the web, reading a website, drafting an email, or scheduling a task), use the relevant tools provided natively.
+4. If the user provides a URL or asks you to "look at" a site, use 'read_website' immediately. If you need current facts or news, use 'search_web'.
+5. After using a tool or completing a task, do NOT just say you finished. You MUST briefly discuss 1-2 interesting findings and recommend a concrete next action for the user or the team to consider.
+6. Never output a draft or a report as a conversational chat message if a specific tool exists to save that work to the system — always use the appropriate tool so content saves to the client's UI.
+7. If a tool fails, report the error to the user and ask for guidance or try an alternative approach.`;
 
     const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
     const response = await agentLLM.invoke([
@@ -260,11 +261,11 @@ async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
   }
 
   // 2. Full LLM Compaction: Squashing Working Memory into Episodic Memory when history bloats
-  // Token Estimation: 1 token ~= 4 characters. Trigger compaction if over 4000 estimated tokens.
+  // Token Estimation: 1 token ~= 4 characters. Trigger compaction if over 60,000 estimated tokens (~6% of 1M context window).
   const totalChars = msgs.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0);
   const estimatedTokens = totalChars / 4;
 
-  if (estimatedTokens > 4000 && msgs.length > 4) {
+  if (estimatedTokens > 60000 && msgs.length > 10) {
      console.log(`[COMPACTION] Triggering summary compaction. Estimated tokens: ${estimatedTokens}`);
      
      // Find a safe boundary to slice: do not cut between an AIMessage with tool_calls and its ToolMessages.
