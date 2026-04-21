@@ -88,6 +88,7 @@ async function supervisorNode(state: AgentState): Promise<Partial<AgentState>> {
   const teamList = agentRegistry.map(a => `${a.name} (id: ${a.id})`).join(', ');
   const systemPrompt = `You are the Agency Supervisor.
 Observe the client's goal and the responses from your team (${teamList}).
+${state.episodicGist ? `Memory of previous conversation: ${state.episodicGist}` : ''}
 CRITICAL RULES:
 1. If the latest turn came from the USER, assign the most appropriate team member to reply by outputting their exact ID.
 2. If the latest turn came from a TEAM MEMBER and there is no explicit unfinished handoff request, return "next_assignee": "END".
@@ -158,6 +159,8 @@ Client ID: ${state.clientId} Tenant: ${state.tenantId}.
 
 Personality & Tone:
 ${agentConfig.personality}
+
+${state.episodicGist ? `Memory of previous conversation: ${state.episodicGist}` : ''}
 
 ${workspaceProfile ? `Workspace-Specific Prompt Profile:\n${workspaceProfile}` : ''}
 
