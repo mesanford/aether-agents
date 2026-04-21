@@ -195,7 +195,10 @@ export function registerAiRoutes({
       console.log(`[AI ROUTE] Invoking workflow for message: "${message.substring(0, 50)}..." | threadId: ${threadId}`);
       
       const finalState = await workflow.invoke({
-        messages: [new HumanMessage(message)],
+        messages: [new HumanMessage({
+          content: message,
+          additional_kwargs: { timestamp: Date.now() }
+        })],
         task: message,
         sender: 'user',
         dataAccessSection,
@@ -290,7 +293,8 @@ export function registerAiRoutes({
           return {
             role: msg.getType() === 'human' ? 'user' : 'agent',
             sender: isAI ? (msg.name || inferredAgentId || 'System') : 'user',
-            content: rawContent
+            content: rawContent,
+            timestamp: msg.additional_kwargs?.timestamp || Date.now()
           };
         });
 

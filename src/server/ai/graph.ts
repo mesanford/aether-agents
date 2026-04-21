@@ -188,7 +188,10 @@ Guidelines:
       content: response.content,
       name: agentConfig.id,
       tool_calls: response.tool_calls,
-      additional_kwargs: response.additional_kwargs
+      additional_kwargs: {
+        ...response.additional_kwargs,
+        timestamp: Date.now()
+      }
     });
 
     return {

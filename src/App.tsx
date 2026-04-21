@@ -270,7 +270,7 @@ export default function App() {
           return hasChange ? next : prev;
         });
       }).catch(() => {});
-    }, 30000);
+    }, 10000);
     return () => clearInterval(poll);
   }, [activeWorkspaceId, token, activeAgentId]);
 
@@ -333,20 +333,23 @@ export default function App() {
     }).then((data: any) => {
       if (data && data.messages) {
         const historyMessages: Message[] = data.messages.map((m: any, i: number) => ({
-          id: `hist_${i}`,
+          id: `hist_${i}_${m.timestamp}`,
           senderId: m.role === 'user' ? 'user' : m.sender,
           senderName: m.role === 'user' ? user.name : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.name || DEFAULT_AGENT_NAMES[m.sender] || 'System'),
           senderAvatar: m.role === 'user' ? (user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}&backgroundColor=f5f5f4`) : (agents.find(a => a.id === m.sender || a.id.startsWith(m.sender + ':'))?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.sender}&backgroundColor=f5f5f4`),
           content: m.content,
-          timestamp: Date.now(),
+          timestamp: Number(m.timestamp),
           type: m.role === 'user' ? 'user' : 'agent'
         }));
         setMessages(prev => {
-          const existing = prev[activeAgentId] || [];
-          const existingIds = new Set(existing.map((m: Message) => m.id));
-          const toAdd = historyMessages.filter((m: Message) => !existingIds.has(m.id));
+          const current = prev[activeAgentId] || [];
+          // Use content + role as a better deduplication key than just ID
+          const existingKeys = new Set(current.map((m: Message) => `${m.role}_${m.content.substring(0, 100)}`));
+          const toAdd = historyMessages.filter((m: Message) => !existingKeys.has(`${m.type === 'user' ? 'user' : 'agent'}_${m.content.substring(0, 100)}`));
+          
           if (toAdd.length === 0) return prev;
-          const merged = [...existing, ...toAdd].sort((a, b) => a.timestamp - b.timestamp);
+          
+          const merged = [...current, ...toAdd].sort((a, b) => a.timestamp - b.timestamp);
           return { ...prev, [activeAgentId]: merged };
         });
       }
