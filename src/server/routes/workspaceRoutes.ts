@@ -738,6 +738,19 @@ export function registerWorkspaceRoutes({
     return res.json({ success: true });
   });
 
+  app.delete("/api/workspaces/:id/leads/:leadId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { leadId } = req.params;
+      const result = await db.prepare("DELETE FROM leads WHERE id = ? AND workspace_id = ?").run(leadId, req.workspaceId);
+      if (result.changes === 0) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Failed to delete lead" });
+    }
+  });
+
   app.get("/api/workspaces/:id/sequences", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const sequences = await db.prepare("SELECT * FROM sales_sequences WHERE workspace_id = ? ORDER BY id DESC").all(req.workspaceId);

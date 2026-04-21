@@ -313,16 +313,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   const handleDeleteDraft = async (taskId: string) => {
-    if (!taskId || !activeWorkspaceId) return;
     try {
       await apiFetch(`/api/workspaces/${activeWorkspaceId}/tasks/${taskId}`, {
         method: 'DELETE',
-        token: token || undefined,
-        onAuthFailure: () => onAuthFailure?.()
+        token
       });
-      toast.success('Draft deleted successfully');
+      // Refresh tasks
+      const updatedTasks = await apiFetch(`/api/workspaces/${activeWorkspaceId}/tasks`, { token });
+      if (updatedTasks) setTasks(updatedTasks);
       setSelectedBlogPost(null);
-      fetchTasks();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete draft');
     }
@@ -880,7 +879,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       title: t.title,
       time: t.dueDate || 'DRAFT',
       image: t.artifact?.imageUrl || t.selectedMediaAssetId || null,
-      content: t.artifact?.body || t.description || 'Draft pending...'
+      content: t.artifact?.body || t.description || 'Draft pending...',
+      type: t.executionType
     }));
 
     return (
@@ -981,95 +981,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         </div>
 
-        {/* Full Preview Modal */}
-        <AnimatePresence>
-          {selectedBlogPost && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm"
-              onClick={() => setSelectedBlogPost(null)}
-            >
-              <motion.div 
-                initial={{ scale: 0.95, opacity: 0, y: 10 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.95, opacity: 0, y: 10 }}
-                className="bg-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl flex flex-col relative overflow-hidden"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="px-6 py-4 border-b border-warm-200 flex items-center justify-between bg-white z-10 shrink-0">
-                  <div className="flex items-center -space-x-1">
-                    <div className="w-9 h-9 rounded-full border-[2.5px] border-white bg-[#0a66c2] text-white flex items-center justify-center font-bold relative z-20 shadow-sm">
-                      <span className="text-[17px] font-serif leading-none tracking-tighter">in</span>
-                      <img src={agent.avatar} className="absolute -bottom-1.5 -right-1.5 w-[18px] h-[18px] rounded-full border-[1.5px] border-white object-cover bg-white" />
-                    </div>
-                    <div className="w-9 h-9 rounded-full border-[2.5px] border-white bg-blue-500 text-white flex items-center justify-center font-bold relative z-10 shadow-sm">
-                      <span className="text-[16px] font-sans">G</span>
-                    </div>
-                    <button className="w-9 h-9 rounded-full border-[1.5px] border-dashed border-warm-300 bg-white text-stone-400 flex items-center justify-center hover:bg-warm-50 relative z-0 transition-colors ml-1">
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <button className="p-2 text-stone-400 hover:bg-warm-50 hover:text-stone-600 rounded-full transition-colors">
-                    <MoreHorizontal className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto bg-white pt-4 pb-24 px-6 relative">
-                  <div className="flex justify-end mb-4">
-                    <span className="px-3 py-1 bg-white border border-warm-200 rounded-lg text-[11px] font-semibold text-stone-600 shadow-sm mt-1">Draft</span>
-                  </div>
-
-                  <div className="bg-[#fdf8f4] rounded-2xl aspect-square flex items-center justify-center p-6 mb-4 shadow-sm border border-warm-200 relative group overflow-hidden">
-                    <button className="absolute left-3 top-3 w-10 h-10 bg-white border border-warm-200 shadow-sm rounded-full flex items-center justify-center text-stone-400 hover:text-stone-600 hover:shadow transition-all z-10">
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    {selectedBlogPost.image ? (
-                      <img src={selectedBlogPost.image} className="w-full h-full object-contain mix-blend-multiply" />
-                    ) : (
-                      <div className="text-stone-400 font-bold text-sm">No Image Selected</div>
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-3 justify-center mb-6">
-                    {selectedBlogPost.image && (
-                      <div className="w-16 h-16 rounded-[14px] border-2 border-blue-500 p-1 relative group cursor-pointer overflow-hidden bg-warm-50">
-                        <img src={selectedBlogPost.image} className="w-full h-full object-cover rounded-lg" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg m-1">
-                          <Trash className="w-4 h-4 text-white" />
-                        </div>
-                      </div>
-                    )}
-                    <button className="w-16 h-16 rounded-[14px] border-[1.5px] border-dashed border-warm-300 flex flex-col items-center justify-center text-stone-400 hover:bg-warm-50 hover:border-warm-300 transition-colors">
-                      <Plus className="w-5 h-5 mb-0.5" />
-                      <span className="text-[9px] font-bold">Add Media</span>
-                    </button>
-                  </div>
-
-                  <div className="markdown-body text-[15px] text-stone-800 leading-relaxed px-1">
-                    <Markdown remarkPlugins={[remarkGfm]}>{selectedBlogPost.content}</Markdown>
-                  </div>
-                </div>
-
-                <div className="absolute bottom-0 left-0 w-full bg-white/90 backdrop-blur border-t border-warm-200 p-4 flex items-center justify-between shrink-0">
-                  <div className="flex gap-2.5">
-                    <button className="px-4 py-2 bg-warm-50 border border-warm-200 rounded-xl text-[13.5px] font-semibold text-stone-700 hover:bg-warm-100 flex items-center gap-2 transition-colors">
-                      <Calendar className="w-4 h-4" />
-                      Schedule
-                    </button>
-                    <button className="px-4 py-2 bg-white border border-warm-200 rounded-xl text-[13.5px] font-semibold text-stone-700 hover:bg-warm-50 transition-colors">
-                      Publish
-                    </button>
-                  </div>
-                  <button onClick={() => setSelectedBlogPost(null)} className="px-6 py-2 bg-black text-white rounded-xl text-[13.5px] font-bold shadow hover:bg-stone-800 transition-colors">
-                    Save
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Full Preview Modal was here */}
       </div>
     );
   };
@@ -1078,23 +990,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedSequence, setSelectedSequence] = useState<any>(null);
-  const [sequences, setSequences] = useState<any[]>([
-    {
-      id: 1,
-      title: "Sanford Consulting — Gov/HE/B2B Tech Marketing (SEO + GA4 + CRO)",
-      date: "04 Feb",
-      status: "Running",
-      schedule: "Runs every day between 10 AM - 11 AM",
-      steps: [
-        { id: 1, type: "Enroll", title: "Enroll leads", subtitle: "Status: New Lead" },
-        { id: 2, type: "Email", title: "Send email", subtitle: "{{lead.company}}: quick GA4/SEO wins for complex sites" },
-        { id: 3, type: "Wait", title: "Wait 3 days" },
-        { id: 4, type: "Email", title: "Send email", subtitle: "Re: {{lead.company}} GA4 + SEO + conversions" },
-        { id: 5, type: "Wait", title: "Wait 2 days" },
-        { id: 6, type: "LinkedIn", title: "Send Invitation", subtitle: "Send connection request to leads" }
-      ]
-    }
-  ]);
+  const [sequences, setSequences] = useState<any[]>([]);
   const [editingStep, setEditingStep] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [blogViewTab, setBlogViewTab] = useState<'list'|'calendar'>('list');
@@ -1105,7 +1001,30 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     if (activeTab === 'Leads' && token && activeWorkspaceId) {
       fetchLeads();
     }
+    if (activeTab === 'Sequence' && token && activeWorkspaceId) {
+      fetchSequences();
+    }
   }, [activeTab, token, activeWorkspaceId]);
+
+  const fetchSequences = async () => {
+    if (!token || !activeWorkspaceId) return;
+    try {
+      const data = await apiFetch(`/api/workspaces/${activeWorkspaceId}/sequences`, {
+        token,
+        onAuthFailure: () => {}
+      });
+      if (Array.isArray(data)) {
+        // Parse steps if they are stored as JSON string in DB
+        const parsed = data.map(s => ({
+          ...s,
+          steps: typeof s.steps === 'string' ? JSON.parse(s.steps) : (s.steps || [])
+        }));
+        setSequences(parsed);
+      }
+    } catch (err) {
+      console.error("Failed to fetch sequences", err);
+    }
+  };
 
   const fetchLeads = async () => {
     if (!token || !activeWorkspaceId) return;
@@ -1172,7 +1091,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                  <button className="px-4 py-2 bg-white border border-warm-200 rounded-lg text-[13.5px] font-bold text-stone-700 flex items-center gap-2 hover:bg-warm-50 transition-all shadow-sm">
                    <Edit2 className="w-[15px] h-[15px]" /> Edit
                  </button>
-                 <button className="px-4 py-2 bg-white border border-warm-200 rounded-lg text-[13.5px] font-bold text-stone-700 flex items-center gap-2 hover:bg-warm-50 transition-all shadow-sm">
+                 <button 
+                   onClick={async () => {
+                     if (!window.confirm(`Are you sure you want to delete ${selectedLeadIds.size} leads?`)) return;
+                     try {
+                       for (const id of selectedLeadIds) {
+                         await apiFetch(`/api/workspaces/${activeWorkspaceId}/leads/${id}`, {
+                           method: 'DELETE',
+                           token
+                         });
+                       }
+                       toast.success(`${selectedLeadIds.size} leads deleted`);
+                       setSelectedLeadIds(new Set());
+                       fetchLeads();
+                     } catch (err) {
+                       console.error("Failed to delete leads", err);
+                       toast.error("Failed to delete some leads");
+                     }
+                   }}
+                   className="px-4 py-2 bg-white border border-warm-200 rounded-lg text-[13.5px] font-bold text-stone-700 flex items-center gap-2 hover:bg-warm-50 transition-all shadow-sm"
+                 >
                    <Trash2 className="w-[15px] h-[15px]" /> Delete
                  </button>
                </div>
@@ -1199,7 +1137,27 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 </div>
                 <span className="text-[13.5px] font-medium text-stone-400 whitespace-nowrap">{filteredLeads.length} results</span>
               </div>
-              <button className="px-4 py-2 bg-white border border-warm-200 rounded-lg text-[13.5px] font-bold text-stone-700 hover:bg-warm-50 transition-all shadow-sm">
+              <button 
+                onClick={async () => {
+                  const name = window.prompt("Enter lead name:");
+                  if (!name) return;
+                  const email = window.prompt("Enter lead email:");
+                  const company = window.prompt("Enter company:");
+                  
+                  try {
+                    await apiFetch(`/api/workspaces/${activeWorkspaceId}/leads`, {
+                      method: 'POST',
+                      token,
+                      body: JSON.stringify({ name, email, company, status: "New Lead" })
+                    });
+                    toast.success("Lead imported");
+                    fetchLeads();
+                  } catch (err) {
+                    toast.error("Failed to import lead");
+                  }
+                }}
+                className="px-4 py-2 bg-white border border-warm-200 rounded-lg text-[13.5px] font-bold text-stone-700 hover:bg-warm-50 transition-all shadow-sm"
+              >
                 Import Leads
               </button>
             </div>
@@ -1584,17 +1542,30 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-bold text-stone-900">Outreach Sequences</h2>
             <button 
-              onClick={() => {
-                const newSeq = {
-                  id: Date.now(),
-                  title: "New Sequence",
-                  date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-                  status: "Draft",
-                  schedule: "Not scheduled",
-                  steps: [{ id: Date.now(), type: "Enroll", title: "Enroll leads", subtitle: "Status: New Lead" }]
-                };
-                setSequences([...sequences, newSeq]);
-                setSelectedSequence(newSeq);
+              onClick={async () => {
+                try {
+                  const newSeq = {
+                    title: "New Sequence",
+                    status: "Draft",
+                    schedule: "Not scheduled",
+                    steps: JSON.stringify([{ id: Date.now(), type: "Enroll", title: "Enroll leads", subtitle: "Status: New Lead" }])
+                  };
+                  const created = await apiFetch(`/api/workspaces/${activeWorkspaceId}/sequences`, {
+                    method: 'POST',
+                    token,
+                    body: JSON.stringify(newSeq)
+                  });
+                  if (created) {
+                    await fetchSequences();
+                    setSelectedSequence({
+                      ...created,
+                      steps: typeof created.steps === 'string' ? JSON.parse(created.steps) : created.steps
+                    });
+                  }
+                } catch (err) {
+                  console.error("Failed to create sequence", err);
+                  toast.error("Failed to create sequence");
+                }
               }}
               className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2"
             >
@@ -1744,7 +1715,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       title: t.title,
       date: t.dueDate || 'Drafting',
       image: t.artifact?.imageUrl || null,
-      content: t.artifact?.body || t.description || 'Draft pending...'
+      content: t.artifact?.body || t.description || 'Draft pending...',
+      type: t.executionType
     }));
 
     return (
@@ -1914,50 +1886,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         )}
 
-        {/* Full Preview Modal */}
-        <AnimatePresence>
-          {selectedBlogPost && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm"
-              onClick={() => setSelectedBlogPost(null)}
-            >
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="bg-white w-full max-w-3xl max-height-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="p-6 border-b border-warm-200 flex items-center justify-between">
-                  <h2 className="font-bold text-stone-900">Blog Post Preview</h2>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleDeleteDraft(selectedBlogPost.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg font-bold text-sm px-4">
-                      Delete Draft
-                    </button>
-                    <button onClick={() => setSelectedBlogPost(null)} className="p-2 hover:bg-warm-100 rounded-full text-stone-400">
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-12">
-                  <div className="max-w-2xl mx-auto">
-                    <div className="text-sm font-bold text-brand-600 mb-4 uppercase tracking-widest">{selectedBlogPost.date}</div>
-                    <h1 className="text-4xl font-bold text-stone-900 mb-8 leading-tight">{selectedBlogPost.title}</h1>
-                    {selectedBlogPost.image && (
-                      <img src={selectedBlogPost.image} alt="Hero" className="w-full rounded-2xl mb-8 shadow-lg" referrerPolicy="no-referrer" />
-                    )}
-                    <div className="markdown-body text-stone-700 leading-relaxed text-lg">
-                      <Markdown remarkPlugins={[remarkGfm]}>{selectedBlogPost.content}</Markdown>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Full Preview Modal was here */}
       </div>
     );
   };
@@ -1969,7 +1898,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       title: t.title,
       date: t.dueDate || 'Drafting',
       image: t.artifact?.imageUrl || null,
-      content: t.artifact?.body || t.description || 'Draft pending...'
+      content: t.artifact?.body || t.description || 'Draft pending...',
+      type: t.executionType
     }));
 
     return (
@@ -2023,50 +1953,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         </div>
 
-        {/* Full Preview Modal */}
-        <AnimatePresence>
-          {selectedBlogPost && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-sm"
-              onClick={() => setSelectedBlogPost(null)}
-            >
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="bg-white w-full max-w-3xl max-height-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="p-6 border-b border-warm-200 flex items-center justify-between">
-                  <h2 className="font-bold text-stone-900">Newsletter Preview</h2>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleDeleteDraft(selectedBlogPost.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg font-bold text-sm px-4">
-                      Delete Draft
-                    </button>
-                    <button onClick={() => setSelectedBlogPost(null)} className="p-2 hover:bg-warm-100 rounded-full text-stone-400">
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-12">
-                  <div className="max-w-2xl mx-auto">
-                    <div className="text-sm font-bold text-brand-600 mb-4 uppercase tracking-widest">{selectedBlogPost.date}</div>
-                    <h1 className="text-4xl font-bold text-stone-900 mb-8 leading-tight">{selectedBlogPost.title}</h1>
-                    {selectedBlogPost.image && (
-                      <img src={selectedBlogPost.image} alt="Hero" className="w-full rounded-2xl mb-8 shadow-lg" referrerPolicy="no-referrer" />
-                    )}
-                    <div className="markdown-body text-stone-700 leading-relaxed text-lg">
-                      <Markdown remarkPlugins={[remarkGfm]}>{selectedBlogPost.content}</Markdown>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Full Preview Modal was here */}
       </div>
     );
   };
@@ -2295,6 +2182,100 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     )
     .slice(0, 4);
 
+  const renderFullPreviewModal = () => {
+    if (!selectedBlogPost) return null;
+
+    return (
+      <AnimatePresence>
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 md:p-8">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="bg-white w-full max-w-4xl h-full max-h-[90vh] rounded-[32px] shadow-2xl flex flex-col overflow-hidden border border-warm-200"
+          >
+            {/* Modal Header */}
+            <div className="px-8 py-6 border-b border-warm-100 flex items-center justify-between bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-brand-600">
+                  {selectedBlogPost.type === 'newsletter_draft' ? <Mail className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-stone-900 leading-tight">{selectedBlogPost.title}</h3>
+                  <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mt-0.5">{selectedBlogPost.date}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                   onClick={() => toast.success('Publishing scheduled!')}
+                   className="hidden md:flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Publish Now
+                </button>
+                <button
+                  onClick={() => setSelectedBlogPost(null)}
+                  className="p-2 hover:bg-warm-100 rounded-full text-stone-400 hover:text-stone-600 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-8 md:p-12">
+              <div className="max-w-2xl mx-auto">
+                {selectedBlogPost.image && (
+                  <div className="aspect-video rounded-[24px] overflow-hidden mb-10 shadow-xl border border-warm-200 bg-warm-50">
+                    <img src={selectedBlogPost.image} alt="Cover" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                )}
+                
+                <div className="prose prose-stone prose-lg max-w-none prose-headings:font-display prose-headings:font-bold prose-p:text-stone-600 prose-p:leading-relaxed markdown-body">
+                  <Markdown remarkPlugins={[remarkGfm]}>
+                    {selectedBlogPost.content}
+                  </Markdown>
+                </div>
+
+                <div className="mt-16 pt-8 border-t border-warm-100 flex flex-wrap items-center justify-between gap-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-warm-100 overflow-hidden">
+                       <img src={agent.avatar} alt={agent.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-stone-900">Drafted by {agent.name}</p>
+                      <p className="text-xs text-stone-500">{agent.role}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <button className="flex items-center gap-2 px-4 py-2 text-stone-500 hover:text-stone-900 font-bold text-sm transition-colors">
+                      <Edit2 className="w-4 h-4" />
+                      Edit Draft
+                    </button>
+                    <button className="flex items-center gap-2 px-4 py-2 text-stone-500 hover:text-stone-900 font-bold text-sm transition-colors">
+                      <Download className="w-4 h-4" />
+                      Export
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Mobile Footer */}
+            <div className="md:hidden p-4 bg-warm-50 border-t border-warm-100">
+               <button onClick={() => toast.success('Publishing scheduled!')} className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-500/20">
+                 Publish Now
+               </button>
+            </div>
+          </motion.div>
+        </div>
+      </AnimatePresence>
+    );
+  };
+
+
+
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
       {/* Header */}
@@ -2517,7 +2498,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                 </div>
                               </div>
                             )}
-                            <div className="p-5 flex-1 flex flex-col">
+                            <div 
+                              className="p-5 flex-1 flex flex-col cursor-pointer hover:bg-warm-50/50 transition-colors"
+                              onClick={() => setSelectedBlogPost({
+                                id: task.id,
+                                title: task.title,
+                                date: task.dueDate || 'Drafting',
+                                image: task.artifact?.imageUrl || null,
+                                content: task.artifact?.body || task.description || 'Draft pending...',
+                                type: task.executionType
+                              })}
+                            >
                               <h4 className="font-bold text-stone-900 text-[15px] mb-4 leading-snug">{task.title}</h4>
                               {task.artifact?.imageUrl ? (
                                 <div className="mt-auto aspect-video rounded-xl overflow-hidden bg-warm-100">
@@ -2659,7 +2650,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl p-8 shadow-2xl max-w-md w-full"
+              className="bg-white rounded-3xl p-8 shadow-2xl max-md w-full"
             >
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center text-brand-600">
@@ -2736,6 +2727,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Global Draft Preview Modal */}
+      {renderFullPreviewModal()}
     </div>
   );
 };

@@ -28,7 +28,8 @@ async function zernioFetch(endpoint: string, options: RequestInit = {}) {
 
   const data = await response.json() as any;
   if (!response.ok) {
-    throw new Error(data.message || `Zernio API error: ${response.status}`);
+    const errorDetail = data.message || data.error || JSON.stringify(data);
+    throw new Error(`Zernio API error ${response.status}: ${errorDetail}`);
   }
   return data;
 }
@@ -367,34 +368,43 @@ export const generateImageTool = tool(
   async ({ prompt, style }, config) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateImages({
-        model: 'imagen-3.0-generate-002',
-        prompt: `${prompt} ${style ? `in a ${style} style` : ''}`,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-        }
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: [{ role: 'user', parts: [{ text: `Generate a high-quality social media graphic for: ${prompt}. Style: ${style || 'modern, clean, professional'}.` }] }],
       });
+
+      // Find the image part in the response
+      const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
       
-      if (response.generatedImages && response.generatedImages.length > 0) {
-        const base64 = response.generatedImages[0].image.imageBytes;
-        const dataUrl = `data:image/jpeg;base64,${base64}`;
+      if (imagePart && imagePart.inline_data) {
+        const base64 = imagePart.inline_data.data;
+        const dataUrl = `data:${imagePart.inline_data.mime_type || 'image/png'};base64,${base64}`;
         let mediaAssetId = null;
+        let storedUrl = dataUrl;
         
         if (config?.configurable?.thread_id) {
-          const threadId = config.configurable.thread_id as string;
-          const workspaceId = config.configurable?.workspace_id || 1;
-          
-          const insertResult = await db.prepare(`
-            INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author)
-            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
-          `).get(workspaceId, `AI Generation: ${prompt.substring(0, 30)}...`, 'image', 'generated', dataUrl, 'Unknown', threadId.includes('social-media-manager') ? 'Sonny' : 'Penny') as any;
-          mediaAssetId = insertResult.id;
+          try {
+            const threadId = config.configurable.thread_id as string;
+            const workspaceId = config.configurable?.workspace_id || 1;
+            
+            const insertResult = await db.prepare(`
+              INSERT INTO media_assets (workspace_id, name, type, category, thumbnail, size, author)
+              VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+            `).get(workspaceId, `AI Generation: ${prompt.substring(0, 30)}...`, 'image', 'generated', dataUrl, 'Unknown', threadId.includes('social-media-manager') ? 'Sonny' : 'Penny') as any;
+            mediaAssetId = insertResult.id;
+            // Return a reference the agent can actually use or show
+            storedUrl = `/api/workspaces/${workspaceId}/media/${mediaAssetId}/view`;
+          } catch (dbErr: any) {
+            console.error("Failed to save generated image to DB:", dbErr);
+          }
         }
         
-        return `[IMAGE GENERATED] Visual for '${prompt}' created. MEDIA_ASSET_ID: ${mediaAssetId || 'unknown'}`;
+        return `[IMAGE GENERATED] Visual for '${prompt}' created. 
+URL: ${storedUrl}
+MEDIA_ASSET_ID: ${mediaAssetId || 'unknown'}
+Instruction: Use this URL in the mediaUrls array of the schedule_social_post tool.`;
       }
-      return `[IMAGE GENERATION FAILED] No image returned.`;
+      return `[IMAGE GENERATION FAILED] No image data returned. Text response: ${response.text || 'None'}`;
     } catch (err: any) {
       return `[IMAGE GENERATION FAILED] ${err.message}`;
     }
@@ -432,11 +442,30 @@ export const scheduleSocialPostTool = tool(
         });
       }
 
-      // 2. Build the unified Zernio request
+      // 2. Resolve Media URLs (convert MEDIA_ASSET_ID to actual data or proxy URLs)
+      const resolvedMediaUrls = [];
+      const workspaceId = config?.configurable?.workspace_id || 1;
+      
+      if (args.mediaUrls && Array.isArray(args.mediaUrls)) {
+        for (const url of args.mediaUrls) {
+          if (url.startsWith('MEDIA_ASSET_ID:')) {
+            const assetId = url.replace('MEDIA_ASSET_ID:', '').trim();
+            const asset = await db.prepare("SELECT thumbnail FROM media_assets WHERE id = ? AND workspace_id = ?").get(assetId, workspaceId) as any;
+            if (asset?.thumbnail) {
+              resolvedMediaUrls.push(asset.thumbnail);
+            }
+          } else {
+            resolvedMediaUrls.push(url);
+          }
+        }
+      }
+
+      // 3. Build the unified Zernio request
       const requestBody: any = {
         content: args.content,
-        platforms: platformPayloads,
-        mediaUrls: args.mediaUrls || [],
+        platforms: targetPlatforms, // Simplified to array of strings for better compatibility
+        platformAccounts: platformPayloads, // Keep detailed objects in a separate field if Zernio needs them
+        mediaUrls: resolvedMediaUrls,
         publishNow: args.publishNow || false,
       };
 

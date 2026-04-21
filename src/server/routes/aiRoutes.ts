@@ -385,15 +385,17 @@ export function registerAiRoutes({
   app.get("/api/test-image-gen", async (req, res) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateImages({
-        model: 'imagen-3.0-generate-002',
-        prompt: 'test prompt',
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-        }
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: [{ role: 'user', parts: [{ text: 'Generate a test image of a futuristic city.' }] }],
       });
-      res.json({ success: true, base64: response.generatedImages?.[0]?.image?.imageBytes?.substring(0, 100) });
+      const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
+      res.json({ 
+        success: !!imagePart, 
+        hasImage: !!imagePart,
+        mimeType: imagePart?.inline_data?.mime_type,
+        base64Prefix: imagePart?.inline_data?.data?.substring(0, 50) 
+      });
     } catch (err: any) {
       res.json({ success: false, err: err.message, stack: err.stack });
     }
