@@ -262,8 +262,10 @@ export default function App() {
           const next = { ...prev };
           Object.entries(grouped).forEach(([id, msgs]) => {
             const sorted = msgs.sort((a, b) => a.timestamp - b.timestamp);
-            if (next[id]?.length !== sorted.length) {
-              next[id] = sorted;
+            const existingIds = new Set((prev[id] || []).map((m: Message) => m.id));
+            const toAdd = sorted.filter(m => !existingIds.has(m.id));
+            if (toAdd.length > 0) {
+              next[id] = [...(prev[id] || []), ...toAdd].sort((a, b) => a.timestamp - b.timestamp);
               hasChange = true;
             }
           });
@@ -344,7 +346,7 @@ export default function App() {
         setMessages(prev => {
           const current = prev[activeAgentId] || [];
           // Use content + role as a better deduplication key than just ID
-          const existingKeys = new Set(current.map((m: Message) => `${m.role}_${m.content.substring(0, 100)}`));
+          const existingKeys = new Set(current.map((m: Message) => `${m.type}_${m.content.substring(0, 100)}`));
           const toAdd = historyMessages.filter((m: Message) => !existingKeys.has(`${m.type === 'user' ? 'user' : 'agent'}_${m.content.substring(0, 100)}`));
           
           if (toAdd.length === 0) return prev;
@@ -354,7 +356,7 @@ export default function App() {
         });
       }
     }).catch(err => console.error("Failed to fetch history", err));
-  }, [activeAgentId, activeWorkspaceId, token, user, agents]);
+  }, [activeAgentId, activeWorkspaceId, token, user]);
 
 
   // ── All hooks must be declared before any early returns ───────────────────
