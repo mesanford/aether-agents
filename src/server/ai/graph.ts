@@ -38,9 +38,16 @@ import {
 } from './tools';
 import { agentRegistry, agentIds } from './agents';
 
-// Initialize the LLM
+// Initialize the LLMs
 const llm = new ChatGoogleGenerativeAI({
   model: 'gemini-3-flash-preview',
+  temperature: 0,
+  apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
+});
+
+// A faster, cheaper model for utility tasks like history compaction
+const liteLLM = new ChatGoogleGenerativeAI({
+  model: 'gemini-3.1-flash-lite-preview',
   temperature: 0,
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
 });
@@ -102,14 +109,14 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
   // Gemini CRITICAL RULE: Function call turns (AI message with tool_calls) MUST be followed by function response turns (ToolMessage).
   // We cannot inject a HumanMessage here if the last message was an AI message with tool calls.
   const lastMsg = conversationMessages[conversationMessages.length - 1];
-  const isAIWithTools = lastMsg?.getType() === 'ai' && (lastMsg as AIMessage).tool_calls?.length;
+  const isHuman = lastMsg?.getType() === 'human';
 
   const finalMessages = [
     new SystemMessage(systemPrompt),
     ...conversationMessages
   ];
 
-  if (!isAIWithTools) {
+  if (isHuman) {
     finalMessages.push(new HumanMessage(`Routing context: Current Task: ${state.task}. Determine whether to end or assign the next specialist.`));
   }
 
@@ -271,21 +278,21 @@ async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
   if (estimatedTokens > 60000 && msgs.length > 10) {
      console.log(`[COMPACTION] Triggering summary compaction. Estimated tokens: ${estimatedTokens}`);
      
-     // Find a safe boundary to slice: do not cut between an AIMessage with tool_calls and its ToolMessages.
+     // Find a safe boundary to slice: 
+     // 1. Do not cut between an AIMessage with tool_calls and its ToolMessages.
+     // 2. ALWAYS start with a HumanMessage (User) to keep Gemini's turn sequence clean.
      let sliceIdx = msgs.length - 4;
      while (sliceIdx > 0) {
         const msg = msgs[sliceIdx];
-        const prevMsg = msgs[sliceIdx - 1];
-        // If current is Tool, it MUST stay with the preceding AI message.
-        if (msg.getType() === 'tool') {
-           sliceIdx--;
-           continue;
+        if (msg.getType() === 'human') {
+           // Check if previous was AI with tools (if so, this human is a safe start)
+           break;
         }
-        // If previous is AI with tool calls, current (even if not tool) should probably stay if it's related,
-        // but strictly Gemini requires Tool after AI-with-tools. 
-        // We ensure we don't start the working memory with a Tool message.
-        break;
+        sliceIdx--;
      }
+     
+     // If we couldn't find a human message to start with, just keep the last 4 as a fallback
+     if (sliceIdx <= 0) sliceIdx = Math.max(0, msgs.length - 4);
 
      const workingMemory = msgs.slice(sliceIdx);
      const oldMemory = msgs.slice(0, sliceIdx);
@@ -308,7 +315,7 @@ New events to merge:
 ${formattedOldMemory}`;
 
      try {
-       const gistResponse = await llm.invoke([new HumanMessage(summaryPrompt)]);
+       const gistResponse = await liteLLM.invoke([new HumanMessage(summaryPrompt)]);
        return {
           episodicGist: gistResponse.content as string,
           messages: { type: 'REPLACE_MESSAGES', messages: workingMemory }
