@@ -91,6 +91,7 @@ async function supervisorNode(state: AgentState): Promise<Partial<AgentState>> {
 
   const teamList = agentRegistry.map(a => `${a.name} (id: ${a.id})`).join(', ');
   const systemPrompt = `You are the Agency Supervisor.
+Current Date/Time: ${new Date().toLocaleString()}
 Observe the client's goal and the responses from your team (${teamList}).
 ${state.episodicGist ? `Memory of previous conversation: ${state.episodicGist}` : ''}
 CRITICAL RULES:
@@ -151,6 +152,7 @@ function createAgentNode(agentConfig: typeof agentRegistry[0]) {
     console.log(`[NODE: agent] specialist: ${agentConfig.name} (sender: ${agentConfig.id})`);
     const workspaceProfile = state.agentProfiles?.[agentConfig.id] || '';
     const prompt = `You are the ${agentConfig.name}. ${agentConfig.roleDescription}
+Current Date/Time: ${new Date().toLocaleString()}
 Client ID: ${state.clientId} Tenant: ${state.tenantId}.
 
 Personality & Tone:
@@ -278,7 +280,7 @@ async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
        } as any;
      } catch (err) {
        let fbIdx = Math.floor(msgs.length / 2);
-       while (fbIdx > 0 && msgs[fbIdx].getType() === 'tool') fbIdx--;
+       while (fbIdx > 0 && msgs[fbIdx]?.getType() === 'tool') fbIdx--;
        return { messages: { type: 'REPLACE_MESSAGES', messages: msgs.slice(fbIdx) } } as any;
      }
   }

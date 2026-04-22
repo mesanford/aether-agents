@@ -51,6 +51,8 @@ export function startSequenceDaemon(db: PostgresShim) {
 ATTENTION STAN (Autonomous Sequence Engine): 
 You have been awakened by the Cron Daemon to execute step ${enrollment.current_step_idx + 1} of the "${enrollment.title}" sequence.
 
+Current Date/Time: ${new Date().toLocaleString()}
+
 Target Lead:
 Name: ${enrollment.lead_name}
 Email: ${enrollment.lead_email}

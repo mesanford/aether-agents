@@ -834,7 +834,12 @@ export async function executePendingTasks({
               // Run the full brain loop
               const finalState = await workflow.invoke({
                 messages: [new HumanMessage({
-                  content: `SYSTEM INSTRUCTION: You are executing a scheduled background task. Title: ${task.title}. Description: ${task.description}. Use your tools to ACTUALLY PERFORM this work (e.g. search web, update CRM, draft emails). Once done, provide a clear summary of your actions for the team chat.`,
+                  content: `SYSTEM INSTRUCTION: You are executing a scheduled background task. 
+Current Date/Time: ${new Date().toLocaleString()}
+Title: ${task.title}
+Description: ${task.description}
+
+Use your tools to ACTUALLY PERFORM this work (e.g. search web, update CRM, draft emails). Once done, provide a clear summary of your actions for the team chat.`,
                   additional_kwargs: { timestamp: Date.now() }
                 })],
                 task: task.title,

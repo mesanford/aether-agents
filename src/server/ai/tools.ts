@@ -445,7 +445,7 @@ export const scheduleSocialPostTool = tool(
         platformPayloads.push({
           platform: lowerP,
           accountId: account.id,
-          platformSpecificContent: args.platformOverrides?.[lowerP] || null
+          platformSpecificContent: null
         });
       }
 
@@ -503,8 +503,7 @@ export const scheduleSocialPostTool = tool(
       content: z.string().describe("The base post text used for all platforms."), 
       publishNow: z.boolean().default(false).describe("Set to true to bypass scheduling and post immediately."),
       scheduledFor: z.string().optional().describe("ISO 8601 timestamp for future scheduling."),
-      mediaUrls: z.array(z.string()).optional().describe("Array of image URLs or MEDIA_ASSET_ID:123 strings."),
-      platformOverrides: z.record(z.string(), z.string()).optional().describe("Optional map of platform-specific text.")
+      mediaUrls: z.array(z.string()).optional().describe("Array of image URLs or MEDIA_ASSET_ID:123 strings.")
     })
   }
 );
