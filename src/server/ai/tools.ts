@@ -420,26 +420,38 @@ export const scheduleSocialPostTool = tool(
   async (args, config) => {
     try {
       // 1. Resolve Account IDs for the requested platforms
-      const accountsRes = await zernioFetch('/accounts');
-      const connectedAccounts = accountsRes.accounts || [];
+      let connectedAccounts = [];
+      try {
+        const accountsRes = await zernioFetch('/accounts');
+        connectedAccounts = accountsRes.accounts || [];
+      } catch (accErr: any) {
+        console.error("Failed to fetch Zernio accounts:", accErr);
+        return `[FAILED] Could not connect to Zernio to verify your social accounts: ${accErr.message}. Ensure your ZERNIO_API_KEY is valid.`;
+      }
       
       const targetPlatforms = Array.isArray(args.platforms) ? args.platforms : [args.platforms];
       const platformPayloads = [];
+      const missingPlatforms = [];
 
       for (const p of targetPlatforms) {
         const lowerP = p.toLowerCase().trim();
         const account = connectedAccounts.find((a: any) => a.platform.toLowerCase() === lowerP);
         
         if (!account) {
-          return `[FAILED] Platform '${p}' is not connected in Zernio. Please connect it in the Integrations panel first.`;
+          missingPlatforms.push(p);
+          continue;
         }
 
         platformPayloads.push({
           platform: lowerP,
           accountId: account.id,
-          // Support platform-specific text if provided in overrides
           platformSpecificContent: args.platformOverrides?.[lowerP] || null
         });
+      }
+
+      if (missingPlatforms.length > 0) {
+        const available = connectedAccounts.map((a: any) => a.platform).join(', ');
+        return `[FAILED] The following platforms are not connected in Zernio: ${missingPlatforms.join(', ')}. Available connected platforms are: ${available || 'None'}. Please tell the user to connect these in the Integrations panel.`;
       }
 
       // 2. Resolve Media URLs (convert MEDIA_ASSET_ID to actual data or proxy URLs)
@@ -448,7 +460,7 @@ export const scheduleSocialPostTool = tool(
       
       if (args.mediaUrls && Array.isArray(args.mediaUrls)) {
         for (const url of args.mediaUrls) {
-          if (url.startsWith('MEDIA_ASSET_ID:')) {
+          if (typeof url === 'string' && url.startsWith('MEDIA_ASSET_ID:')) {
             const assetId = url.replace('MEDIA_ASSET_ID:', '').trim();
             const asset = await db.prepare("SELECT thumbnail FROM media_assets WHERE id = ? AND workspace_id = ?").get(assetId, workspaceId) as any;
             if (asset?.thumbnail) {
@@ -463,8 +475,7 @@ export const scheduleSocialPostTool = tool(
       // 3. Build the unified Zernio request
       const requestBody: any = {
         content: args.content,
-        platforms: targetPlatforms, // Simplified to array of strings for better compatibility
-        platformAccounts: platformPayloads, // Keep detailed objects in a separate field if Zernio needs them
+        platforms: platformPayloads,
         mediaUrls: resolvedMediaUrls,
         publishNow: args.publishNow || false,
       };
@@ -478,21 +489,22 @@ export const scheduleSocialPostTool = tool(
         body: JSON.stringify(requestBody),
       });
 
-      return `[SUCCESS] Content processed via Zernio for platforms: ${targetPlatforms.join(', ')}. Post ID: ${res.id}`;
+      return `[SUCCESS] Social post draft created and scheduled via Zernio for: ${targetPlatforms.join(', ')}. Post ID: ${res.id}. Tell the user the draft is now visible in their social dashboard for final review.`;
     } catch (err: any) {
       console.error("Zernio multi-post error:", err);
-      return `[FAILED] Could not process multi-platform post: ${err.message}`;
+      return `[FAILED] Zernio rejected the post request: ${err.message}. Check that the content and media are valid.`;
     }
   },
   {
     name: "schedule_social_post",
-    description: "Standardized tool to create, schedule, or publish social media content across 14+ platforms via Zernio. Handles cross-posting, multiple images/videos, and platform-specific text overrides automatically. Keywords: post, cross-post, tweet, linkedin, instagram, schedule, publish.",
+    description: "REQUIRED TOOL for all social media work. Use this to draft, preview, or schedule posts for LinkedIn, Twitter, Instagram, etc. Never output drafts in chat; always use this tool so they appear in the user's social dashboard. The tool handles multi-platform posting and media attachments automatically. Keywords: post, draft, preview, schedule, publish.",
     schema: z.object({ 
       platforms: z.array(z.string()).describe("List of target platforms (e.g., ['twitter', 'linkedin', 'instagram'])."),
       content: z.string().describe("The base post text used for all platforms."), 
       publishNow: z.boolean().default(false).describe("Set to true to bypass scheduling and post immediately."),
       scheduledFor: z.string().optional().describe("ISO 8601 timestamp for future scheduling."),
-      mediaUrls: z.array(z.string()).optional().describe("Array of image or video URLs to attach.")
+      mediaUrls: z.array(z.string()).optional().describe("Array of image URLs or MEDIA_ASSET_ID:123 strings."),
+      platformOverrides: z.record(z.string(), z.string()).optional().describe("Optional map of platform-specific text.")
     })
   }
 );
@@ -1293,6 +1305,56 @@ export const updateAgentScheduleTool = tool(
   }
 );
 
+export const createSequenceTool = tool(
+  async ({ title, schedule, steps }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const result = await db.prepare(`
+        INSERT INTO sales_sequences (workspace_id, title, status, schedule, steps)
+        VALUES (?, ?, 'Paused', ?, ?) RETURNING id
+      `).get(workspaceId, title, schedule || 'Not scheduled', JSON.stringify(steps)) as any;
+      
+      return `[SUCCESS] Sequence "${title}" created with ${steps.length} steps. ID: ${result.id}. Status set to Paused by default.`;
+    } catch (err: any) {
+      console.error("create_sequence error:", err);
+      return `[FAILED] Could not create sequence: ${err.message}`;
+    }
+  },
+  {
+    name: "create_sequence",
+    description: "Create a new sales outreach sequence in the local CRM. A sequence consists of multiple steps (Enroll, Email, Wait, LinkedIn). Use this when the user wants to set up an outreach campaign.",
+    schema: z.object({
+      title: z.string().describe("The name of the sequence."),
+      schedule: z.string().optional().describe("Description of when it runs (e.g. 'Daily at 9AM')."),
+      steps: z.array(z.object({
+        type: z.enum(['Enroll', 'Email', 'Wait', 'LinkedIn']),
+        title: z.string(),
+        subtitle: z.string().optional(),
+        prompt: z.string().optional().describe("If type is Email or LinkedIn, provide the instruction/prompt for the agent to generate content.")
+      })).describe("List of steps in the sequence.")
+    })
+  }
+);
+
+export const getSequencesTool = tool(
+  async ({}, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const rows = await db.prepare("SELECT id, title, status, schedule FROM sales_sequences WHERE workspace_id = ?").all(workspaceId) as any[];
+      if (rows.length === 0) return "No sequences found in this workspace.";
+      return `Current Sales Sequences:\n\n${rows.map(r => `- ${r.title} (ID: ${r.id}) | Status: ${r.status}`).join('\n')}`;
+    } catch (err: any) {
+      console.error("get_sequences error:", err);
+      return `[FAILED] Could not fetch sequences: ${err.message}`;
+    }
+  },
+  {
+    name: "get_sequences",
+    description: "List all sales sequences in the current workspace CRM.",
+    schema: z.object({})
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   searchGoogleDriveTool,
@@ -1305,6 +1367,8 @@ export const allTools = [
   publishBlogPostTool,
   updateCrmTool,
   linkedinOutreachTool,
+  createSequenceTool,
+  getSequencesTool,
   deleteTaskTool,
   writeWorkspaceFileTool,
   getWorkspaceTasksTool,

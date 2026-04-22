@@ -2182,8 +2182,34 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     )
     .slice(0, 4);
 
+  const [isEditingDraft, setIsEditDraft] = useState(false);
+  const [editingDraftContent, setEditingDraftContent] = useState('');
+
   const renderFullPreviewModal = () => {
     if (!selectedBlogPost) return null;
+
+    const handleSaveDraft = async () => {
+      try {
+        await apiFetch(`/api/workspaces/${activeWorkspaceId}/tasks/${selectedBlogPost.id}`, {
+          method: 'PATCH',
+          token,
+          body: JSON.stringify({ 
+            artifact_payload: JSON.stringify({
+              ...selectedBlogPost,
+              body: editingDraftContent,
+              content: editingDraftContent // for compatibility
+            })
+          })
+        });
+        toast.success('Draft updated successfully');
+        setIsEditDraft(false);
+        // Refresh the tasks to reflect the change in the background
+        if (activeTab === 'Blog Posts') fetchLeads(); 
+        setSelectedBlogPost({ ...selectedBlogPost, content: editingDraftContent });
+      } catch (err) {
+        toast.error('Failed to save draft');
+      }
+    };
 
     return (
       <AnimatePresence>
@@ -2206,15 +2232,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
-                   onClick={() => toast.success('Publishing scheduled!')}
-                   className="hidden md:flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20"
-                >
-                  <Share2 className="w-4 h-4" />
-                  Publish Now
-                </button>
+                {isEditingDraft ? (
+                  <button 
+                     onClick={handleSaveDraft}
+                     className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
+                  >
+                    Save Changes
+                  </button>
+                ) : (
+                  <button 
+                     onClick={() => toast.success('Publishing scheduled!')}
+                     className="hidden md:flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Publish Now
+                  </button>
+                )}
                 <button
-                  onClick={() => setSelectedBlogPost(null)}
+                  onClick={() => { setSelectedBlogPost(null); setIsEditDraft(false); }}
                   className="p-2 hover:bg-warm-100 rounded-full text-stone-400 hover:text-stone-600 transition-colors"
                 >
                   <X className="w-6 h-6" />
@@ -2225,16 +2260,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-8 md:p-12">
               <div className="max-w-2xl mx-auto">
-                {selectedBlogPost.image && (
+                {selectedBlogPost.image && !isEditingDraft && (
                   <div className="aspect-video rounded-[24px] overflow-hidden mb-10 shadow-xl border border-warm-200 bg-warm-50">
                     <img src={selectedBlogPost.image} alt="Cover" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   </div>
                 )}
                 
                 <div className="prose prose-stone prose-lg max-w-none prose-headings:font-display prose-headings:font-bold prose-p:text-stone-600 prose-p:leading-relaxed markdown-body">
-                  <Markdown remarkPlugins={[remarkGfm]}>
-                    {selectedBlogPost.content}
-                  </Markdown>
+                  {isEditingDraft ? (
+                    <textarea
+                      value={editingDraftContent}
+                      onChange={(e) => setEditingDraftContent(e.target.value)}
+                      className="w-full h-[500px] p-6 bg-warm-50 border border-warm-200 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all font-mono text-sm leading-relaxed"
+                      placeholder="Write your article content here (Markdown supported)..."
+                    />
+                  ) : (
+                    <Markdown remarkPlugins={[remarkGfm]}>
+                      {selectedBlogPost.content}
+                    </Markdown>
+                  )}
                 </div>
 
                 <div className="mt-16 pt-8 border-t border-warm-100 flex flex-wrap items-center justify-between gap-6">
@@ -2249,9 +2293,29 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   </div>
                   
                   <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 text-stone-500 hover:text-stone-900 font-bold text-sm transition-colors">
+                    <button 
+                      onClick={() => {
+                        setEditingDraftContent(selectedBlogPost.content);
+                        setIsEditDraft(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 text-stone-500 hover:text-stone-900 font-bold text-sm transition-colors"
+                    >
                       <Edit2 className="w-4 h-4" />
                       Edit Draft
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setSelectedBlogPost(null);
+                        setSchedulingModal({ 
+                          isOpen: true, 
+                          taskId: selectedBlogPost.id, 
+                          taskTitle: selectedBlogPost.title 
+                        });
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 text-stone-500 hover:text-stone-900 font-bold text-sm transition-colors"
+                    >
+                      <Clock className="w-4 h-4" />
+                      Schedule
                     </button>
                     <button className="flex items-center gap-2 px-4 py-2 text-stone-500 hover:text-stone-900 font-bold text-sm transition-colors">
                       <Download className="w-4 h-4" />

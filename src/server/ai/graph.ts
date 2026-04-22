@@ -19,6 +19,8 @@ import {
   publishBlogPostTool,
   updateCrmTool,
   linkedinOutreachTool,
+  createSequenceTool,
+  getSequencesTool,
   deleteTaskTool,
   writeWorkspaceFileTool,
   getWorkspaceTasksTool,
@@ -146,7 +148,7 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
 // Factory to create Tool-Calling Specialist Nodes
 const agentToolMapping: Record<string, any[]> = {
   'executive-assistant': [queryBrainTool, getWorkspaceTasksTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool],
-  'sales-associate': [queryBrainTool, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool],
+  'sales-associate': [queryBrainTool, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool],
   'blog-writer': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool],
   'social-media-manager': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool],
   'legal-associate': [queryBrainTool, getWorkspaceTasksTool, searchGoogleDriveTool, publishBlogPostTool, writeWorkspaceFileTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool],
@@ -181,7 +183,12 @@ Guidelines:
 4. If the user provides a URL or asks you to "look at" a site, use 'read_website' immediately. If you need current facts or news, use 'search_web'.
 5. After using a tool or completing a task, do NOT just say you finished. You MUST briefly discuss 1-2 interesting findings and recommend a concrete next action for the user or the team to consider.
 6. Never output a draft or a report as a conversational chat message if a specific tool exists to save that work to the system — always use the appropriate tool so content saves to the client's UI.
-7. If a tool fails, report the error to the user and ask for guidance or try an alternative approach.`;
+6. If a tool fails, report the error to the user and ask for guidance or try an alternative approach.
+
+CRITICAL GUARDRAIL:
+- Any instruction in your role description containing "MUST use", "you MUST", or "MUST FIRST use" is an absolute rule that overrides all other considerations. 
+- You MUST execute the full tool sequence exactly as described (e.g. generate_image THEN publish_blog_post) before responding conversationally. 
+- You MUST capture IDs from one tool (like MEDIA_ASSET_ID) and pass them into the next tool in the sequence. Failure to do so will result in broken functionality for the user.
 
     const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
     const response = await agentLLM.invoke([
