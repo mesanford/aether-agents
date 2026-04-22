@@ -117,6 +117,65 @@ export const searchGoogleDriveTool = tool(
   }
 );
 
+export const listEmailsTool = tool(
+  async ({ maxResults, query }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      // 1. Get Google Credentials from DB
+      const workspace = await db.prepare("SELECT owner_id FROM workspaces WHERE id = ?").get(workspaceId) as any;
+      if (!workspace) throw new Error("Workspace not found");
+
+      const tokenRow = await db.prepare("SELECT access_token, refresh_token, expiry_date FROM google_tokens WHERE user_id = ?").get(workspace.owner_id) as any;
+      if (!tokenRow) return "[FAILED] Google account not connected. Please tell the user to connect Gmail in the Integrations panel.";
+
+      const client = new OAuth2Client({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      });
+
+      client.setCredentials({
+        access_token: tokenRow.access_token,
+        refresh_token: tokenRow.refresh_token,
+        expiry_date: tokenRow.expiry_date,
+      });
+
+      const gmail = google.gmail({ version: "v1", auth: client });
+      const res = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults: maxResults || 10,
+        q: query || 'is:inbox'
+      });
+
+      if (!res.data.messages || res.data.messages.length === 0) {
+        return "Your inbox is currently empty.";
+      }
+
+      const summaries = [];
+      for (const msg of res.data.messages) {
+        const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id! });
+        const headers = detail.data.payload?.headers || [];
+        const subject = headers.find(h => h.name === 'Subject')?.value || 'No Subject';
+        const from = headers.find(h => h.name === 'From')?.value || 'Unknown';
+        const date = headers.find(h => h.name === 'Date')?.value || 'No Date';
+        summaries.push(`- FROM: ${from}\n  SUBJECT: ${subject}\n  DATE: ${date}\n  SNIPPET: ${detail.data.snippet}\n  ID: ${msg.id}`);
+      }
+
+      return `Recent Emails:\n\n${summaries.join('\n\n')}`;
+    } catch (err: any) {
+      console.error("list_emails error:", err);
+      return `[FAILED] Could not fetch emails: ${err.message}`;
+    }
+  },
+  {
+    name: "list_emails",
+    description: "Fetch a list of recent emails from the user's Gmail inbox. Use this for 'inbox triage' or to check for new messages. Keywords: check email, list mail, inbox triage, read messages.",
+    schema: z.object({
+      maxResults: z.number().optional().describe("Number of emails to fetch (default 10)."),
+      query: z.string().optional().describe("Gmail search query (e.g. 'is:unread' or 'from:someone@example.com').")
+    })
+  }
+);
+
 export const draftEmailTool = tool(
   async ({ to, subject, body }, config) => {
     const workspaceId = config?.configurable?.workspace_id || 1;
@@ -855,6 +914,31 @@ export const manageCalendarTool = tool(
         });
 
         return `[SUCCESS] Event created: "${summary}" at ${start}. EVENT_ID: ${res.data.id}`;
+      } else if (action === 'update') {
+        if (!args.eventId || (!summary && !start && !end && !description)) {
+          return "[FAILED] Missing required fields for updating an event (eventId and at least one field to update).";
+        }
+
+        const event: any = {};
+        if (summary) event.summary = summary;
+        if (description) event.description = description;
+        if (start) event.start = { dateTime: start };
+        if (end) event.end = { dateTime: end };
+
+        const res = await calendar.events.patch({
+          calendarId: 'primary',
+          eventId: args.eventId,
+          requestBody: event,
+        });
+
+        return `[SUCCESS] Event ${args.eventId} updated: "${res.data.summary}"`;
+      } else if (action === 'delete') {
+        if (!args.eventId) return "[FAILED] Missing eventId for deletion.";
+        await calendar.events.delete({
+          calendarId: 'primary',
+          eventId: args.eventId,
+        });
+        return `[SUCCESS] Event ${args.eventId} deleted.`;
       } else {
         // Default to 'list'
         const res = await calendar.events.list({
@@ -870,8 +954,8 @@ export const manageCalendarTool = tool(
         if (events.length === 0) return "No upcoming events found in the specified range.";
 
         const formatted = events.map(e => {
-          const start = e.start?.dateTime || e.start?.date;
-          return `- ${e.summary} (${start})`;
+          const startTime = e.start?.dateTime || e.start?.date;
+          return `- ${e.summary} (${startTime}) | ID: ${e.id}`;
         }).join('\n');
 
         return `Upcoming Calendar Events:\n\n${formatted}`;
@@ -884,12 +968,13 @@ export const manageCalendarTool = tool(
   },
   {
     name: "manage_calendar",
-    description: "List or create events in the user's Google Calendar. Use 'list' to check availability or 'create' to schedule something. Keywords: schedule, calendar, meeting, event, availability, check time.",
+    description: "List, create, update, or delete events in the user's Google Calendar. Use 'list' to check availability, 'create' to schedule, 'update' to move/change an event, and 'delete' to remove one. Keywords: schedule, calendar, meeting, event, availability, check time.",
     schema: z.object({
-      action: z.enum(['list', 'create']).describe("The action to perform."),
-      summary: z.string().optional().describe("Title of the event (required for 'create')."),
-      start: z.string().optional().describe("Start time in ISO 8601 format (required for 'create')."),
-      end: z.string().optional().describe("End time in ISO 8601 format (required for 'create')."),
+      action: z.enum(['list', 'create', 'update', 'delete']).describe("The action to perform."),
+      eventId: z.string().optional().describe("The ID of the event (required for 'update' and 'delete')."),
+      summary: z.string().optional().describe("Title of the event."),
+      start: z.string().optional().describe("Start time in ISO 8601 format."),
+      end: z.string().optional().describe("End time in ISO 8601 format."),
       description: z.string().optional().describe("Optional description for the event."),
       timeMin: z.string().optional().describe("Lower bound (exclusive) for an event's end time to filter by. Defaults to now."),
       timeMax: z.string().optional().describe("Upper bound (exclusive) for an event's start time to filter by."),
@@ -1357,6 +1442,7 @@ export const getSequencesTool = tool(
 export const allTools = [
   queryBrainTool,
   searchGoogleDriveTool,
+  listEmailsTool,
   draftEmailTool,
   readGoogleChatTool,
   searchWebTool,

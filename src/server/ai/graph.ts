@@ -10,6 +10,7 @@ import {
   allTools,
   queryBrainTool,
   searchGoogleDriveTool,
+  listEmailsTool,
   draftEmailTool,
   readGoogleChatTool,
   searchWebTool,
@@ -135,7 +136,7 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
 }
 
 const agentToolMapping: Record<string, any[]> = {
-  'executive-assistant': [queryBrainTool, getWorkspaceTasksTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool],
+  'executive-assistant': [queryBrainTool, getWorkspaceTasksTool, listEmailsTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool],
   'sales-associate': [queryBrainTool, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool],
   'blog-writer': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool],
   'social-media-manager': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool],
