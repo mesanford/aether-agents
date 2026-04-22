@@ -66,8 +66,6 @@ async function supervisorNode(state: AgentState): Promise<Partial<AgentState>> {
   const messages = state.messages;
 
   // Determine if there is an unanswered human message by scanning all messages.
-  // This is more robust than checking only the last message type, which can be
-  // unreliable when messages are deserialized from the SQLite checkpoint.
   let lastHumanIdx = -1;
   let lastAiIdx = -1;
   for (let i = 0; i < messages.length; i++) {
@@ -76,8 +74,7 @@ async function supervisorNode(state: AgentState): Promise<Partial<AgentState>> {
     if (type === 'ai' || type === 'tool') lastAiIdx = i;
   }
 
-  // If the last AI/tool response came after the last human message (or there is no
-  // human message at all), this conversation turn is complete — stop here.
+  // If the last AI/tool response came after the last human message, this turn is complete.
   if (lastHumanIdx === -1 || lastAiIdx > lastHumanIdx) {
     console.log('[SUPERVISOR TARGET] END');
     return { currentAssignee: 'END', sender: 'supervisor' };
@@ -104,12 +101,7 @@ CRITICAL RULES:
 3. Do NOT call tools yourself.
 Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
 
-  // Filter out any SystemMessages from state — Gemini requires the system message
-  // to be the first (and only) message of that role in the array.
   const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
-
-  // Gemini CRITICAL RULE: Function call turns (AI message with tool_calls) MUST be followed by function response turns (ToolMessage).
-  // We cannot inject a HumanMessage here if the last message was an AI message with tool calls.
   const lastMsg = conversationMessages[conversationMessages.length - 1];
   const isHuman = lastMsg?.getType() === 'human';
 
@@ -126,8 +118,6 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
 
   try {
     let rawContent = response.content as string;
-    
-    // Auto-clean any markdown formatting from the response
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     if (jsonMatch) rawContent = jsonMatch[0];
 
@@ -177,18 +167,18 @@ ${state.dataAccessSection || ''}
 ${state.liveDataSection || ''}
 
 Guidelines:
-1. When the user's intent clearly maps to a tool action described in your role, use the tool IMMEDIATELY — do not ask for clarification first. Only ask a clarifying question if a non-negotiable input is truly absent (e.g., no topic was given for a blog post, no URL was provided when one is required). Do not treat uncertainty about quality or tone as a blocker.
-2. Any instruction in your role description containing "MUST use", "you MUST", or "MUST first use" is an absolute rule. It overrides all other considerations. Execute the full tool sequence exactly as described before responding conversationally.
-3. To perform any system action (e.g. searching the web, reading a website, drafting an email, or scheduling a task), use the relevant tools provided natively.
-4. If the user provides a URL or asks you to "look at" a site, use 'read_website' immediately. If you need current facts or news, use 'search_web'.
-5. After using a tool or completing a task, do NOT just say you finished. You MUST briefly discuss 1-2 interesting findings and recommend a concrete next action for the user or the team to consider.
-6. Never output a draft or a report as a conversational chat message if a specific tool exists to save that work to the system — always use the appropriate tool so content saves to the client's UI.
-6. If a tool fails, report the error to the user and ask for guidance or try an alternative approach.
+1. When the user's intent clearly maps to a tool action described in your role, use the tool IMMEDIATELY.
+2. Any instruction in your role description containing "MUST use", "you MUST", or "MUST first use" is an absolute rule.
+3. To perform any system action, use the relevant tools provided natively.
+4. If the user provides a URL or asks you to "look at" a site, use 'read_website' immediately.
+5. After using a tool or completing a task, briefly discuss 1-2 interesting findings and recommend a concrete next action.
+6. Never output a draft as a chat message if a specific tool exists.
+7. If a tool fails, report the error and ask for guidance.
 
 CRITICAL GUARDRAIL:
-- Any instruction in your role description containing "MUST use", "you MUST", or "MUST FIRST use" is an absolute rule that overrides all other considerations. 
-- You MUST execute the full tool sequence exactly as described (e.g. generate_image THEN publish_blog_post) before responding conversationally. 
-- You MUST capture IDs from one tool (like MEDIA_ASSET_ID) and pass them into the next tool in the sequence. Failure to do so will result in broken functionality for the user.
+- Any instruction in your role description containing "MUST use", "you MUST", or "MUST FIRST use" is an absolute rule.
+- You MUST execute the full tool sequence exactly as described.
+- You MUST capture IDs from one tool (like MEDIA_ASSET_ID) and pass them into the next tool.
 
     const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
     const response = await agentLLM.invoke([
@@ -196,8 +186,6 @@ CRITICAL GUARDRAIL:
       ...conversationMessages
     ]);
 
-    // We MUST clone the AIMessage providing 'name' in its instantiation kwargs, 
-    // otherwise the Sqlite Checkpointer serialization will drop the randomly mutated field!
     const namedResponse = new AIMessage({
       content: response.content,
       name: agentConfig.id,
@@ -215,9 +203,6 @@ CRITICAL GUARDRAIL:
   };
 }
 
-// --- Graph Routing Logic ---
-
-// Router after any Specialist acts: Is it a Tool Call or finished?
 function router(state: AgentState): 'tool_node' | 'compaction_node' | 'approval_node' {
   const messages = state.messages;
   const lastMessage = messages[messages.length - 1] as AIMessage;
@@ -234,8 +219,6 @@ function router(state: AgentState): 'tool_node' | 'compaction_node' | 'approval_
   }
   return 'compaction_node';
 }
-
-// --- Graph Construction ---
 
 const builder = new StateGraph<AgentState>({
   channels: {
@@ -254,71 +237,48 @@ const builder = new StateGraph<AgentState>({
   }
 });
 
-// --- Compaction Stage ---
-
 async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
   const msgs = state.messages;
   
-  // 1. Event Detector: Exploration Spiral (consecutive tools with no AIMessage breakdown)
   let consecutiveTools = 0;
   for (let i = msgs.length - 1; i >= 0; i--) {
      if (msgs[i].getType() === 'tool') consecutiveTools++;
      else break;
   }
 
-  console.log(`[COMPACTION] consecutiveTools=${consecutiveTools} | totalMessages=${msgs.length}`);
   if (consecutiveTools >= 6) {
-    console.warn(`[COMPACTION] GUARDRAIL TRIGGERED | consecutiveTools=${consecutiveTools}`);
      return {
         messages: {
            type: 'REPLACE_MESSAGES',
            messages: [...msgs, new HumanMessage("SYSTEM GUARDRAIL: You are trapped in a tool exploration spiral. Conclude your thoughts and take definitive action immediately without using another tool.")]
         }
-     } as any; // Type override for our custom Array reduction trick
+     } as any;
   }
 
-  // 2. Full LLM Compaction: Squashing Working Memory into Episodic Memory when history bloats
-  // Token Estimation: 1 token ~= 4 characters. Trigger compaction if over 60,000 estimated tokens (~6% of 1M context window).
   const totalChars = msgs.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0);
   const estimatedTokens = totalChars / 4;
 
   if (estimatedTokens > 60000 && msgs.length > 10) {
-     console.log(`[COMPACTION] Triggering summary compaction. Estimated tokens: ${estimatedTokens}`);
-     
-     // Find a safe boundary to slice: 
-     // 1. Do not cut between an AIMessage with tool_calls and its ToolMessages.
-     // 2. ALWAYS start with a HumanMessage (User) to keep Gemini's turn sequence clean.
      let sliceIdx = msgs.length - 4;
      while (sliceIdx > 0) {
-        const msg = msgs[sliceIdx];
-        if (msg.getType() === 'human') {
-           // Check if previous was AI with tools (if so, this human is a safe start)
-           break;
-        }
+        if (msgs[sliceIdx].getType() === 'human') break;
         sliceIdx--;
      }
-     
-     // If we couldn't find a human message to start with, just keep the last 4 as a fallback
      if (sliceIdx <= 0) sliceIdx = Math.max(0, msgs.length - 4);
 
      const workingMemory = msgs.slice(sliceIdx);
      const oldMemory = msgs.slice(0, sliceIdx);
      
-     // Truncate excessively long individual messages in the summary prompt to prevent "too many tokens" on the summary call itself
      const formattedOldMemory = oldMemory.map(m => {
         const type = m.getType();
         let content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-        if (content.length > 10000) {
-           content = content.substring(0, 10000) + "... [TRUNCATED FOR SUMMARY]";
-        }
+        if (content.length > 10000) content = content.substring(0, 10000) + "... [TRUNCATED]";
         return `[${type}]: ${content}`;
      }).join('\n');
 
-     const summaryPrompt = `Summarize the following agent conversation into a highly concise strategic gist. 
-Preserve core identifiers (Paths, API keys, Campaign IDs).
-Previous Gist to merge: ${state.episodicGist || 'None'}
-
-New events to merge:
+     const summaryPrompt = `Summarize:
+Previous: ${state.episodicGist || 'None'}
+New:
 ${formattedOldMemory}`;
 
      try {
@@ -327,29 +287,20 @@ ${formattedOldMemory}`;
           episodicGist: gistResponse.content as string,
           messages: { type: 'REPLACE_MESSAGES', messages: workingMemory }
        } as any;
-     } catch (summaryErr) {
-       console.error("[COMPACTION] Summary generation failed:", summaryErr);
-       // Fallback: If summary fails, just drop the oldest half of messages to recover context window
-       let sliceIdx = Math.floor(msgs.length / 2);
-       while (sliceIdx > 0 && msgs[sliceIdx].getType() === 'tool') {
-          sliceIdx--;
-       }
-       return {
-          messages: { type: 'REPLACE_MESSAGES', messages: msgs.slice(sliceIdx) }
-       } as any;
+     } catch (err) {
+       let fallbackIdx = Math.floor(msgs.length / 2);
+       while (fallbackIdx > 0 && msgs[fallbackIdx].getType() === 'tool') fallbackIdx--;
+       return { messages: { type: 'REPLACE_MESSAGES', messages: msgs.slice(fallbackIdx) } } as any;
      }
   }
 
   return {};
 }
 
-// Intercepts and flags approval requirement. Because interruptBefore triggers before this starts,
-// When the Server resumes the thread, this resets the gate and lets tool_node proceed normally
 async function approvalNode(state: AgentState): Promise<Partial<AgentState>> {
   return { approvalRequired: true };
 }
 
-// Build Nodes
 builder.addNode('approval_node', approvalNode);
 builder.addNode('compaction_node', compactionNode);
 builder.addNode('supervisor', supervisorNode);
@@ -358,23 +309,18 @@ agentRegistry.forEach(agent => {
 });
 builder.addNode('tool_node', toolNode);
 
-// Add primary edge for starting
 builder.addConditionalEdges(START, (state: AgentState) => {
-  // If the message is a direct [Direct message to agentId], route directly to that agent to save tokens
   const lastMsg = state.messages[state.messages.length - 1];
   if (lastMsg && typeof lastMsg.content === 'string' && lastMsg.content.includes('[Direct message to ')) {
       const match = lastMsg.content.match(/\[Direct message to ([^\]]+)\]/);
       if (match && match[1]) {
         const baseId = match[1].split(':')[0];
-        if (agentIds.includes(baseId)) {
-          return baseId as any;
-        }
+        if (agentIds.includes(baseId)) return baseId as any;
       }
   }
   return 'supervisor' as any;
 });
 
-// The Supervisor dynamically dispatches
 const supervisorEdgeMap: Record<string, string> = { [END]: END };
 agentIds.forEach(id => { supervisorEdgeMap[id] = id; });
 
@@ -383,7 +329,6 @@ builder.addConditionalEdges('supervisor' as any,
   supervisorEdgeMap as any
 );
 
-// All specialists conditionally route to Tools or to the Compactor
 defaultSpecialists.forEach(specialist => {
   builder.addConditionalEdges(specialist as any, router as any, {
     tool_node: 'tool_node',
@@ -392,23 +337,13 @@ defaultSpecialists.forEach(specialist => {
   } as any);
 });
 
-// The Compactor is guaranteed to drop the clean message payload directly to the Supervisor
 builder.addEdge('compaction_node' as any, 'supervisor' as any);
-
-// The Approval Node blindly hands the baton over to the Tool Node once the human unpauses
 builder.addEdge('approval_node' as any, 'tool_node' as any);
 
-// Tool Node strictly routes BACK to the last sender who requested the tool
 const toolEdgeMap: Record<string, string> = {};
 agentIds.forEach(id => { toolEdgeMap[id] = id; });
+builder.addConditionalEdges('tool_node' as any, (state) => state.sender, toolEdgeMap as any);
 
-builder.addConditionalEdges('tool_node' as any, 
-  (state) => state.sender, 
-  toolEdgeMap as any
-);
-
-// Compile Graph
-// Global memory checkpointer tracks thread_id persistently
 export const checkpointer = new MemorySaver();
 export const workflow = builder.compile({ 
   checkpointer,
