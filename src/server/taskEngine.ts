@@ -820,9 +820,9 @@ export async function executePendingTasks({
           try {
             await checkAndIncrementDailyAIRequestLimit(db, workspaceId);
 
-            // AGENTIC UPGRADE: If this is a high-value task (Outreach/Draft/Research), 
+            // AGENTIC UPGRADE: If this is a high-value task (Outreach/Draft/Research/Compliance/Review), 
             // invoke the full LangGraph workflow so the agent can actually USE its tools.
-            if (['outreach', 'draft', 'research'].includes(taskExecutionType)) {
+            if (['outreach', 'draft', 'research', 'compliance', 'review'].includes(taskExecutionType)) {
               console.log(`[Task Engine] Invoking AGENTIC WORKFLOW for task: ${task.title}`);
               
               const profiles = await db.prepare("SELECT id, name, role, instructions, personality, capabilities, description FROM agents WHERE workspace_id = ?").all(workspaceId) as any[];

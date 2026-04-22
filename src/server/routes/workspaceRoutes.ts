@@ -932,6 +932,57 @@ export function registerWorkspaceRoutes({
     }
   });
 
+  app.post("/api/workspaces/:workspaceId/agents/:agentId/tools/update_agent_schedule", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { taskId, repeat, preferredTime } = req.body;
+      const workspaceId = req.workspaceId;
+
+      if (!taskId || !repeat || !preferredTime) {
+        return res.status(400).json({ error: "Missing required fields: taskId, repeat, and preferredTime are required." });
+      }
+
+      // 1. Calculate the next execution date based on the preferred time or interval
+      const nextDate = new Date();
+      if (repeat.toLowerCase().includes('minutes')) {
+        const mins = Number.parseInt(repeat.split(' ')[0], 10) || 20;
+        nextDate.setMinutes(nextDate.getMinutes() + mins);
+      } else {
+        const [hours, minutes] = preferredTime.split(':').map(Number);
+        nextDate.setHours(hours, minutes, 0, 0);
+
+        // If the time has already passed today, set it for tomorrow
+        if (nextDate.getTime() <= Date.now()) {
+          nextDate.setDate(nextDate.getDate() + 1);
+        }
+      }
+
+      // 2. Update the task in the database
+      const result = await db.prepare("UPDATE tasks SET repeat = ?, due_date = ? WHERE id = ? AND workspace_id = ?")
+        .run(repeat, nextDate.toISOString(), taskId, workspaceId);
+
+      if (result.changes === 0) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      writeAuditLog({
+        workspaceId: req.workspaceId,
+        userId: req.userId,
+        action: "agent.schedule.updated",
+        resource: "tasks",
+        details: { taskId, repeat, preferredTime, nextRun: nextDate.toISOString() },
+      });
+
+      res.json({ 
+        success: true, 
+        message: `Schedule updated for task ${taskId}.`,
+        nextRun: nextDate.toISOString() 
+      });
+    } catch (err: any) {
+      console.error("API update_agent_schedule error:", err);
+      res.status(500).json({ error: `Failed to update agent schedule: ${err.message}` });
+    }
+  });
+
   app.get("/api/workspaces/:id/tasks", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const rows = await db.prepare("SELECT * FROM tasks WHERE workspace_id = ?").all(req.workspaceId) as any[];
