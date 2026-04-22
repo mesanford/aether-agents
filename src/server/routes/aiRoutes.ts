@@ -389,12 +389,12 @@ export function registerAiRoutes({
         model: 'gemini-3.1-flash-image-preview',
         contents: [{ role: 'user', parts: [{ text: 'Generate a test image of a futuristic city.' }] }],
       });
-      const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
+      const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       res.json({ 
         success: !!imagePart, 
         hasImage: !!imagePart,
-        mimeType: imagePart?.inline_data?.mime_type,
-        base64Prefix: imagePart?.inline_data?.data?.substring(0, 50) 
+        mimeType: imagePart?.inlineData?.mimeType,
+        base64Prefix: imagePart?.inlineData?.data?.substring(0, 50) 
       });
     } catch (err: any) {
       res.json({ success: false, err: err.message, stack: err.stack });

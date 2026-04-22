@@ -374,11 +374,11 @@ export const generateImageTool = tool(
       });
 
       // Find the image part in the response
-      const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
+      const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       
-      if (imagePart && imagePart.inline_data) {
-        const base64 = imagePart.inline_data.data;
-        const dataUrl = `data:${imagePart.inline_data.mime_type || 'image/png'};base64,${base64}`;
+      if (imagePart && imagePart.inlineData) {
+        const base64 = imagePart.inlineData.data;
+        const dataUrl = `data:${imagePart.inlineData.mimeType || 'image/png'};base64,${base64}`;
         let mediaAssetId = null;
         let storedUrl = dataUrl;
         

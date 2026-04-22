@@ -65,7 +65,6 @@ async function supervisorNode(state: AgentState): Promise<Partial<AgentState>> {
   console.log(`[NODE: supervisor] lastAction: ${state.sender}`);
   const messages = state.messages;
 
-  // Determine if there is an unanswered human message by scanning all messages.
   let lastHumanIdx = -1;
   let lastAiIdx = -1;
   for (let i = 0; i < messages.length; i++) {
@@ -74,7 +73,6 @@ async function supervisorNode(state: AgentState): Promise<Partial<AgentState>> {
     if (type === 'ai' || type === 'tool') lastAiIdx = i;
   }
 
-  // If the last AI/tool response came after the last human message, this turn is complete.
   if (lastHumanIdx === -1 || lastAiIdx > lastHumanIdx) {
     console.log('[SUPERVISOR TARGET] END');
     return { currentAssignee: 'END', sender: 'supervisor' };
@@ -135,7 +133,6 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
   }
 }
 
-// Factory to create Tool-Calling Specialist Nodes
 const agentToolMapping: Record<string, any[]> = {
   'executive-assistant': [queryBrainTool, getWorkspaceTasksTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool],
   'sales-associate': [queryBrainTool, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool],
@@ -178,7 +175,7 @@ Guidelines:
 CRITICAL GUARDRAIL:
 - Any instruction in your role description containing "MUST use", "you MUST", or "MUST FIRST use" is an absolute rule.
 - You MUST execute the full tool sequence exactly as described.
-- You MUST capture IDs from one tool (like MEDIA_ASSET_ID) and pass them into the next tool.
+- You MUST capture IDs from one tool (like MEDIA_ASSET_ID) and pass them into the next tool.`;
 
     const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
     const response = await agentLLM.invoke([
@@ -208,13 +205,8 @@ function router(state: AgentState): 'tool_node' | 'compaction_node' | 'approval_
   const lastMessage = messages[messages.length - 1] as AIMessage;
   
   if (lastMessage?.tool_calls?.length) {
-    const isRisky = lastMessage.tool_calls.some(call => {
-      return call.name === 'write_workspace_file';
-    });
-
-    if (isRisky && !state.approvalRequired) {
-      return 'approval_node';
-    }
+    const isRisky = lastMessage.tool_calls.some(call => call.name === 'write_workspace_file');
+    if (isRisky && !state.approvalRequired) return 'approval_node';
     return 'tool_node';
   }
   return 'compaction_node';
@@ -276,10 +268,7 @@ async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
         return `[${type}]: ${content}`;
      }).join('\n');
 
-     const summaryPrompt = `Summarize:
-Previous: ${state.episodicGist || 'None'}
-New:
-${formattedOldMemory}`;
+     const summaryPrompt = `Summarize:\nPrevious: ${state.episodicGist || 'None'}\nNew:\n${formattedOldMemory}`;
 
      try {
        const gistResponse = await liteLLM.invoke([new HumanMessage(summaryPrompt)]);
@@ -288,12 +277,11 @@ ${formattedOldMemory}`;
           messages: { type: 'REPLACE_MESSAGES', messages: workingMemory }
        } as any;
      } catch (err) {
-       let fallbackIdx = Math.floor(msgs.length / 2);
-       while (fallbackIdx > 0 && msgs[fallbackIdx].getType() === 'tool') fallbackIdx--;
-       return { messages: { type: 'REPLACE_MESSAGES', messages: msgs.slice(fallbackIdx) } } as any;
+       let fbIdx = Math.floor(msgs.length / 2);
+       while (fbIdx > 0 && msgs[fbIdx].getType() === 'tool') fbIdx--;
+       return { messages: { type: 'REPLACE_MESSAGES', messages: msgs.slice(fbIdx) } } as any;
      }
   }
-
   return {};
 }
 
