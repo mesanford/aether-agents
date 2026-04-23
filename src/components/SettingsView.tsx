@@ -24,6 +24,7 @@ import { cn } from '../utils';
 import { apiFetch } from '../services/apiClient';
 import { toast } from 'react-hot-toast';
 import type { Agent } from '../types';
+import ImageCropModal from './ImageCropModal';
 
 interface SettingsViewProps {
   user: any;
@@ -164,6 +165,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user?.name || 'marcus'}&backgroundColor=f5f5f4`);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  const [cropModal, setCropModal] = useState<{ src: string; onComplete: (url: string) => void } | null>(null);
 
   const handleInstallClick = async () => {
     if (!installPrompt) return;
@@ -220,15 +222,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const openCropModal = (file: File, onComplete: (url: string) => void) => {
+    const objectUrl = URL.createObjectURL(file);
+    setCropModal({
+      src: objectUrl,
+      onComplete: (url: string) => {
+        URL.revokeObjectURL(objectUrl);
+        setCropModal(null);
+        onComplete(url);
+      },
+    });
+  };
+
   const handleAgentFileUpload = (agentId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Url = event.target?.result as string;
-      setAgentEdits(prev => ({ ...prev, [agentId]: { ...prev[agentId], avatar: base64Url } }));
-    };
-    reader.readAsDataURL(file);
+    e.target.value = '';
+    openCropModal(file, (url) => {
+      setAgentEdits(prev => ({ ...prev, [agentId]: { ...prev[agentId], avatar: url } }));
+    });
   };
 
   const handleAvatarSelect = async (url: string) => {
@@ -251,12 +263,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64Url = event.target?.result as string;
-      await handleAvatarSelect(base64Url);
-    };
-    reader.readAsDataURL(file);
+    e.target.value = '';
+    openCropModal(file, (url) => handleAvatarSelect(url));
   };
 
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus>({ connected: false, gmail: false, calendar: false, drive: false });
@@ -905,6 +913,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   ];
 
   return (
+    <>
+    {cropModal && (
+      <ImageCropModal
+        imageSrc={cropModal.src}
+        onComplete={cropModal.onComplete}
+        onCancel={() => { URL.revokeObjectURL(cropModal.src); setCropModal(null); }}
+      />
+    )}
     <div className="flex-1 flex flex-col bg-warm-50/50 overflow-hidden">
       <div className="px-8 py-6 bg-white border-b border-warm-200">
         <h1 className="font-display text-2xl font-bold text-stone-900">Settings</h1>
@@ -956,7 +972,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <Bot className="w-5 h-5 text-brand-500" />
                   Agent Customization
                 </h2>
-                <p className="text-sm text-stone-500 mb-6">Change each agent's display name and avatar.</p>
+                <p className="text-sm text-stone-500 mb-3">Change each agent's display name and avatar.</p>
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 mb-6">
+                  <span className="text-amber-500 mt-0.5 flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2Zm-.75 5.25a.75.75 0 0 1 1.5 0v5a.75.75 0 0 1-1.5 0v-5Zm.75 9.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+                  </span>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    For best results, use a square image at least <strong>256×256px</strong>. Images are automatically resized to <strong>512×512px</strong> on upload. Any format is accepted (JPG, PNG, WebP, GIF).
+                  </p>
+                </div>
                 <div className="space-y-6">
                   {agents.map((agent) => {
                     const edit = agentEdits[agent.id] ?? { name: agent.name, avatar: agent.avatar };
@@ -1423,5 +1447,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         )}
       </AnimatePresence>
     </div>
+    </>
   );
 };

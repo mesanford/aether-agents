@@ -251,7 +251,11 @@ async function startServer() {
   // Error handler
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error("Unhandled error:", err);
-    if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
+    if (res.headersSent) return;
+    if (err.type === 'entity.too.large') {
+      return res.status(413).json({ error: "Request body too large. Please use a smaller image." });
+    }
+    res.status(500).json({ error: "Internal server error" });
   });
 }
 
