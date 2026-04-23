@@ -16,7 +16,9 @@ import {
   Unplug,
   RefreshCw,
   Phone,
-  Bot
+  Bot,
+  Download,
+  Bell
 } from 'lucide-react';
 import { cn } from '../utils';
 import { apiFetch } from '../services/apiClient';
@@ -35,6 +37,9 @@ interface SettingsViewProps {
   onWorkspaceUpdate: (workspace: any) => void;
   agents?: Agent[];
   onAgentUpdate?: (agent: Agent) => void;
+  installPrompt?: any;
+  onClearDeferredPrompt?: () => void;
+  onShowNotificationPrompt?: () => void;
 }
 
 interface GoogleStatus {
@@ -148,6 +153,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onWorkspaceUpdate,
   agents = [],
   onAgentUpdate,
+  installPrompt,
+  onClearDeferredPrompt,
+  onShowNotificationPrompt,
 }) => {
   const [activeTab, setActiveTab] = useState<'integrations' | 'account' | 'agents'>(defaultTab ?? 'integrations');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -156,6 +164,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user?.name || 'marcus'}&backgroundColor=f5f5f4`);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      onClearDeferredPrompt?.();
+    }
+  };
+
+  const handleNotificationClick = () => {
+    if (Notification.permission === 'denied') {
+      toast.error("Notifications are blocked by your browser settings. Please enable them in your browser's site settings.");
+    } else {
+      localStorage.removeItem('push-prompt-dismissed');
+      onShowNotificationPrompt?.();
+    }
+  };
 
   useEffect(() => {
     if (user?.avatar) {
@@ -1090,6 +1116,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     Sign Out
                   </button>
                 </div>
+              </div>
+
+              {installPrompt && (
+                <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
+                  <h3 className="text-base font-bold text-stone-900 mb-1">App Installation</h3>
+                  <p className="text-sm text-stone-500 mb-4">Install Sanford AI as a standalone app on your device for a better experience.</p>
+                  <button
+                    onClick={handleInstallClick}
+                    className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white hover:bg-brand-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Install App
+                  </button>
+                </div>
+              )}
+
+              <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-stone-900 mb-1">Push Notifications</h3>
+                <p className="text-sm text-stone-500 mb-4">Enable browser notifications to stay updated on agent activity and task completions.</p>
+                <button
+                  onClick={handleNotificationClick}
+                  className={cn(
+                    "w-full rounded-xl border px-4 py-3 text-sm font-bold transition-all flex items-center justify-center gap-2",
+                    Notification.permission === 'granted'
+                      ? "border-emerald-100 bg-emerald-50 text-emerald-600 cursor-default"
+                      : "border-warm-200 text-stone-600 hover:bg-warm-50"
+                  )}
+                  disabled={Notification.permission === 'granted'}
+                >
+                  <Bell className="w-4 h-4" />
+                  {Notification.permission === 'granted' ? 'Notifications Enabled' : 'Enable Notifications'}
+                </button>
               </div>
 
               {activeWorkspaceRole === 'owner' && (

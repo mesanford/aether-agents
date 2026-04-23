@@ -1,23 +1,25 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { db } from '../src/server/db.ts';
 
-const dbPath = path.resolve(process.cwd(), 'agency.db');
-const db = new Database(dbPath);
+async function inspect() {
+    console.log('--- Tasks ---');
+    const tasks = await db.prepare('SELECT * FROM tasks').all();
+    console.table(tasks);
 
-console.log('--- Tasks ---');
-const tasks = db.prepare('SELECT * FROM tasks').all();
-console.table(tasks);
+    console.log('\n--- Leads ---');
+    try {
+        const leads = await db.prepare('SELECT * FROM leads').all();
+        console.table(leads);
+    } catch (e: any) {
+        console.log('Leads table might not exist or error:', e.message);
+    }
 
-console.log('\n--- Leads ---');
-try {
-    const leads = db.prepare('SELECT * FROM leads').all();
-    console.table(leads);
-} catch (e) {
-    console.log('Leads table might not exist or error:', e.message);
+    console.log('\n--- Knowledge Documents ---');
+    try {
+        const docs = await db.prepare('SELECT * FROM knowledge_documents').all();
+        console.table(docs);
+    } catch (e: any) {
+        console.log('Knowledge table error:', e.message);
+    }
 }
 
-console.log('\n--- Knowledge Documents ---');
-const docs = db.prepare('SELECT * FROM knowledge_documents').all();
-console.table(docs);
-
-db.close();
+inspect().catch(console.error);

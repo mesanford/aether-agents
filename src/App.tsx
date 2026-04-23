@@ -87,6 +87,17 @@ export default function App() {
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // ── Capture PWA install prompt ───────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   // ── Register service worker and show notification prompt after login ─────
   useEffect(() => {
@@ -1111,6 +1122,9 @@ export default function App() {
                 defaultTab={settingsDefaultTab}
                 agents={agents}
                 onAgentUpdate={(updated) => setAgents(prev => prev.map(a => a.id === updated.id ? updated : a))}
+                installPrompt={deferredPrompt}
+                onClearDeferredPrompt={() => setDeferredPrompt(null)}
+                onShowNotificationPrompt={() => setShowNotifPrompt(true)}
               />
             ) : (
               <TaskManager

@@ -373,8 +373,8 @@ export function createTestApp(db: MockDb, aiClient: any = null) {
     requireWorkspaceAccess,
     aiRateLimiter,
     isNonEmptyString,
-    buildDataAccessSection: async () => "Mock Data Access",
-    buildLiveDataSection: async () => "Mock Live Data",
+    buildDataAccessSection: () => "Mock Data Access",
+    buildLiveDataSection: () => "Mock Live Data",
   });
 
   registerIntegrationsRoutes({

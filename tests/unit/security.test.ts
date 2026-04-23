@@ -18,7 +18,7 @@ const JWT_SECRET = "test-jwt-secret";
 // Minimal stubs
 // ---------------------------------------------------------------------------
 
-type FakeRow = { role: string; owner_id?: number };
+type FakeRow = { role?: string; owner_id?: number };
 type FakeStmt = { get: (...args: unknown[]) => Promise<FakeRow | undefined>; run: (...args: unknown[]) => Promise<{ changes: number }> };
 
 function makeMockDb(opts: {

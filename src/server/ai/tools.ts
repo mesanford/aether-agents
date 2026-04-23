@@ -863,7 +863,7 @@ export const manageTaskStatusTool = tool(
 );
 
 export const manageCalendarTool = tool(
-  async ({ action, summary, start, end, description, timeMin, timeMax, maxResults = 10 }, config) => {
+  async ({ action, eventId, summary, start, end, description, timeMin, timeMax, maxResults = 10 }, config) => {
     const workspaceId = config?.configurable?.workspace_id || 1;
     
     try {
@@ -914,7 +914,7 @@ export const manageCalendarTool = tool(
 
         return `[SUCCESS] Event created: "${summary}" at ${start}. EVENT_ID: ${res.data.id}`;
       } else if (action === 'update') {
-        if (!args.eventId || (!summary && !start && !end && !description)) {
+        if (!eventId || (!summary && !start && !end && !description)) {
           return "[FAILED] Missing required fields for updating an event (eventId and at least one field to update).";
         }
 
@@ -926,18 +926,18 @@ export const manageCalendarTool = tool(
 
         const res = await calendar.events.patch({
           calendarId: 'primary',
-          eventId: args.eventId,
+          eventId: eventId,
           requestBody: event,
         });
 
-        return `[SUCCESS] Event ${args.eventId} updated: "${res.data.summary}"`;
+        return `[SUCCESS] Event ${eventId} updated: "${res.data.summary}"`;
       } else if (action === 'delete') {
-        if (!args.eventId) return "[FAILED] Missing eventId for deletion.";
+        if (!eventId) return "[FAILED] Missing eventId for deletion.";
         await calendar.events.delete({
           calendarId: 'primary',
-          eventId: args.eventId,
+          eventId: eventId,
         });
-        return `[SUCCESS] Event ${args.eventId} deleted.`;
+        return `[SUCCESS] Event ${eventId} deleted.`;
       } else {
         // Default to 'list'
         const res = await calendar.events.list({

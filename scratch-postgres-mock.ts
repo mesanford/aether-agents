@@ -2,7 +2,7 @@ import { PostgresShim } from "./src/server/db.ts";
 import { bootstrapDatabase } from "./src/server/dbBootstrap.ts";
 
 const db = new PostgresShim();
-db.pool.query = async (queryText: string, values?: any[]) => {
+(db.pool as any).query = async (queryText: string, values?: any[]) => {
   console.log("QUERY:", queryText);
   if (values) console.log("VALUES:", values);
   if (queryText.includes("SELECT COUNT(*) as count FROM agents")) {
