@@ -15,11 +15,13 @@ import {
   Loader,
   Unplug,
   RefreshCw,
-  Phone
+  Phone,
+  Bot
 } from 'lucide-react';
 import { cn } from '../utils';
 import { apiFetch } from '../services/apiClient';
 import { toast } from 'react-hot-toast';
+import type { Agent } from '../types';
 
 interface SettingsViewProps {
   user: any;
@@ -28,9 +30,11 @@ interface SettingsViewProps {
   onLogout: () => void;
   onConnectedServicesChange: React.Dispatch<React.SetStateAction<any>>;
   onUserUpdate?: (user: any) => void;
-  defaultTab?: 'account' | 'integrations';
+  defaultTab?: 'account' | 'integrations' | 'agents';
   activeWorkspaceRole?: string;
   onWorkspaceUpdate: (workspace: any) => void;
+  agents?: Agent[];
+  onAgentUpdate?: (agent: Agent) => void;
 }
 
 interface GoogleStatus {
@@ -141,9 +145,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUserUpdate,
   defaultTab = 'integrations',
   activeWorkspaceRole,
-  onWorkspaceUpdate
+  onWorkspaceUpdate,
+  agents = [],
+  onAgentUpdate,
 }) => {
-  const [activeTab, setActiveTab] = useState<'integrations' | 'account'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'integrations' | 'account' | 'agents'>(defaultTab ?? 'integrations');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteWorkspaceModal, setShowDeleteWorkspaceModal] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
@@ -156,6 +162,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setAvatarUrl(user.avatar);
     }
   }, [user?.avatar]);
+
+  const [agentEdits, setAgentEdits] = useState<Record<string, { name: string; avatar: string }>>({});
+  const [savingAgent, setSavingAgent] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (agents.length > 0) {
+      const initial: Record<string, { name: string; avatar: string }> = {};
+      agents.forEach(a => { initial[a.id] = { name: a.name, avatar: a.avatar }; });
+      setAgentEdits(initial);
+    }
+  }, [agents]);
+
+  const handleSaveAgent = async (agentId: string) => {
+    const edit = agentEdits[agentId];
+    if (!edit || !token || !activeWorkspaceId) return;
+    setSavingAgent(agentId);
+    try {
+      const updated = await apiFetch<Agent>(`/api/workspaces/${activeWorkspaceId}/agents/${agentId}`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify({ name: edit.name, avatar: edit.avatar }),
+        onAuthFailure: () => onLogout(),
+      });
+      onAgentUpdate?.(updated);
+      toast.success('Agent updated');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update agent');
+    } finally {
+      setSavingAgent(null);
+    }
+  };
+
+  const handleAgentFileUpload = (agentId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Url = event.target?.result as string;
+      setAgentEdits(prev => ({ ...prev, [agentId]: { ...prev[agentId], avatar: base64Url } }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleAvatarSelect = async (url: string) => {
     setAvatarUrl(url);
@@ -860,9 +908,103 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             >
               Integrations
             </button>
+            <button
+              onClick={() => setActiveTab('agents')}
+              className={cn(
+                "px-6 py-2 rounded-lg text-sm font-medium transition-all",
+                activeTab === 'agents' ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
+              )}
+            >
+              Agents
+            </button>
           </div>
 
-          {activeTab === 'account' ? (
+          {activeTab === 'agents' ? (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="bg-white rounded-2xl border border-warm-200 p-6 shadow-sm">
+                <h2 className="font-display text-lg font-bold text-stone-900 mb-1 flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-brand-500" />
+                  Agent Customization
+                </h2>
+                <p className="text-sm text-stone-500 mb-6">Change each agent's display name and avatar.</p>
+                <div className="space-y-6">
+                  {agents.map((agent) => {
+                    const edit = agentEdits[agent.id] ?? { name: agent.name, avatar: agent.avatar };
+                    const isSaving = savingAgent === agent.id;
+                    const isDirty = edit.name !== agent.name || edit.avatar !== agent.avatar;
+                    return (
+                      <div key={agent.id} className="flex flex-col sm:flex-row items-start gap-5 pb-6 border-b border-warm-100 last:border-0 last:pb-0">
+                        {/* Avatar */}
+                        <div className="flex flex-col items-center gap-2 flex-shrink-0">
+                          <div className="w-16 h-16 rounded-full overflow-hidden bg-warm-100 border-2 border-warm-200 relative group">
+                            <img src={edit.avatar} alt={edit.name} className="w-full h-full object-cover" />
+                            <label className="absolute inset-0 bg-stone-900/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                              <Plus className="w-5 h-5 text-white mb-0.5" />
+                              <span className="text-[9px] text-white font-bold uppercase tracking-wider">Upload</span>
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={(e) => handleAgentFileUpload(agent.id, e)}
+                              />
+                            </label>
+                          </div>
+                          <span className="text-[10px] text-stone-400 font-medium uppercase tracking-wider">{agent.role}</span>
+                        </div>
+
+                        {/* Name + presets */}
+                        <div className="flex-1 min-w-0 space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">Display Name</label>
+                            <input
+                              type="text"
+                              value={edit.name}
+                              maxLength={50}
+                              onChange={(e) => setAgentEdits(prev => ({ ...prev, [agent.id]: { ...prev[agent.id], name: e.target.value } }))}
+                              className="w-full max-w-xs px-3 py-2 bg-warm-50 border border-warm-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-300"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">Avatar Presets</label>
+                            <div className="flex flex-wrap gap-2">
+                              {PREBUILT_AVATARS.map((url, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setAgentEdits(prev => ({ ...prev, [agent.id]: { ...prev[agent.id], avatar: url } }))}
+                                  className={cn(
+                                    "w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-105",
+                                    edit.avatar === url ? "border-brand-500 scale-110 shadow-md" : "border-warm-200 hover:border-brand-300"
+                                  )}
+                                >
+                                  <img src={url} alt={`Preset ${i}`} className="w-full h-full object-cover" />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Save */}
+                        <div className="sm:self-center flex-shrink-0">
+                          <button
+                            onClick={() => handleSaveAgent(agent.id)}
+                            disabled={isSaving || !isDirty || !(activeWorkspaceRole === 'owner' || activeWorkspaceRole === 'admin')}
+                            className="px-4 py-2 bg-stone-900 text-white text-sm font-bold rounded-xl hover:bg-stone-800 transition-all disabled:opacity-40 flex items-center gap-2"
+                          >
+                            {isSaving && <Loader className="w-3.5 h-3.5 animate-spin" />}
+                            {isSaving ? 'Saving…' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          ) : activeTab === 'account' ? (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}

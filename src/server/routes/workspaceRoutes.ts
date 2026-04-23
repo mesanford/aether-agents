@@ -875,6 +875,7 @@ export function registerWorkspaceRoutes({
       if (updates.description !== undefined) await db.prepare("UPDATE agents SET description = ? WHERE id = ? AND workspace_id = ?").run(updates.description, agentId, req.workspaceId);
       if (updates.capabilities !== undefined) await db.prepare("UPDATE agents SET capabilities = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.capabilities), agentId, req.workspaceId);
       if (updates.personality !== undefined) await db.prepare("UPDATE agents SET personality = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.personality), agentId, req.workspaceId);
+      if (updates.avatar !== undefined) await db.prepare("UPDATE agents SET avatar = ? WHERE id = ? AND workspace_id = ?").run(updates.avatar, agentId, req.workspaceId);
       writeAuditLog({
         workspaceId: req.workspaceId,
         userId: req.userId,

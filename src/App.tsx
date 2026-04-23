@@ -1109,6 +1109,8 @@ export default function App() {
                   setWorkspaces(prev => prev.map(w => w.id === updatedWs.id ? updatedWs : w));
                 }}
                 defaultTab={settingsDefaultTab}
+                agents={agents}
+                onAgentUpdate={(updated) => setAgents(prev => prev.map(a => a.id === updated.id ? updated : a))}
               />
             ) : (
               <TaskManager

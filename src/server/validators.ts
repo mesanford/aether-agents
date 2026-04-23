@@ -103,6 +103,20 @@ export function getAllowedAgentUpdate(body: any) {
     };
   }
 
+  if (body.avatar !== undefined) {
+    if (typeof body.avatar !== "string" || body.avatar.trim().length === 0) {
+      return { error: "Invalid avatar" };
+    }
+    const val = body.avatar.trim();
+    if (!/^data:image\//i.test(val) && !/^https?:\/\//i.test(val)) {
+      return { error: "Invalid avatar format" };
+    }
+    if (val.length > 2_000_000) {
+      return { error: "Avatar image too large" };
+    }
+    updates.avatar = val;
+  }
+
   return { updates };
 }
 
