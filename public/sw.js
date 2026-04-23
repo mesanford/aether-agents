@@ -78,11 +78,25 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
+  
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const targetUrl = new URL(url, self.location.origin);
+      
       for (const c of list) {
-        if (c.url === url && 'focus' in c) return c.focus();
+        const clientUrl = new URL(c.url);
+        // If we find a client on the same origin, focus and navigate it
+        if (clientUrl.origin === targetUrl.origin) {
+          return c.focus().then((focusedClient) => {
+            if (focusedClient && 'navigate' in focusedClient) {
+              return focusedClient.navigate(url);
+            }
+            return focusedClient;
+          });
+        }
       }
+      
+      // If no matching client found, open a new window
       return clients.openWindow?.(url);
     })
   );

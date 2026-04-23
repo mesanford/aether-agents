@@ -1504,11 +1504,11 @@ export const sendPushNotificationTool = tool(
   },
   {
     name: "send_push_notification",
-    description: "Send a real-time push notification to the user's browser or mobile device. Use this to proactively alert the user when you complete a major task, find something urgent, or need their immediate attention. The notification appears even when the browser tab is in the background or the screen is locked. Keywords: notify user, alert user, push notification, notify, alert.",
+    description: "Send a real-time push notification to the user's browser or mobile device. Use this to proactively alert the user when you complete a major task, find something urgent, or need their immediate attention. The notification appears even when the browser tab is in the background or the screen is locked. Keywords: notify user, alert user, push notification, notify, alert. NOTE: You MUST ALWAYS provide the `url` parameter formatted as `/?agent={your_agent_id}` so the user is taken directly to your chat interface when they click the notification.",
     schema: z.object({
       title: z.string().describe("Short notification title (max 50 chars)."),
       message: z.string().describe("Notification body text describing what happened (max 150 chars)."),
-      url: z.string().optional().describe("Optional URL to open when the user clicks the notification, e.g. '/?agent=sales-associate'.")
+      url: z.string().optional().describe("URL to open when the user clicks the notification. REQUIRED: must be formatted as '/?agent=your_agent_id'.")
     })
   }
 );

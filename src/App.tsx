@@ -68,7 +68,10 @@ export default function App() {
 
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [activeAgentId, setActiveAgentId] = useState<string>('');
+  const [activeAgentId, setActiveAgentId] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('agent') || '';
+  });
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [lastViewedTimestamps, setLastViewedTimestamps] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('sanford-last-viewed');
@@ -79,7 +82,10 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('sanford-token'));
 
   const [workingAgents, setWorkingAgents] = useState<Set<string>>(new Set());
-  const [activeView, setActiveView] = useState<'chat' | 'media' | 'docs' | 'team' | 'tasks' | 'settings' | 'approvals'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'media' | 'docs' | 'team' | 'tasks' | 'settings' | 'approvals'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return (params.get('view') as any) || 'chat';
+  });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAgentList, setShowAgentList] = useState(true);
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
@@ -135,9 +141,9 @@ export default function App() {
 
         setAgents(agentsList);
         if (agentsList.length > 0) {
-        const firstVisible = agentsList.find(a => !isTeamChatId(a.id)) || agentsList[0];
-        const stillValid = agentsList.find(a => a.id === activeAgentId && !isTeamChatId(a.id));
-        if (!stillValid) setActiveAgentId(firstVisible.id);
+          const firstVisible = agentsList.find(a => !isTeamChatId(a.id)) || agentsList[0];
+          const stillValid = agentsList.find(a => a.id === activeAgentId && !isTeamChatId(a.id));
+          if (!stillValid) setActiveAgentId(firstVisible.id);
         }
       setTasks(tasksData || []);
 
@@ -161,8 +167,11 @@ export default function App() {
       setMessages(msgMap);
 
 
-      // Reset view when switching workspace
-      setActiveView('chat');
+      // Only reset view if there isn't a view specified in the URL params
+      const params = new URLSearchParams(window.location.search);
+      if (!params.get('view')) {
+        setActiveView('chat');
+      }
       setShowAgentList(true);
       setIsLoading(false);
     }).catch(err => {
