@@ -616,6 +616,60 @@ export const scheduleSocialPostTool = tool(
   }
 );
 
+export const draftSocialPostTool = tool(
+  async (args, config) => {
+    if (!config?.configurable?.thread_id) return `[FAILED] Missing conversation thread context.`;
+    const threadId = config.configurable.thread_id as string;
+    const workspaceId = config.configurable?.workspace_id || 1;
+    const assigneeId = threadId.replace('thread_', '').split('_')[1] || 'social-media-manager';
+    
+    let fetchedImageUrl = null;
+    let mediaId = null;
+    if (args.mediaUrls && args.mediaUrls.length > 0) {
+      const url = args.mediaUrls[0];
+      if (typeof url === 'string' && url.startsWith('MEDIA_ASSET_ID:')) {
+        mediaId = parseInt(url.replace('MEDIA_ASSET_ID:', '').trim());
+        try {
+          const media = await db.prepare('SELECT thumbnail FROM media_assets WHERE id = ? AND workspace_id = ?').get(mediaId, workspaceId) as any;
+          if (media?.thumbnail) fetchedImageUrl = media.thumbnail;
+        } catch (err) {
+          console.error("Failed to load media asset for social post draft", err);
+        }
+      } else {
+        fetchedImageUrl = url;
+      }
+    }
+
+    const targetPlatforms = Array.isArray(args.platforms) ? args.platforms : [args.platforms];
+
+    const draftArtifact = JSON.stringify({
+      title: `Post for ${targetPlatforms.join(', ')}`,
+      body: args.content,
+      bullets: [`Platforms: ${targetPlatforms.join(', ')}`],
+      imageUrl: fetchedImageUrl
+    });
+
+    const taskId = `task-${Date.now()}`;
+    const executionType = 'social_post';
+
+    await db.prepare(`
+      INSERT INTO tasks (id, workspace_id, title, description, assignee_id, status, execution_type, artifact_payload, due_date, selected_media_asset_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(taskId, workspaceId, `Social Post Draft: ${targetPlatforms.join(', ')}`, `Stage Content: ${args.content?.substring(0, 50)}...`, assigneeId, 'todo', executionType, draftArtifact, 'Drafting', mediaId);
+
+    return `[SUCCESS] Social post draft staged for ${targetPlatforms.join(', ')}. ID: ${taskId}. Tell the user the preview is now visible in their social dashboard.`;
+  },
+  {
+    name: "draft_social_post",
+    description: "REQUIRED TOOL: You MUST use this tool to create a post preview or draft for ANY social media platform (LinkedIn, Twitter, Instagram, etc). Never output drafts in chat; always use this tool so they appear in the user's social dashboard. Keywords: preview, draft, create, plan, prepare. Note: this does not schedule or publish the post, it only creates a local preview.",
+    schema: z.object({ 
+      platforms: z.array(z.string()).describe("List of target platforms (e.g., ['twitter', 'linkedin', 'instagram'])."),
+      content: z.string().describe("The base post text used for all platforms."),
+      mediaUrls: z.array(z.string()).optional().describe("Array of image URLs or MEDIA_ASSET_ID:123 strings.")
+    })
+  }
+);
+
 export const publishBlogPostTool = tool(
   async (args, config) => {
     if (!config?.configurable?.thread_id) return `[FAILED] Missing conversation thread context.`;
@@ -1524,6 +1578,7 @@ export const allTools = [
   readWebsiteTool,
   generateImageTool,
   scheduleSocialPostTool,
+  draftSocialPostTool,
   publishBlogPostTool,
   updateCrmTool,
   linkedinOutreachTool,

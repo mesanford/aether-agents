@@ -39,7 +39,8 @@ import {
   syncHubspotLeadTool,
   listLocalLeadsTool,
   updateAgentScheduleTool,
-  sendPushNotificationTool
+  sendPushNotificationTool,
+  draftSocialPostTool
 } from './tools';
 import { agentRegistry, agentIds } from './agents';
 
@@ -143,7 +144,7 @@ const agentToolMapping: Record<string, any[]> = {
   'executive-assistant': [...memoryTools, getWorkspaceTasksTool, listEmailsTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool, sendPushNotificationTool],
   'sales-associate': [...memoryTools, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
   'blog-writer': [...memoryTools, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
-  'social-media-manager': [...memoryTools, getWorkspaceTasksTool, generateImageTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'social-media-manager': [...memoryTools, getWorkspaceTasksTool, generateImageTool, draftSocialPostTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool, sendPushNotificationTool],
   'legal-associate': [...memoryTools, getWorkspaceTasksTool, searchGoogleDriveTool, publishBlogPostTool, writeWorkspaceFileTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
   'receptionist': [...memoryTools, getWorkspaceTasksTool, searchWebTool, readWebsiteTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
   'team-chat': [...memoryTools, getWorkspaceTasksTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, manageNotionTool, updateAgentScheduleTool, sendPushNotificationTool]
