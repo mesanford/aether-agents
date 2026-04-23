@@ -80,6 +80,10 @@ Your Mission:
             acc[a.id] = `Role: ${a.role}\nDescription: ${a.description}\nPersonality: ${a.personality}\nInstructions: ${a.instructions}\nCapabilities: ${a.capabilities}`;
             return acc;
           }, {} as Record<string, string>);
+          const agentNames: Record<string, string> = profiles.reduce((acc, a) => {
+            if (a.name) acc[a.id] = a.name;
+            return acc;
+          }, {} as Record<string, string>);
           
           try {
             await checkAndIncrementDailyAIRequestLimit(db, enrollment.workspace_id);
@@ -104,6 +108,7 @@ Your Mission:
             dataAccessSection: '',
             liveDataSection: '',
             agentProfiles,
+            agentNames,
             tenantId: enrollment.workspace_id.toString(),
             clientId: 'system_cron_daemon'
           }, { configurable: { thread_id: `sequence_${enrollment.id}_run` }, recursionLimit: 25 });

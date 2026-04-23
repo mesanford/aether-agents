@@ -91,7 +91,7 @@ async function supervisorNode(state: AgentState): Promise<Partial<AgentState>> {
     }
   }
 
-  const teamList = agentRegistry.map(a => `${a.name} (id: ${a.id})`).join(', ');
+  const teamList = agentRegistry.map(a => `${state.agentNames?.[a.id] || a.name} (id: ${a.id})`).join(', ');
   const systemPrompt = `You are the Agency Supervisor.
 Current Date/Time: ${new Date().toLocaleString()}
 Observe the client's goal and the responses from your team (${teamList}).
@@ -151,9 +151,11 @@ function createAgentNode(agentConfig: typeof agentRegistry[0]) {
   const agentLLM = llm.bindTools(agentTools);
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
-    console.log(`[NODE: agent] specialist: ${agentConfig.name} (sender: ${agentConfig.id})`);
+    const displayName = state.agentNames?.[agentConfig.id] || agentConfig.name;
+    console.log(`[NODE: agent] specialist: ${displayName} (sender: ${agentConfig.id})`);
     const workspaceProfile = state.agentProfiles?.[agentConfig.id] || '';
-    const prompt = `You are the ${agentConfig.name}. ${agentConfig.roleDescription}
+    const prompt = `You are ${displayName}. ${agentConfig.roleDescription}
+Your name is ${displayName} — always use this name when introducing yourself.
 Current Date/Time: ${new Date().toLocaleString()}
 Client ID: ${state.clientId} Tenant: ${state.tenantId}.
 
@@ -230,6 +232,7 @@ const builder = new StateGraph<AgentState>({
     liveDataSection: { value: (x, y) => y ?? x, default: () => '' },
     dataAccessSection: { value: (x, y) => y ?? x, default: () => '' },
     agentProfiles: { value: (x, y) => y ?? x, default: () => ({}) },
+    agentNames: { value: (x, y) => y ?? x, default: () => ({}) },
   }
 });
 

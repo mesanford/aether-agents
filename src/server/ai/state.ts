@@ -19,6 +19,8 @@ export interface AgentState {
   dataAccessSection: string;
   // Workspace-configured prompt profile per agent id
   agentProfiles: Record<string, string>;
+  // Custom display names from the DB (overrides the static agent registry names)
+  agentNames: Record<string, string>;
 }
 
 export function customMessagesReducer(left: BaseMessage[], right: BaseMessage[] | any): BaseMessage[] {

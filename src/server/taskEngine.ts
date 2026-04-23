@@ -830,6 +830,10 @@ export async function executePendingTasks({
                 acc[a.id] = `Role: ${a.role}\nDescription: ${a.description}\nPersonality: ${a.personality}\nInstructions: ${a.instructions}\nCapabilities: ${a.capabilities}`;
                 return acc;
               }, {} as Record<string, string>);
+              const agentNames: Record<string, string> = profiles.reduce((acc, a) => {
+                if (a.name) acc[a.id] = a.name;
+                return acc;
+              }, {} as Record<string, string>);
 
               // Run the full brain loop
               const finalState = await workflow.invoke({
@@ -847,6 +851,7 @@ Use your tools to ACTUALLY PERFORM this work (e.g. search web, update CRM, draft
                 dataAccessSection: '',
                 liveDataSection: '',
                 agentProfiles,
+                agentNames,
                 tenantId: workspaceId.toString(),
                 clientId: 'system_task_engine'
               }, { configurable: { thread_id: `task_${task.id}_run`, workspace_id: workspaceId }, recursionLimit: 25 });

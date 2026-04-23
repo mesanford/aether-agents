@@ -106,24 +106,32 @@ export function registerAiRoutes({
 
     try {
       const rows = await db.prepare(`
-        SELECT id, description, capabilities, instructions, personality
+        SELECT id, name, description, capabilities, instructions, personality
         FROM agents
         WHERE workspace_id = ?
       `).all(workspaceId) as Array<{
         id: string;
+        name?: string | null;
         description?: string | null;
         capabilities?: string | null;
         instructions?: string | null;
         personality?: string | null;
       }>;
 
-      return rows.reduce<Record<string, string>>((acc, row) => {
+      const profiles = rows.reduce<Record<string, string>>((acc, row) => {
         acc[row.id] = buildAgentProfilePromptContext(row);
         return acc;
       }, {});
+
+      const names = rows.reduce<Record<string, string>>((acc, row) => {
+        if (row.name) acc[row.id] = row.name;
+        return acc;
+      }, {});
+
+      return { profiles, names };
     } catch (error) {
       console.error("Failed to load workspace agent profiles:", error);
-      return {};
+      return { profiles: {}, names: {} };
     }
   };
 
@@ -172,7 +180,7 @@ export function registerAiRoutes({
         console.error("Failed to load workspace knowledge", err);
       }
       const liveDataSection = buildLiveDataSection(liveContext);
-      const agentProfiles = getWorkspaceAgentProfiles(req.params.id);
+      const { profiles: agentProfiles, names: agentNames } = await getWorkspaceAgentProfiles(req.params.id);
 
       const parsedWorkspaceId = Number.parseInt(req.params.id, 10) || 1;
       const config = { configurable: { thread_id: threadId, workspace_id: parsedWorkspaceId, workspaceId: parsedWorkspaceId } };
@@ -204,6 +212,7 @@ export function registerAiRoutes({
         dataAccessSection,
         liveDataSection,
         agentProfiles,
+        agentNames,
         tenantId: req.params.id,
         clientId: req.userId ? req.userId.toString() : 'unknown'
       }, { ...config, recursionLimit: 100 });
@@ -217,7 +226,7 @@ export function registerAiRoutes({
       const lastMessage = msgs && msgs.length > 0 ? msgs[msgs.length - 1] : null;
       const directAgentId = extractDirectAgentId(message);
       const isKnownAgent = (id: unknown): id is string =>
-        typeof id === "string" && (agentIds.includes(id) || id in agentProfiles);
+        typeof id === "string" && (agentIds.includes(id) || id in (agentProfiles as Record<string, string>));
       const resolveSender = () => {
         console.log('[RESOLVE SENDER] lastMessage.name:', lastMessage?.name, '| sender:', finalState.sender, '| currentAssignee:', finalState.currentAssignee, '| msg types:', msgs.map((m: any) => `${m?.getType?.()}/${m?.name}`).join(', '));
         if (isKnownAgent(lastMessage?.name)) return lastMessage.name;
