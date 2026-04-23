@@ -140,9 +140,9 @@ export const writeToMemoryTool = tool(
 
 export const searchGoogleDriveTool = tool(
   async ({ query }, config) => {
-    if (!config?.configurable?.workspaceId) return "Error: Missing workspaceId in config.";
+    const workspaceId = config?.configurable?.workspace_id || config?.configurable?.workspaceId || 1;
     try {
-      const workspace = await db.prepare('SELECT google_refresh_token, google_folder_id FROM workspaces WHERE id = ?').get(config.configurable.workspaceId) as any;
+      const workspace = await db.prepare('SELECT google_refresh_token, google_folder_id FROM workspaces WHERE id = ?').get(workspaceId) as any;
       
       if (!workspace?.google_refresh_token || !workspace?.google_folder_id) {
         return "Google Drive is not connected. The user must connect it via Settings -> Integrations.";
@@ -654,7 +654,7 @@ export const publishBlogPostTool = tool(
   },
   {
     name: "publish_blog_post",
-    description: "REQUIRED TOOL: You MUST use this tool to draft, write, or publish a blog/newsletter to Substack or internal blogs. Never output conversational drafts in chat, always use this tool so the draft physicaly mounts into their UI calendar. Keywords: plan, draft, write, article, content. The 'mediaAssetId' field should be populated if you generated an image for this post.",
+    description: "REQUIRED TOOL: You MUST use this tool to draft, write, or publish a blog/newsletter to Substack or internal blogs, OR to draft legal documents. Never output conversational drafts in chat, always use this tool so the draft physicaly mounts into their UI calendar. Keywords: plan, draft, write, article, content. The 'mediaAssetId' field should be populated if you generated an image for this post.",
     schema: z.object({ title: z.string(), content: z.string(), targetPlatform: z.string(), mediaAssetId: z.number().optional() })
   }
 );
@@ -729,7 +729,7 @@ export const linkedinOutreachTool = tool(
   },
   {
     name: "linkedin_outreach",
-    description: "Enroll a contact into an automated outreach sequence via Zernio. Use this for LinkedIn or Email sequences managed in your Zernio dashboard.",
+    description: "Enroll a contact into an automated outreach sequence via Zernio. Use this for LinkedIn or Email sequences managed in your Zernio dashboard. NOTE: You MUST ask the user for the exact Zernio Sequence ID before using this tool, as local CRM sequence IDs will not work here.",
     schema: z.object({ 
       contactEmail: z.string().describe("The email of the contact to enroll."),
       sequenceId: z.string().describe("The Zernio Sequence ID.")
@@ -796,8 +796,8 @@ export const writeWorkspaceFileTool = tool(
 export const getWorkspaceTasksTool = tool(
   async ({}, config) => {
     try {
-      if (!config?.configurable?.workspaceId) return "Error: Missing workspaceId in config.";
-      const rows = await db.prepare("SELECT id, title, description, repeat, due_date, status, execution_type FROM tasks WHERE workspace_id = ?").all(config.configurable.workspaceId) as any[];
+      const workspaceId = config?.configurable?.workspace_id || config?.configurable?.workspaceId || 1;
+      const rows = await db.prepare("SELECT id, title, description, repeat, due_date, status, execution_type FROM tasks WHERE workspace_id = ?").all(workspaceId) as any[];
       if (!rows.length) return "No tasks found in this workspace.";
       return JSON.stringify(rows, null, 2);
     } catch (e: any) {
