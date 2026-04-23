@@ -922,6 +922,27 @@ export async function bootstrapDatabase(db: PostgresShim) {
     console.error("Migration failed for automation_jobs table:", err);
   }
 
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      workspace_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      endpoint TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+  try {
+    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subs_endpoint ON push_subscriptions(endpoint)");
+    await db.exec("CREATE INDEX IF NOT EXISTS idx_push_subs_workspace ON push_subscriptions(workspace_id)");
+  } catch (err) {
+    console.error("Migration: Could not create push_subscriptions indexes (may already exist):", err);
+  }
+
   const count = await db.prepare("SELECT COUNT(*) as count FROM leads").get() as { count: string };
   if (Number(count?.count) === 0) {
     const insert = db.prepare(`

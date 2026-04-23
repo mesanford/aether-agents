@@ -5,6 +5,8 @@ import fs from 'fs';
 import path from 'path';
 import db from '../db.ts';
 import { ShadowGitServer } from '../lib/git/shadow';
+import { OAuth2Client } from "google-auth-library";
+import { google } from "googleapis";
 
 const SHADOW_DIR = path.resolve(process.cwd(), '.shadow-workspace');
 
@@ -188,7 +190,6 @@ export const draftEmailTool = tool(
       const tokenRow = await db.prepare("SELECT * FROM google_tokens WHERE user_id = ?").get(workspace.owner_id) as any;
       if (!tokenRow) return "[FAILED] Google account not connected. The user must connect it via Settings -> Integrations.";
 
-      const { OAuth2Client } = await import("google-auth-library");
       const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
       client.setCredentials({
         access_token: tokenRow.access_token,
@@ -264,7 +265,6 @@ export const readGoogleChatTool = tool(
       const tokenRow = await db.prepare("SELECT * FROM google_tokens WHERE user_id = ?").get(workspace.owner_id) as any;
       if (!tokenRow) return "[FAILED] Google account not connected. The user must connect it via Settings -> Integrations.";
 
-      const { OAuth2Client } = await import("google-auth-library");
       const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
       client.setCredentials({
         access_token: tokenRow.access_token,
@@ -874,7 +874,6 @@ export const manageCalendarTool = tool(
       const tokenRow = await db.prepare("SELECT * FROM google_tokens WHERE user_id = ?").get(workspace.owner_id) as any;
       if (!tokenRow) return "[FAILED] Google account not connected. The user must connect it via Settings -> Integrations.";
 
-      const { OAuth2Client } = await import("google-auth-library");
       const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
       client.setCredentials({
         access_token: tokenRow.access_token,
@@ -1439,6 +1438,32 @@ export const getSequencesTool = tool(
   }
 );
 
+export const sendPushNotificationTool = tool(
+  async ({ title, message, url }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || config?.configurable?.workspaceId;
+    if (!workspaceId) return '[FAILED] No workspace context for push notification.';
+    try {
+      const { sendPushToWorkspace } = await import('../notificationSender.js');
+      const r = await sendPushToWorkspace(Number(workspaceId), { title, message, url });
+      if (r.sent === 0 && r.failed === 0) {
+        return '[INFO] No push subscriptions found for this workspace. The user must enable notifications in their browser first.';
+      }
+      return `[SUCCESS] Push notification sent to ${r.sent} device(s).${r.removed ? ` Removed ${r.removed} stale subscription(s).` : ''}`;
+    } catch (err: any) {
+      return `[FAILED] Could not send push notification: ${err.message}`;
+    }
+  },
+  {
+    name: "send_push_notification",
+    description: "Send a real-time push notification to the user's browser or mobile device. Use this to proactively alert the user when you complete a major task, find something urgent, or need their immediate attention. The notification appears even when the browser tab is in the background or the screen is locked. Keywords: notify user, alert user, push notification, notify, alert.",
+    schema: z.object({
+      title: z.string().describe("Short notification title (max 50 chars)."),
+      message: z.string().describe("Notification body text describing what happened (max 150 chars)."),
+      url: z.string().optional().describe("Optional URL to open when the user clicks the notification, e.g. '/?agent=sales-associate'.")
+    })
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   searchGoogleDriveTool,
@@ -1469,5 +1494,6 @@ export const allTools = [
   publishHubspotPostTool,
   syncHubspotLeadTool,
   listLocalLeadsTool,
-  updateAgentScheduleTool
+  updateAgentScheduleTool,
+  sendPushNotificationTool
 ];

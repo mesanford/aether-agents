@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { TEAM_CHAT_AGENT_ID } from './constants';
+import { NotificationPrompt } from './components/NotificationPrompt';
+import { IOSInstallBanner } from './components/IOSInstallBanner';
+import { registerServiceWorker, subscribeToPush } from './services/notificationService';
 
 // Display names for the hardcoded agent registry — used when a workspace has no
 // custom agent profiles configured in the database.
@@ -82,6 +85,22 @@ export default function App() {
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   const [showWorkspacePrompt, setShowWorkspacePrompt] = useState(false);
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
+  const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+
+  // ── Register service worker and show notification prompt after login ─────
+  useEffect(() => {
+    if (!token || !activeWorkspaceId) return;
+    registerServiceWorker().then((reg) => {
+      if (!reg) return;
+      setSwRegistration(reg);
+      if (Notification.permission === 'granted') {
+        subscribeToPush(reg, token, activeWorkspaceId).catch(() => {});
+      } else if (Notification.permission === 'default' && !localStorage.getItem('push-prompt-dismissed')) {
+        setShowNotifPrompt(true);
+      }
+    });
+  }, [token, activeWorkspaceId]);
 
   // ── Load workspace-specific data from backend ───────────────────────────
   useEffect(() => {
@@ -801,6 +820,18 @@ export default function App() {
           success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
         }}
       />
+      {showNotifPrompt && swRegistration && token && activeWorkspaceId && (
+        <NotificationPrompt
+          token={token}
+          workspaceId={activeWorkspaceId}
+          swRegistration={swRegistration}
+          onDismiss={() => {
+            setShowNotifPrompt(false);
+            localStorage.setItem('push-prompt-dismissed', '1');
+          }}
+        />
+      )}
+      <IOSInstallBanner />
       {/* Mobile Sidebar Overlay */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-warm-100 border-b border-warm-200 z-40 flex items-center justify-between px-4">
         <button
@@ -989,7 +1020,7 @@ export default function App() {
 
       {/* Main Area */}
       <main className={cn(
-        "flex-1 min-w-0 flex flex-col bg-warm-50 pt-16 md:pt-0 transition-transform",
+        "flex-1 min-w-0 flex flex-col bg-warm-50 pt-16 pb-16 md:pt-0 md:pb-0 transition-transform",
         !showAgentList ? "translate-x-0" : "translate-x-full md:translate-x-0"
       )}>
         {activeView === 'chat' ? (

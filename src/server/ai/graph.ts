@@ -37,7 +37,8 @@ import {
   publishHubspotPostTool,
   syncHubspotLeadTool,
   listLocalLeadsTool,
-  updateAgentScheduleTool
+  updateAgentScheduleTool,
+  sendPushNotificationTool
 } from './tools';
 import { agentRegistry, agentIds } from './agents';
 
@@ -136,13 +137,13 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
 }
 
 const agentToolMapping: Record<string, any[]> = {
-  'executive-assistant': [queryBrainTool, getWorkspaceTasksTool, listEmailsTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool],
-  'sales-associate': [queryBrainTool, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool],
-  'blog-writer': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool],
-  'social-media-manager': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool],
-  'legal-associate': [queryBrainTool, getWorkspaceTasksTool, searchGoogleDriveTool, publishBlogPostTool, writeWorkspaceFileTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool],
-  'receptionist': [queryBrainTool, getWorkspaceTasksTool, searchWebTool, readWebsiteTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, listLocalLeadsTool, updateAgentScheduleTool],
-  'team-chat': [queryBrainTool, getWorkspaceTasksTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, manageNotionTool, updateAgentScheduleTool]
+  'executive-assistant': [queryBrainTool, getWorkspaceTasksTool, listEmailsTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'sales-associate': [queryBrainTool, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'blog-writer': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'social-media-manager': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'legal-associate': [queryBrainTool, getWorkspaceTasksTool, searchGoogleDriveTool, publishBlogPostTool, writeWorkspaceFileTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'receptionist': [queryBrainTool, getWorkspaceTasksTool, searchWebTool, readWebsiteTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'team-chat': [queryBrainTool, getWorkspaceTasksTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, manageNotionTool, updateAgentScheduleTool, sendPushNotificationTool]
 };
 
 function createAgentNode(agentConfig: typeof agentRegistry[0]) {

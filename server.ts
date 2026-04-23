@@ -25,6 +25,7 @@ import { registerWorkspaceRoutes } from "./src/server/routes/workspaceRoutes.ts"
 import { registerIntegrationsRoutes } from "./src/server/routes/integrationsRoutes.ts";
 import { registerGoogleDriveRoutes } from "./src/server/routes/googleDriveRoutes.ts";
 import { registerApprovalRoutes } from "./src/server/routes/approvalRoutes.ts";
+import { registerNotificationRoutes } from "./src/server/routes/notificationRoutes.ts";
 import { bootstrapDatabase } from "./src/server/dbBootstrap.ts";
 import { startTaskEngine } from "./src/server/taskEngine.ts";
 import { startSequenceDaemon } from "./src/server/sequenceDaemon.ts";
@@ -181,6 +182,13 @@ async function startServer() {
   });
 
   registerApprovalRoutes({
+    app,
+    db,
+    requireAuth: requireAuth as express.RequestHandler,
+    requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
+  });
+
+  registerNotificationRoutes({
     app,
     db,
     requireAuth: requireAuth as express.RequestHandler,
