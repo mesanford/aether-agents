@@ -67,10 +67,10 @@
 .markdown-body h4 { @apply text-base; }
 
 .markdown-body ul {
-  @apply list-disc pl-5 mb-4 space-y-1.5 marker:text-stone-400;
+  @apply list-disc pl-4 sm:pl-5 mb-4 space-y-1.5 marker:text-stone-400;
 }
 .markdown-body ol {
-  @apply list-decimal pl-5 mb-4 space-y-1.5 marker:text-stone-500 marker:font-medium;
+  @apply list-decimal pl-4 sm:pl-5 mb-4 space-y-1.5 marker:text-stone-500 marker:font-medium;
 }
 
 .markdown-body blockquote {

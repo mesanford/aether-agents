@@ -89,6 +89,8 @@ export default function App() {
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
+  const isTeamChatId = useCallback((id: string) => id === TEAM_CHAT_AGENT_ID || id.startsWith(TEAM_CHAT_AGENT_ID + ':'), []);
+
   // ── Capture PWA install prompt ───────────────────────────────────────────
   useEffect(() => {
     const handler = (e: Event) => {
@@ -129,14 +131,14 @@ export default function App() {
         capabilities: Array.isArray(a.capabilities) ? a.capabilities : [],
         guidelines: Array.isArray(a.guidelines) ? a.guidelines : [],
         personality: normalizeAgentPersonality(a.personality),
-      }));
-      setAgents(agentsList);
-      if (agentsList.length > 0) {
-        const firstVisible = agentsList.find(a => a.id !== TEAM_CHAT_AGENT_ID) || agentsList[0];
-        const stillValid = agentsList.find(a => a.id === activeAgentId && a.id !== TEAM_CHAT_AGENT_ID);
-        if (!stillValid) setActiveAgentId(firstVisible.id);
-      }
+        }));
 
+        setAgents(agentsList);
+        if (agentsList.length > 0) {
+        const firstVisible = agentsList.find(a => !isTeamChatId(a.id)) || agentsList[0];
+        const stillValid = agentsList.find(a => a.id === activeAgentId && !isTeamChatId(a.id));
+        if (!stillValid) setActiveAgentId(firstVisible.id);
+        }
       setTasks(tasksData || []);
 
       // Populate messages from DB, grouped by agentId
@@ -996,34 +998,42 @@ export default function App() {
         </div>
         <div className="flex-1 overflow-y-auto">
 
-          {agents.filter(a => a.id !== TEAM_CHAT_AGENT_ID).map((agent) => {
-            const agentMessages = messages[agent.id] || [];
-            const lastAgentMessage = [...agentMessages].reverse().find(m => m.type === 'agent');
+          {[...agents]
+            .sort((a, b) => {
+              const aIsTeam = isTeamChatId(a.id);
+              const bIsTeam = isTeamChatId(b.id);
+              if (aIsTeam) return -1;
+              if (bIsTeam) return 1;
+              return 0;
+            })
+            .map((agent) => {
+              const agentMessages = messages[agent.id] || [];
+              const lastAgentMessage = [...agentMessages].reverse().find(m => m.type === 'agent');
 
-            return (
-              <AgentCard
-                key={agent.id}
-                agent={agent}
-                isActive={activeAgentId === agent.id}
-                isUnread={
-                  agentMessages.length > 0 && 
-                  agentMessages[agentMessages.length - 1].timestamp > (lastViewedTimestamps[agent.id] || 0) &&
-                  agentMessages[agentMessages.length - 1].type === 'agent'
-                }
-                lastMessage={lastAgentMessage ? {
-                  content: lastAgentMessage.content,
-                  timestamp: lastAgentMessage.timestamp,
-                  senderId: lastAgentMessage.senderId,
-                  senderName: lastAgentMessage.senderName
-                } : undefined}
-                onClick={() => {
-                  setActiveAgentId(agent.id);
-                  setActiveView('chat');
-                  setShowAgentList(false);
-                }}
-              />
-            );
-          })}
+              return (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  isActive={activeAgentId === agent.id}
+                  isUnread={
+                    agentMessages.length > 0 && 
+                    agentMessages[agentMessages.length - 1].timestamp > (lastViewedTimestamps[agent.id] || 0) &&
+                    agentMessages[agentMessages.length - 1].type === 'agent'
+                  }
+                  lastMessage={lastAgentMessage ? {
+                    content: lastAgentMessage.content,
+                    timestamp: lastAgentMessage.timestamp,
+                    senderId: lastAgentMessage.senderId,
+                    senderName: lastAgentMessage.senderName
+                  } : undefined}
+                  onClick={() => {
+                    setActiveAgentId(agent.id);
+                    setActiveView('chat');
+                    setShowAgentList(false);
+                  }}
+                />
+              );
+            })}
         </div>
 
 
@@ -1031,9 +1041,10 @@ export default function App() {
 
       {/* Main Area */}
       <main className={cn(
-        "flex-1 min-w-0 flex flex-col bg-warm-50 pt-16 pb-16 md:pt-0 md:pb-0 transition-transform",
+        "flex-1 min-w-0 flex flex-col bg-warm-50 pt-16 pb-20 md:pt-0 md:pb-0 transition-transform",
         !showAgentList ? "translate-x-0" : "translate-x-full md:translate-x-0"
       )}>
+
         {activeView === 'chat' ? (
           activeAgent ? (
             <ChatInterface
@@ -1159,7 +1170,8 @@ export default function App() {
       </main>
 
       {/* Mobile bottom tab bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-warm-100 border-t border-warm-200 z-40 flex items-center justify-around px-2">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-20 pb-4 bg-warm-100 border-t border-warm-200 z-40 flex items-center justify-around px-2">
+
         {[
           { id: 'chat', icon: MessageSquare, label: 'Chat' },
           { id: 'tasks', icon: CheckSquare, label: 'Tasks' },

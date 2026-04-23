@@ -6,9 +6,10 @@ import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { AgentState, customMessagesReducer } from './state';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { 
+import {
   allTools,
   queryBrainTool,
+  writeToMemoryTool,
   searchGoogleDriveTool,
   listEmailsTool,
   draftEmailTool,
@@ -136,14 +137,16 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
   }
 }
 
+const memoryTools = [queryBrainTool, writeToMemoryTool];
+
 const agentToolMapping: Record<string, any[]> = {
-  'executive-assistant': [queryBrainTool, getWorkspaceTasksTool, listEmailsTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool, sendPushNotificationTool],
-  'sales-associate': [queryBrainTool, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
-  'blog-writer': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
-  'social-media-manager': [queryBrainTool, getWorkspaceTasksTool, generateImageTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool, sendPushNotificationTool],
-  'legal-associate': [queryBrainTool, getWorkspaceTasksTool, searchGoogleDriveTool, publishBlogPostTool, writeWorkspaceFileTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
-  'receptionist': [queryBrainTool, getWorkspaceTasksTool, searchWebTool, readWebsiteTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
-  'team-chat': [queryBrainTool, getWorkspaceTasksTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, manageNotionTool, updateAgentScheduleTool, sendPushNotificationTool]
+  'executive-assistant': [...memoryTools, getWorkspaceTasksTool, listEmailsTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'sales-associate': [...memoryTools, getWorkspaceTasksTool, updateCrmTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'blog-writer': [...memoryTools, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'social-media-manager': [...memoryTools, getWorkspaceTasksTool, generateImageTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'legal-associate': [...memoryTools, getWorkspaceTasksTool, searchGoogleDriveTool, publishBlogPostTool, writeWorkspaceFileTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'receptionist': [...memoryTools, getWorkspaceTasksTool, searchWebTool, readWebsiteTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'team-chat': [...memoryTools, getWorkspaceTasksTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, manageNotionTool, updateAgentScheduleTool, sendPushNotificationTool]
 };
 
 function createAgentNode(agentConfig: typeof agentRegistry[0]) {
@@ -168,6 +171,13 @@ ${workspaceProfile ? `Workspace-Specific Prompt Profile:\n${workspaceProfile}` :
 
 ${state.dataAccessSection || ''}
 ${state.liveDataSection || ''}
+
+Memory Protocol (follow every conversation):
+- At the start of each conversation, your context already includes pre-loaded memories. Use them.
+- Use write_to_memory whenever you learn something worth retaining: a user preference, a business fact, a recurring pattern, or an explicit directive. Write it immediately — don't wait until the end.
+- Use query_brain mid-conversation when you need to recall something specific not already in your context.
+- Good examples to save: "User prefers responses in bullet points", "Company's target market is SMB healthcare", "User always wants draft emails reviewed before sending", "Blog posts should be 800–1000 words".
+- Write memories in clear, standalone declarative form so any agent can understand them without conversation context.
 
 Guidelines:
 1. When the user's intent clearly maps to a tool action described in your role, use the tool IMMEDIATELY.

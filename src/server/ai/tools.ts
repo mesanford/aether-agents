@@ -37,33 +37,32 @@ async function zernioFetch(endpoint: string, options: RequestInit = {}) {
 }
 
 export const queryBrainTool = tool(
-  async ({ query }, config) => {
+  async ({ query, category }, config) => {
     const workspaceId = config?.configurable?.workspace_id || 1;
     try {
       // 1. Search Knowledge Documents
       const docs = await db.prepare(`
-        SELECT title, content, author 
-        FROM knowledge_documents 
-        WHERE workspace_id = ? 
+        SELECT title, content, author
+        FROM knowledge_documents
+        WHERE workspace_id = ?
         AND (title ILIKE ? OR content ILIKE ?)
         LIMIT 5
       `).all(workspaceId, `%${query}%`, `%${query}%`) as any[];
 
-      // 2. Search Stan's Memory (Lessons Learned)
-      const lessons = await db.prepare(`
-        SELECT learning, confidence_score
-        FROM stan_memory_ledger
-        WHERE workspace_id = ?
-        AND learning ILIKE ?
-        ORDER BY confidence_score DESC
-        LIMIT 3
-      `).all(workspaceId, `%${query}%`) as any[];
+      // 2. Search long-term memory, optionally filtered by category
+      const memoryQuery = category
+        ? `SELECT learning, category, subject, confidence_score FROM stan_memory_ledger WHERE workspace_id = ? AND category = ? AND learning ILIKE ? ORDER BY confidence_score DESC, updated_at DESC LIMIT 8`
+        : `SELECT learning, category, subject, confidence_score FROM stan_memory_ledger WHERE workspace_id = ? AND learning ILIKE ? ORDER BY confidence_score DESC, updated_at DESC LIMIT 8`;
+      const memoryArgs = category
+        ? [workspaceId, category, `%${query}%`]
+        : [workspaceId, `%${query}%`];
+      const memories = await db.prepare(memoryQuery).all(...memoryArgs) as any[];
 
-      if (docs.length === 0 && lessons.length === 0) {
-        return `No internal knowledge found matching '${query}' in workspace ${workspaceId}.`;
+      if (docs.length === 0 && memories.length === 0) {
+        return `No internal knowledge found matching '${query}'.`;
       }
 
-      let result = `Internal Knowledge results for '${query}':\n\n`;
+      let result = `Internal knowledge results for '${query}':\n\n`;
 
       if (docs.length > 0) {
         result += `--- COMPANY DOCUMENTS ---\n`;
@@ -71,9 +70,11 @@ export const queryBrainTool = tool(
         result += `\n\n`;
       }
 
-      if (lessons.length > 0) {
-        result += `--- LESSONS LEARNED (Stan's Memory) ---\n`;
-        result += lessons.map(l => `- [Confidence: ${l.confidence_score}%] ${l.learning}`).join('\n');
+      if (memories.length > 0) {
+        result += `--- LONG-TERM MEMORY ---\n`;
+        result += memories.map(m =>
+          `[${m.category} / ${m.subject}] (confidence ${m.confidence_score}%) ${m.learning}`
+        ).join('\n');
       }
 
       return result;
@@ -84,8 +85,56 @@ export const queryBrainTool = tool(
   },
   {
     name: "query_brain",
-    description: "Search the company's internal agency brain, knowledge base, policies, and semantic context. Use this to find company-specific rules, project backgrounds, or lessons learned from previous tasks. Keywords: knowledge, policies, find info, project context, lessons learned.",
-    schema: z.object({ query: z.string() })
+    description: "Search the company's knowledge base and long-term agent memory. Use this to recall user preferences, business context, lessons learned, or company policies. Supports optional category filter: 'preference', 'fact', 'behavior', 'instruction'.",
+    schema: z.object({
+      query: z.string().describe("Keywords or topic to search for"),
+      category: z.enum(['preference', 'fact', 'behavior', 'instruction', 'general']).optional().describe("Optional: filter results to a specific memory category"),
+    })
+  }
+);
+
+export const writeToMemoryTool = tool(
+  async ({ learning, category, subject, confidence_score }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      // Dedup: look for an existing entry whose first 100 chars closely match
+      const fingerprint = learning.trim().substring(0, 100);
+      const existing = await db.prepare(`
+        SELECT id FROM stan_memory_ledger
+        WHERE workspace_id = ? AND learning ILIKE ?
+        LIMIT 1
+      `).get(workspaceId, `${fingerprint}%`) as any;
+
+      if (existing) {
+        await db.prepare(`
+          UPDATE stan_memory_ledger
+          SET learning = ?, category = ?, subject = ?, confidence_score = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(learning.trim(), category, subject || 'user', confidence_score ?? 75, existing.id);
+        return `Memory updated (id ${existing.id}): "${learning.trim().substring(0, 80)}…"`;
+      }
+
+      const result = await db.prepare(`
+        INSERT INTO stan_memory_ledger (workspace_id, learning, category, subject, confidence_score)
+        VALUES (?, ?, ?, ?, ?)
+        RETURNING id
+      `).get(workspaceId, learning.trim(), category, subject || 'user', confidence_score ?? 75) as any;
+
+      return `Memory saved (id ${result?.id}): "${learning.trim().substring(0, 80)}…"`;
+    } catch (err: any) {
+      console.error("write_to_memory error:", err);
+      return `Failed to save memory: ${err.message}`;
+    }
+  },
+  {
+    name: "write_to_memory",
+    description: "Save an important fact, preference, or pattern about the user or their business to long-term shared memory. All agents can read this. Use it when you learn something that should persist across future conversations — e.g. communication preferences, business context, recurring workflows, or explicit user instructions. Be specific and write in third-person declarative form: 'User prefers...' / 'The company is...'",
+    schema: z.object({
+      learning: z.string().describe("The memory to store, as a clear standalone statement (e.g. 'User prefers concise bullet-point summaries over long paragraphs')"),
+      category: z.enum(['preference', 'fact', 'behavior', 'instruction']).describe("'preference' = user style/format preferences | 'fact' = business or personal facts | 'behavior' = observed patterns | 'instruction' = explicit user directives that should always apply"),
+      subject: z.string().optional().describe("What this memory is about. Use 'user', 'company', 'product', or a specific name. Defaults to 'user'"),
+      confidence_score: z.number().min(1).max(100).optional().describe("Confidence 1–100. Use 90+ for explicit user statements, 70–85 for strongly implied preferences, 50–65 for inferred patterns"),
+    })
   }
 );
 
@@ -461,7 +510,7 @@ export const generateImageTool = tool(
         return `[IMAGE GENERATED] Visual for '${prompt}' created. 
 URL: ${storedUrl}
 MEDIA_ASSET_ID: ${mediaAssetId || 'unknown'}
-Instruction: Use this URL in the mediaUrls array of the schedule_social_post tool.`;
+Instruction: For social posts, pass the string "MEDIA_ASSET_ID:${mediaAssetId}" into the mediaUrls array of the schedule_social_post tool. For blogs, pass the numeric ID directly into the mediaAssetId field of publish_blog_post.`;
       }
       return `[IMAGE GENERATION FAILED] No image data returned. Text response: ${response.text || 'None'}`;
     } catch (err: any) {
@@ -1466,6 +1515,7 @@ export const sendPushNotificationTool = tool(
 
 export const allTools = [
   queryBrainTool,
+  writeToMemoryTool,
   searchGoogleDriveTool,
   listEmailsTool,
   draftEmailTool,

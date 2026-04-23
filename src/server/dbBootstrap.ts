@@ -583,12 +583,30 @@ export async function bootstrapDatabase(db: PostgresShim) {
       id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,
       learning TEXT NOT NULL,
-      confidence_score INTEGER DEFAULT 50,
+      category TEXT NOT NULL DEFAULT 'general',
+      subject TEXT NOT NULL DEFAULT 'user',
+      confidence_score INTEGER DEFAULT 75,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
+
+  try {
+    if (!(await hasColumn("stan_memory_ledger", "category"))) {
+      await db.exec("ALTER TABLE stan_memory_ledger ADD COLUMN category TEXT NOT NULL DEFAULT 'general'");
+    }
+    if (!(await hasColumn("stan_memory_ledger", "subject"))) {
+      await db.exec("ALTER TABLE stan_memory_ledger ADD COLUMN subject TEXT NOT NULL DEFAULT 'user'");
+    }
+    if (!(await hasColumn("stan_memory_ledger", "confidence_score"))) {
+      await db.exec("ALTER TABLE stan_memory_ledger ADD COLUMN confidence_score INTEGER DEFAULT 75");
+    }
+    await db.exec("CREATE INDEX IF NOT EXISTS idx_memory_workspace ON stan_memory_ledger(workspace_id)");
+    await db.exec("CREATE INDEX IF NOT EXISTS idx_memory_category ON stan_memory_ledger(workspace_id, category)");
+  } catch (err) {
+    console.error("Migration failed for stan_memory_ledger:", err);
+  }
 
   try {
     if (!(await hasColumn("leads", "workspace_id"))) {

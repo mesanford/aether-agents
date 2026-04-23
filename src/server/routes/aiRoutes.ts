@@ -179,6 +179,37 @@ export function registerAiRoutes({
       } catch (err) {
         console.error("Failed to load workspace knowledge", err);
       }
+
+      // Inject long-term memories so agents always have them without needing to query
+      try {
+        if (db) {
+          const memories = await db.prepare(`
+            SELECT learning, category, subject, confidence_score
+            FROM stan_memory_ledger
+            WHERE workspace_id = ?
+            ORDER BY confidence_score DESC, updated_at DESC
+            LIMIT 25
+          `).all(req.params.id) as any[];
+
+          if (memories.length > 0) {
+            dataAccessSection += `\n\n<long_term_memory>\n`;
+            dataAccessSection += `The following facts and preferences have been learned about this user and their business across previous conversations. Treat them as established context — do not ask the user to repeat them:\n\n`;
+            const grouped: Record<string, string[]> = {};
+            for (const m of memories) {
+              const key = m.category || 'general';
+              if (!grouped[key]) grouped[key] = [];
+              grouped[key].push(`- ${m.learning}`);
+            }
+            for (const [cat, items] of Object.entries(grouped)) {
+              dataAccessSection += `[${cat.toUpperCase()}]\n${items.join('\n')}\n\n`;
+            }
+            dataAccessSection += `</long_term_memory>\n`;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load long-term memories", err);
+      }
+
       const liveDataSection = buildLiveDataSection(liveContext);
       const { profiles: agentProfiles, names: agentNames } = await getWorkspaceAgentProfiles(req.params.id);
 

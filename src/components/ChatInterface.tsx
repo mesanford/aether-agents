@@ -2434,7 +2434,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           {/* Messages */}
           <div 
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-8"
+            className="flex-1 overflow-y-auto px-2 py-4 sm:p-8 space-y-6 sm:space-y-8"
           >
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
@@ -2442,9 +2442,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   key={msg.id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex gap-4"
+                  className="flex gap-2 sm:gap-4 max-w-full overflow-hidden"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-warm-100 flex-shrink-0 overflow-hidden">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-warm-100 flex-shrink-0 overflow-hidden">
                     <img
                       src={msg.senderAvatar || (msg.type === 'user' ? "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Marcus&backgroundColor=f5f5f4" : agent.avatar)}
                       alt={msg.senderName}
@@ -2453,14 +2453,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     />
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 overflow-hidden">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-bold text-stone-900 text-sm">{msg.senderName}</span>
                       <span className="text-[11px] text-stone-400 font-medium">
                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <div className="text-stone-700 text-[15px] leading-relaxed markdown-body">
+                    <div className="text-stone-700 text-[15px] leading-relaxed markdown-body break-words">
                       <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                     </div>
 
