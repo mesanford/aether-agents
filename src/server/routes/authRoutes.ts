@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import { initializeWorkspaceFolder } from "../../services/googleDriveService.ts";
+import { uploadBase64ToGCS, getSignedUrlForGcs } from "../gcpStorage.ts";
 import type { PostgresShim } from "../db.ts";
 
 type RegisterAuthRoutesArgs = {
@@ -53,7 +54,8 @@ export function registerAuthRoutes({
 
       const token = jwt.sign({ userId }, jwtSecret, { expiresIn: "7d" });
 
-      return res.json({ token, user: { id: userId, email, name: userName } });
+      const user = { id: userId, email, name: userName, avatar: await getSignedUrlForGcs(null) };
+      return res.json({ token, user });
     } catch (error) {
       console.error("Register error:", error);
       return res.status(500).json({ error: "Internal server error" });
@@ -82,7 +84,8 @@ export function registerAuthRoutes({
       }
 
       const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: "7d" });
-      return res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+      const signedAvatar = await getSignedUrlForGcs(user.avatar);
+      return res.json({ token, user: { id: user.id, email: user.email, name: user.name, avatar: signedAvatar } });
     } catch (error) {
       console.error("Login error:", error);
       return res.status(500).json({ error: "Internal server error" });
@@ -104,6 +107,7 @@ export function registerAuthRoutes({
         return res.status(401).json({ error: "User not found" });
       }
 
+      user.avatar = await getSignedUrlForGcs(user.avatar);
       return res.json({ user });
     } catch {
       return res.status(401).json({ error: "Invalid token" });
@@ -124,14 +128,26 @@ export function registerAuthRoutes({
 
       if (name !== undefined) { updates.push("name = ?"); values.push(name); }
       if (email !== undefined) { updates.push("email = ?"); values.push(email); }
-      if (avatar !== undefined) { updates.push("avatar = ?"); values.push(avatar); }
+      
+      if (avatar !== undefined) { 
+        let finalAvatar = avatar;
+        if (typeof avatar === 'string' && avatar.startsWith('data:image/')) {
+          // We don't have workspaceId here easily, so we use 'user_profile'
+          finalAvatar = await uploadBase64ToGCS(avatar, `user_${decoded.userId}`);
+        }
+        updates.push("avatar = ?"); 
+        values.push(finalAvatar); 
+      }
 
       if (updates.length > 0) {
         values.push(decoded.userId);
         await db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...values);
       }
 
-      const updatedUser = await db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId);
+      const updatedUser = await db.prepare("SELECT id, email, name, avatar FROM users WHERE id = ?").get(decoded.userId) as any;
+      if (updatedUser) {
+        updatedUser.avatar = await getSignedUrlForGcs(updatedUser.avatar);
+      }
       return res.json({ user: updatedUser });
     } catch (err) {
       console.error("Profile update error:", err);

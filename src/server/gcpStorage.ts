@@ -4,49 +4,57 @@ import type { PostgresShim } from "./db.ts";
 // Determine if we are running with valid Google Cloud credentials in the environment
 const bucketName = process.env.GCS_MEDIA_BUCKET_NAME || 'agencyos-media-bucket';
 
-let storage: Storage;
+let storage: Storage | null = null;
 try {
   storage = new Storage();
 } catch (e) {
-  console.warn('[GCP Storage] Initialized without explicit credentials.');
-  storage = new Storage();
+  console.warn('[GCP Storage] Initialized without explicit credentials. GCS operations may fail.');
 }
 
 /**
  * Helper to identify if a path in the database is an internal GCS reference.
  */
-export const isGcsPath = (path: string) => path.startsWith('gcs://');
+export const isGcsPath = (path: string) => typeof path === 'string' && path.startsWith('gcs://');
 
 /**
  * Uploads a raw base64 data string to Google Cloud Storage.
- * @returns the internal GCS string reference, e.g. "gcs://workspace_123/12345.png"
+ * @returns the internal GCS string reference, e.g. "gcs://workspace_123/12345.png", or the original string if upload fails.
  */
 export async function uploadBase64ToGCS(base64String: string, workspaceId: number | string, fileExtension: string = 'png'): Promise<string> {
-  const bucket = storage.bucket(bucketName);
-  
-  // Strip the URI prefix (e.g., "data:image/png;base64,") before converting to Buffer
-  const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
-  const buffer = Buffer.from(base64Data, 'base64');
-  
-  const fileName = `workspace_${workspaceId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
-  const file = bucket.file(fileName);
-  
-  await file.save(buffer, {
-    metadata: {
-      contentType: `image/${fileExtension}`,
-      cacheControl: 'public, max-age=31536000',
-    },
-  });
-  
-  return `gcs://${fileName}`;
+  if (!storage) return base64String;
+
+  try {
+    const bucket = storage.bucket(bucketName);
+    
+    // Strip the URI prefix (e.g., "data:image/png;base64,") before converting to Buffer
+    const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    const fileName = `workspace_${workspaceId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
+    const file = bucket.file(fileName);
+    
+    await file.save(buffer, {
+      metadata: {
+        contentType: `image/${fileExtension}`,
+        cacheControl: 'public, max-age=31536000',
+      },
+    });
+    
+    return `gcs://${fileName}`;
+  } catch (err: any) {
+    console.error(`[GCP Storage] Upload failed: ${err.message}. Falling back to inline storage.`);
+    return base64String;
+  }
 }
 
 /**
  * Converts a "gcs://..." reference into a time-limited Signed URL.
  * Returns the original string if it is already a standard http URL.
  */
-export async function getSignedUrlForGcs(gcsPath: string): Promise<string> {
+export async function getSignedUrlForGcs(gcsPath: string | null | undefined): Promise<string | null> {
+  if (!gcsPath) return null;
   if (!isGcsPath(gcsPath)) return gcsPath;
+  if (!storage) return 'https://placehold.co/600x400/png?text=GCP+Not+Configured';
   
   const fileName = gcsPath.replace('gcs://', '');
   

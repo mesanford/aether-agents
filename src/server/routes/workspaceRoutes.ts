@@ -807,18 +807,18 @@ export function registerWorkspaceRoutes({
   app.get("/api/workspaces/:id/agents", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const rows = await db.prepare("SELECT * FROM agents WHERE workspace_id = ?").all(req.workspaceId) as any[];
-      const agents = rows.map((a) => ({
+      const agents = await Promise.all(rows.map(async (a) => ({
         id: a.id,
         name: a.name,
         role: a.role,
         status: a.status,
         description: a.description,
-        avatar: a.avatar,
+        avatar: await getSignedUrlForGcs(a.avatar),
         capabilities: JSON.parse(a.capabilities || "[]"),
         instructions: a.instructions || "",
         personality: parseAgentPersonality(a.personality, a.role),
         lastAction: a.last_action,
-      }));
+      })));
       res.json(agents);
     } catch {
       res.status(500).json({ error: "Failed to fetch agents" });
@@ -875,7 +875,15 @@ export function registerWorkspaceRoutes({
       if (updates.description !== undefined) await db.prepare("UPDATE agents SET description = ? WHERE id = ? AND workspace_id = ?").run(updates.description, agentId, req.workspaceId);
       if (updates.capabilities !== undefined) await db.prepare("UPDATE agents SET capabilities = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.capabilities), agentId, req.workspaceId);
       if (updates.personality !== undefined) await db.prepare("UPDATE agents SET personality = ? WHERE id = ? AND workspace_id = ?").run(JSON.stringify(updates.personality), agentId, req.workspaceId);
-      if (updates.avatar !== undefined) await db.prepare("UPDATE agents SET avatar = ? WHERE id = ? AND workspace_id = ?").run(updates.avatar, agentId, req.workspaceId);
+      
+      if (updates.avatar !== undefined) {
+        let finalAvatar = updates.avatar as string;
+        if (finalAvatar.startsWith("data:image/")) {
+          finalAvatar = await uploadBase64ToGCS(finalAvatar, req.workspaceId);
+        }
+        await db.prepare("UPDATE agents SET avatar = ? WHERE id = ? AND workspace_id = ?").run(finalAvatar, agentId, req.workspaceId);
+      }
+
       writeAuditLog({
         workspaceId: req.workspaceId,
         userId: req.userId,
@@ -921,7 +929,7 @@ export function registerWorkspaceRoutes({
         role: updatedAgent.role,
         status: updatedAgent.status,
         description: updatedAgent.description,
-        avatar: updatedAgent.avatar,
+        avatar: await getSignedUrlForGcs(updatedAgent.avatar),
         capabilities: JSON.parse(updatedAgent.capabilities || "[]"),
         instructions: updatedAgent.instructions || "",
         personality: parseAgentPersonality(updatedAgent.personality, updatedAgent.role),
@@ -1413,19 +1421,19 @@ export function registerWorkspaceRoutes({
       } else {
         rows = await db.prepare("SELECT * FROM messages WHERE workspace_id = ? ORDER BY timestamp ASC").all(req.workspaceId);
       }
-      const messages = rows.map((m) => ({
+      const messages = await Promise.all(rows.map(async (m) => ({
         id: m.id,
         agentId: m.agent_id,
         senderId: m.sender_id,
         senderName: m.sender_name,
-        senderAvatar: m.sender_avatar,
+        senderAvatar: await getSignedUrlForGcs(m.sender_avatar),
         content: m.content,
-        imageUrl: m.image_url,
+        imageUrl: await getSignedUrlForGcs(m.image_url),
         timestamp: m.timestamp,
         type: m.type,
         metadata: m.metadata ? JSON.parse(m.metadata) : null,
         threadId: m.thread_id,
-      }));
+      })));
       res.json(messages);
     } catch {
       res.status(500).json({ error: "Failed to fetch messages" });
