@@ -80,9 +80,9 @@ export function registerAiRoutes({
     const capabilityLine = capabilities.length > 0
       ? `Capabilities: ${capabilities.join(", ")}`
       : "Capabilities: none configured";
-    const guidelineBlock = instructions
-      ? `Instructions:\n${instructions}`
-      : "Instructions: none configured";
+    // NOTE: instructions are intentionally excluded here — they are injected
+    // separately as MANDATORY WORKSPACE INSTRUCTIONS in the agent prompt so
+    // the LLM treats them as binding rules, not soft background context.
     const personalityLines = [
       "Personality:",
       `- Tone: ${personality.tone}`,
@@ -94,7 +94,7 @@ export function registerAiRoutes({
       personality.doNots.length > 0 ? `- Avoid: ${personality.doNots.join("; ")}` : "",
     ].filter((line) => line.length > 0);
 
-    return [description, ...personalityLines, capabilityLine, guidelineBlock]
+    return [description, ...personalityLines, capabilityLine]
       .filter((line) => line.length > 0)
       .join("\n");
   };
@@ -128,10 +128,18 @@ export function registerAiRoutes({
         return acc;
       }, {});
 
-      return { profiles, names };
+      // Extract raw instructions separately so they can be injected as mandatory
+      // directives in the agent prompt rather than as soft background context.
+      const instructions = rows.reduce<Record<string, string>>((acc, row) => {
+        const raw = typeof row.instructions === 'string' ? row.instructions.trim() : '';
+        if (raw) acc[row.id] = raw;
+        return acc;
+      }, {});
+
+      return { profiles, names, instructions };
     } catch (error) {
       console.error("Failed to load workspace agent profiles:", error);
-      return { profiles: {}, names: {} };
+      return { profiles: {}, names: {}, instructions: {} };
     }
   };
 
@@ -247,7 +255,7 @@ export function registerAiRoutes({
       }
 
       const liveDataSection = buildLiveDataSection(liveContext);
-      const { profiles: agentProfiles, names: agentNames } = await getWorkspaceAgentProfiles(req.params.id);
+      const { profiles: agentProfiles, names: agentNames, instructions: agentInstructions } = await getWorkspaceAgentProfiles(req.params.id);
 
       const parsedWorkspaceId = Number.parseInt(req.params.id, 10) || 1;
       const config = { configurable: { thread_id: threadId, workspace_id: parsedWorkspaceId, workspaceId: parsedWorkspaceId } };
@@ -281,6 +289,7 @@ export function registerAiRoutes({
         liveDataSection,
         agentProfiles,
         agentNames,
+        agentInstructions,
         tenantId: req.params.id,
         clientId: req.userId ? req.userId.toString() : 'unknown'
       }, { ...config, recursionLimit: 100 });

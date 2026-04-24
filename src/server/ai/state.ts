@@ -17,10 +17,12 @@ export interface AgentState {
   // Dynamic root app context
   liveDataSection: string;
   dataAccessSection: string;
-  // Workspace-configured prompt profile per agent id
+  // Workspace-configured prompt profile per agent id (personality/capabilities context)
   agentProfiles: Record<string, string>;
   // Custom display names from the DB (overrides the static agent registry names)
   agentNames: Record<string, string>;
+  // Raw instruction text per agent id — injected as mandatory directives, NOT soft context
+  agentInstructions: Record<string, string>;
 }
 
 export function customMessagesReducer(left: BaseMessage[], right: BaseMessage[] | any): BaseMessage[] {

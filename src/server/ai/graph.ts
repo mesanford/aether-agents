@@ -44,19 +44,19 @@ import {
 } from './tools';
 import { agentRegistry, agentIds } from './agents';
 
-// Initialize the LLMs
-const llm = new ChatGoogleGenerativeAI({
-  model: 'models/gemini-3-flash-preview',
-  temperature: 0,
-  apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
-});
+const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 
-// A faster, cheaper model for utility tasks like history compaction
-const liteLLM = new ChatGoogleGenerativeAI({
-  model: 'models/gemini-3.1-flash-lite',
-  temperature: 0,
-  apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
-});
+// Primary model — frontier-class, used for all agent and supervisor calls
+const llm = new ChatGoogleGenerativeAI({ model: 'gemini-3-flash-preview', temperature: 0, apiKey });
+
+// Stable fallback — used when the primary model returns 429/503 or "overloaded" errors
+const llmFallback = new ChatGoogleGenerativeAI({ model: 'gemini-2.5-flash', temperature: 0, apiKey });
+
+// Lite model for utility tasks (context compaction / summarisation)
+const liteLLM = new ChatGoogleGenerativeAI({ model: 'gemini-3.1-flash-lite-preview', temperature: 0, apiKey });
+
+// Stable fallback for the lite model
+const liteLLMFallback = new ChatGoogleGenerativeAI({ model: 'gemini-2.5-flash-lite', temperature: 0, apiKey });
 
 const stringifyMessageContent = (content: any): string => {
   if (typeof content === 'string') return content;
@@ -128,7 +128,7 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
     finalMessages.push(new HumanMessage(`Routing context: Current Task: ${state.task}. Determine whether to end or assign the next specialist.`));
   }
 
-  const response = await llm.invoke(finalMessages);
+  const response = await llm.withFallbacks([llmFallback]).invoke(finalMessages);
 
   try {
     let rawContent = response.content as string;
@@ -173,23 +173,47 @@ const agentToolMapping: Record<string, any[]> = {
 
 function createAgentNode(agentConfig: typeof agentRegistry[0]) {
   const agentTools = agentToolMapping[agentConfig.id] || allTools;
-  const agentLLM = llm.bindTools(agentTools);
+  const agentLLM = llm.bindTools(agentTools).withFallbacks([llmFallback.bindTools(agentTools)]);
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
     const displayName = state.agentNames?.[agentConfig.id] || agentConfig.name;
     console.log(`[NODE: agent] specialist: ${displayName} (sender: ${agentConfig.id})`);
     const workspaceProfile = state.agentProfiles?.[agentConfig.id] || '';
+
+    // Build a teammate directory so every agent knows the current custom names of
+    // all colleagues. This is critical when agents do handoffs or mention teammates
+    // by name — without it they fall back to hardcoded default names (Eva, Stan…)
+    // even when those have been renamed in the workspace UI.
+    const teammateLines = agentRegistry
+      .filter(a => a.id !== agentConfig.id)
+      .map(a => {
+        const name = state.agentNames?.[a.id] || a.name;
+        return `  - ${name} (id: ${a.id})`;
+      })
+      .join('\n');
+
+    const customInstructions = state.agentInstructions?.[agentConfig.id]?.trim() || '';
+
     const prompt = `You are ${displayName}. ${agentConfig.roleDescription}
 Your name is ${displayName} — always use this name when introducing yourself.
 Current Date/Time: ${new Date().toLocaleString()}
 Client ID: ${state.clientId} Tenant: ${state.tenantId}.
 
+Your Teammates (always refer to them by these names; use their id when sending a direct message via [Direct message to id]):
+${teammateLines}
+${customInstructions ? `
+=== MANDATORY WORKSPACE INSTRUCTIONS ===
+The following instructions were set by your workspace administrator. They OVERRIDE your defaults and MUST be followed precisely in every response:
+
+${customInstructions}
+=== END MANDATORY INSTRUCTIONS ===
+` : ''}
 Personality & Tone:
 ${agentConfig.personality}
 
 ${state.episodicGist ? `Memory of previous conversation: ${state.episodicGist}` : ''}
 
-${workspaceProfile ? `Workspace-Specific Prompt Profile:\n${workspaceProfile}` : ''}
+${workspaceProfile ? `Additional Workspace Context (personality/capabilities):\n${workspaceProfile}` : ''}
 
 ${state.dataAccessSection || ''}
 ${state.liveDataSection || ''}
@@ -240,17 +264,25 @@ CRITICAL GUARDRAIL:
   };
 }
 
-function router(state: AgentState): 'tool_node' | 'compaction_node' | 'approval_node' {
+function router(state: AgentState): string {
   const messages = state.messages;
   const lastMessage = messages[messages.length - 1] as AIMessage;
-  
+
   if (lastMessage?.tool_calls?.length) {
     const APPROVAL_REQUIRED_TOOLS = ['write_workspace_file', 'linkedin_outreach', 'send_sms', 'schedule_social_post'];
     const isRisky = lastMessage.tool_calls.some(call => APPROVAL_REQUIRED_TOOLS.includes(call.name));
     if (isRisky && !state.approvalRequired) return 'approval_node';
     return 'tool_node';
   }
-  return 'compaction_node';
+
+  // Only run compaction when the context is large enough to need it.
+  // For normal conversations this skips 2 extra LLM calls (compaction node + supervisor re-check).
+  const totalChars = messages.reduce((acc, m) => acc + stringifyMessageContent(m.content).length, 0);
+  if (totalChars / 4 > 60000 && messages.length > 10) {
+    return 'compaction_node';
+  }
+
+  return END;
 }
 
 const builder = new StateGraph<AgentState>({
@@ -268,6 +300,7 @@ const builder = new StateGraph<AgentState>({
     dataAccessSection: { value: (x, y) => y ?? x, default: () => '' },
     agentProfiles: { value: (x, y) => y ?? x, default: () => ({}) },
     agentNames: { value: (x, y) => y ?? x, default: () => ({}) },
+    agentInstructions: { value: (x, y) => y ?? x, default: () => ({}) },
   }
 });
 
@@ -313,7 +346,7 @@ async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
      const summaryPrompt = `Summarize:\nPrevious: ${state.episodicGist || 'None'}\nNew:\n${formattedOldMemory}`;
 
      try {
-       const gistResponse = await liteLLM.invoke([new HumanMessage(summaryPrompt)]);
+       const gistResponse = await liteLLM.withFallbacks([liteLLMFallback]).invoke([new HumanMessage(summaryPrompt)]);
        return {
           episodicGist: gistResponse.content as string,
           messages: { type: 'REPLACE_MESSAGES', messages: workingMemory }
@@ -364,7 +397,8 @@ defaultSpecialists.forEach(specialist => {
   builder.addConditionalEdges(specialist as any, router as any, {
     tool_node: 'tool_node',
     compaction_node: 'compaction_node',
-    approval_node: 'approval_node'
+    approval_node: 'approval_node',
+    [END]: END,
   } as any);
 });
 
