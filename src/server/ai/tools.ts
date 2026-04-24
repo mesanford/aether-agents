@@ -766,38 +766,77 @@ export const updateCrmTool = tool(
 );
 
 export const enrollSequenceContactsTool = tool(
-  async ({ sequenceId, contactIds, leadEmails }, config) => {
+  async ({ sequenceId, contactIds, leadEmails, leadIds }, config) => {
     const workspaceId = config?.configurable?.workspace_id || 1;
     try {
+      const seq = await db.prepare("SELECT zernio_sequence_id FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
+      if (!seq) return `[FAILED] Sequence ${sequenceId} not found.`;
+      const zernioSeqId = seq?.zernio_sequence_id;
+
+      // ── LOCAL-ONLY SEQUENCE ───────────────────────────────────────────────
+      // No Zernio involved: resolve leads directly from the local DB by ID or email.
+      if (!zernioSeqId) {
+        const localLeads: any[] = [];
+
+        if (leadIds?.length) {
+          for (const lid of leadIds) {
+            const lead = await db.prepare("SELECT id, name FROM leads WHERE id = ? AND workspace_id = ?").get(lid, workspaceId) as any;
+            if (lead) localLeads.push(lead);
+          }
+        }
+
+        if (leadEmails?.length) {
+          for (const email of leadEmails) {
+            const lead = await db.prepare("SELECT id, name FROM leads WHERE email = ? AND workspace_id = ?").get(email, workspaceId) as any;
+            if (lead) localLeads.push(lead);
+          }
+        }
+
+        if (localLeads.length === 0) {
+          return `[FAILED] No matching leads found in the local database. Provide leadIds or leadEmails that exist in the CRM.`;
+        }
+
+        let enrolled = 0;
+        for (const lead of localLeads) {
+          // Skip if already actively enrolled
+          const existing = await db.prepare(
+            "SELECT id FROM sequence_enrollments WHERE lead_id = ? AND sequence_id = ? AND workspace_id = ? AND status = 'Active'"
+          ).get(lead.id, sequenceId, workspaceId) as any;
+          if (existing) continue;
+
+          const firstStep = null; // daemon picks up immediately (next_execution_datetime IS NULL => due now)
+          await db.prepare(`
+            INSERT INTO sequence_enrollments (workspace_id, lead_id, sequence_id, status, current_step_idx)
+            VALUES (?, ?, ?, 'Active', 0)
+          `).run(workspaceId, lead.id, sequenceId);
+          enrolled++;
+        }
+
+        return `[SUCCESS] ${enrolled} lead(s) enrolled in local sequence ${sequenceId}. The sequence daemon will begin processing steps. (${localLeads.length - enrolled} skipped — already enrolled.)`;
+      }
+
+      // ── ZERNIO-BACKED SEQUENCE ────────────────────────────────────────────
+      // Must resolve to Zernio contact IDs before enrolling.
       let resolvedContactIds = contactIds || [];
 
-      // If lead emails were provided instead of contactIds, resolve them
       if (leadEmails?.length && resolvedContactIds.length === 0) {
         for (const email of leadEmails) {
-          // Check local DB for existing zernio_contact_id
           const lead = await db.prepare("SELECT zernio_contact_id, name FROM leads WHERE email = ? AND workspace_id = ?").get(email, workspaceId) as any;
-          
           if (lead?.zernio_contact_id) {
             resolvedContactIds.push(lead.zernio_contact_id);
           } else {
-            // Create contact in Zernio, then store the ID locally
             try {
               const zConfig = await getZernioConfig();
               if (!zConfig) {
-                return `[FAILED] Cannot resolve contact ${email} — Zernio config unavailable. Please sync leads first with sync_leads_to_zernio.`;
+                return `[FAILED] Cannot resolve contact ${email} — Zernio config unavailable. Sync leads first with sync_leads_to_zernio.`;
               }
               const createRes = await zernioFetch('/contacts', {
                 method: 'POST',
-                body: JSON.stringify({
-                  profileId: zConfig.profileId,
-                  name: lead?.name || email.split('@')[0],
-                  email: email
-                })
+                body: JSON.stringify({ profileId: zConfig.profileId, name: lead?.name || email.split('@')[0], email })
               });
               const newContactId = createRes?.contact?.id;
               if (newContactId) {
                 resolvedContactIds.push(newContactId);
-                // Store back to local lead record
                 await db.prepare("UPDATE leads SET zernio_contact_id = ? WHERE email = ? AND workspace_id = ?").run(newContactId, email, workspaceId);
               }
             } catch (cErr: any) {
@@ -808,33 +847,15 @@ export const enrollSequenceContactsTool = tool(
       }
 
       if (resolvedContactIds.length === 0) {
-        return `[FAILED] No valid Zernio contact IDs could be resolved. Make sure leads are synced to Zernio first (use sync_leads_to_zernio).`;
+        return `[FAILED] No Zernio contact IDs could be resolved. Sync leads first with sync_leads_to_zernio, or provide contactIds directly.`;
       }
 
-      // Determine if this is a Zernio sequence or local-only
-      const seq = await db.prepare("SELECT zernio_sequence_id FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
-      const zernioSeqId = seq?.zernio_sequence_id;
+      const res = await zernioFetch(`/sequences/${zernioSeqId}/enroll`, {
+        method: 'POST',
+        body: JSON.stringify({ contactIds: resolvedContactIds })
+      });
+      return `[SUCCESS] ${res?.enrolled || resolvedContactIds.length} contact(s) enrolled in Zernio sequence ${zernioSeqId}. Skipped: ${res?.skipped || 0}.`;
 
-      if (zernioSeqId) {
-        // Enroll via Zernio API
-        const res = await zernioFetch(`/sequences/${zernioSeqId}/enroll`, {
-          method: 'POST',
-          body: JSON.stringify({ contactIds: resolvedContactIds })
-        });
-        return `[SUCCESS] ${res?.enrolled || resolvedContactIds.length} contact(s) enrolled in Zernio sequence ${zernioSeqId}. Skipped: ${res?.skipped || 0}.`;
-      } else {
-        // Local enrollment for daemon-managed sequences
-        for (const cId of resolvedContactIds) {
-          const lead = await db.prepare("SELECT id FROM leads WHERE zernio_contact_id = ? AND workspace_id = ?").get(cId, workspaceId) as any;
-          if (lead) {
-            await db.prepare(`
-              INSERT INTO sequence_enrollments (workspace_id, lead_id, sequence_id, status)
-              VALUES (?, ?, ?, 'Active')
-            `).run(workspaceId, lead.id, sequenceId);
-          }
-        }
-        return `[SUCCESS] ${resolvedContactIds.length} contact(s) enrolled in local sequence ${sequenceId}. The daemon will begin processing steps.`;
-      }
     } catch (err: any) {
       console.error("enroll_sequence_contacts error:", err);
       return `[FAILED] Could not enroll contacts: ${err.message}`;
@@ -842,11 +863,12 @@ export const enrollSequenceContactsTool = tool(
   },
   {
     name: "enroll_sequence_contacts",
-    description: "Enroll one or more contacts into an outreach sequence. Provide either Zernio contactIds directly, or leadEmails which will be auto-resolved to Zernio contacts (creating them if needed). For Zernio-synced sequences, enrollment is handled server-side. For local sequences, the daemon manages delivery.",
-    schema: z.object({ 
-      sequenceId: z.union([z.string(), z.number()]).describe("The local sequence ID (from create_sequence) or Zernio sequence ID."),
-      contactIds: z.array(z.string()).optional().describe("Zernio contact IDs to enroll directly."),
-      leadEmails: z.array(z.string()).optional().describe("Email addresses of leads to enroll. Will be resolved to Zernio contact IDs automatically.")
+    description: "Enroll leads into an outreach sequence. For LOCAL sequences (no Zernio): use leadIds (local DB IDs from list_local_leads) or leadEmails — no Zernio sync required. For ZERNIO sequences: use contactIds or leadEmails which are auto-resolved to Zernio contacts. The daemon processes local sequences; Zernio handles remote ones.",
+    schema: z.object({
+      sequenceId: z.union([z.string(), z.number()]).describe("The local sequence ID."),
+      leadIds: z.array(z.number()).optional().describe("Local CRM lead IDs to enroll directly (use for local sequences, no Zernio needed)."),
+      leadEmails: z.array(z.string()).optional().describe("Email addresses of leads to enroll. For local sequences, looks up by email. For Zernio sequences, auto-creates Zernio contacts."),
+      contactIds: z.array(z.string()).optional().describe("Zernio contact IDs to enroll directly (Zernio sequences only)."),
     })
   }
 );
