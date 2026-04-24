@@ -54,7 +54,7 @@ async function startServer() {
   const PORT = Number.parseInt(process.env.PORT || "3001", 10);
 
   // 1. GLOBAL MIDDLEWARE
-  app.use(express.json({ limit: "5mb" }));
+  app.use(express.json({ limit: "20mb" }));
 
   // 2. LIVENESS ENDPOINT
   // Tracks bootstrap state for observability — does NOT block any traffic.

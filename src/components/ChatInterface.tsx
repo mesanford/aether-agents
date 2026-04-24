@@ -6,7 +6,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import toast from 'react-hot-toast';
 import { buildAgentPromptContext, cn, normalizeAgentPersonality } from '../utils';
-import { apiFetch } from '../services/apiClient';
+import { apiFetch, ApiError } from '../services/apiClient';
 
 interface ChatInterfaceProps {
   agent: Agent;
@@ -442,8 +442,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           
-          if (file.size > 5 * 1024 * 1024) {
-            toast.error(`File ${file.name} is too large (max 5MB)`);
+          // Base64 encoding adds ~33% overhead, so enforce a 10MB original-file
+          // ceiling so the encoded payload stays well under the 20MB server limit.
+          if (file.size > 10 * 1024 * 1024) {
+            toast.error(`${file.name} is too large (max 10 MB)`);
             continue;
           }
 
@@ -489,7 +491,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         setPendingAttachments(prev => [...prev, ...newAttachments]);
       } catch (err) {
         console.error('Upload failed:', err);
-        toast.error('Failed to upload one or more files');
+        if (err instanceof ApiError && err.status === 413) {
+          toast.error('Image is too large for upload. Please use a smaller file (max ~10 MB).');
+        } else {
+          toast.error('Failed to upload one or more files.');
+        }
       } finally {
         setIsUploadingAttachment(false);
         if (fileInputRef.current) fileInputRef.current.value = '';

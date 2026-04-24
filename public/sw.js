@@ -1,4 +1,4 @@
-const CACHE = 'sanford-ai-v1';
+const CACHE = 'sanford-ai-v2';
 const SHELL = ['/'];
 
 // ── Install: pre-cache the app shell (index.html at "/") ─────────────────────
@@ -23,8 +23,8 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. API calls — always network only, never cache
-  if (url.pathname.startsWith('/api/')) {
+  // 1. Always-network paths — never cache these
+  if (url.pathname.startsWith('/api/') || url.pathname === '/manifest.json') {
     event.respondWith(fetch(request));
     return;
   }
