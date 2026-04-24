@@ -46,14 +46,14 @@ import { agentRegistry, agentIds } from './agents';
 
 // Initialize the LLMs
 const llm = new ChatGoogleGenerativeAI({
-  model: 'gemini-1.5-flash',
+  model: 'models/gemini-3-flash-preview',
   temperature: 0,
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
 });
 
 // A faster, cheaper model for utility tasks like history compaction
 const liteLLM = new ChatGoogleGenerativeAI({
-  model: 'gemini-1.5-flash-lite',
+  model: 'models/gemini-3.1-flash-lite',
   temperature: 0,
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
 });

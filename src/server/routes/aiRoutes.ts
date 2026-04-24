@@ -268,11 +268,14 @@ export function registerAiRoutes({
 
       console.log(`[AI ROUTE] Invoking workflow for message: "${message.substring(0, 50)}..." | threadId: ${threadId}`);
       
+      const humanMessage = new HumanMessage({
+        content: messageParts
+      });
+      // @ts-ignore - for timestamp
+      humanMessage.additional_kwargs = { timestamp: Date.now() };
+
       const finalState = await workflow.invoke({
-        messages: [new HumanMessage({
-          content: messageParts,
-          additional_kwargs: { timestamp: Date.now() }
-        })],
+        messages: [humanMessage],
         task: message,
         sender: 'user',
         dataAccessSection,
@@ -422,7 +425,7 @@ export function registerAiRoutes({
       }`;
 
       const aiResponse = await aiClient.models.generateContent({
-        model: "gemini-3.1-flash-lite-preview",
+        model: "gemini-3-flash-preview",
         contents: prompt,
         config: {
           responseMimeType: "application/json"
@@ -459,7 +462,7 @@ export function registerAiRoutes({
   // 4. Test Image Gen
   app.get("/api/test-image-gen", async (req, res) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3.1-flash-image-preview',
         contents: [{ role: 'user', parts: [{ text: 'Generate a test image of a futuristic city.' }] }],
