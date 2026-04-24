@@ -567,6 +567,18 @@ export async function bootstrapDatabase(db: PostgresShim) {
     if (!(await hasColumn("sales_sequences", "platform"))) {
       await db.exec("ALTER TABLE sales_sequences ADD COLUMN platform TEXT DEFAULT 'linkedin'");
     }
+    if (!(await hasColumn("sales_sequences", "profile_id"))) {
+      await db.exec("ALTER TABLE sales_sequences ADD COLUMN profile_id TEXT");
+    }
+    if (!(await hasColumn("sales_sequences", "account_id"))) {
+      await db.exec("ALTER TABLE sales_sequences ADD COLUMN account_id TEXT");
+    }
+    if (!(await hasColumn("sales_sequences", "exit_on_reply"))) {
+      await db.exec("ALTER TABLE sales_sequences ADD COLUMN exit_on_reply BOOLEAN DEFAULT true");
+    }
+    if (!(await hasColumn("sales_sequences", "exit_on_unsubscribe"))) {
+      await db.exec("ALTER TABLE sales_sequences ADD COLUMN exit_on_unsubscribe BOOLEAN DEFAULT true");
+    }
   } catch (err) {
     console.error("Migration failed for sales_sequences table:", err);
   }

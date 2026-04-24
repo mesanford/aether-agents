@@ -11,7 +11,8 @@ export function startSequenceDaemon(db: any) {
   // Check every minute
   setInterval(async () => {
     try {
-      // Fetch sequences that are 'Active' and have contacts due for outreach
+      // Fetch sequences that are 'Active', due for outreach, and NOT managed by Zernio
+      // (Zernio-synced sequences are delivered server-side by Zernio; the daemon handles local-only ones)
       const pendingEnrollments = await db.prepare(`
         SELECT se.id, se.sequence_id, se.lead_id, se.current_step_idx, se.status,
                s.title, s.steps,
@@ -20,7 +21,10 @@ export function startSequenceDaemon(db: any) {
         FROM sequence_enrollments se
         JOIN sales_sequences s ON se.sequence_id = s.id
         JOIN leads l ON se.lead_id = l.id
-        WHERE se.status = 'Active' AND s.status = 'Active'
+        WHERE se.status = 'Active'
+          AND s.status = 'Active'
+          AND s.zernio_sequence_id IS NULL
+          AND (se.next_execution_datetime IS NULL OR se.next_execution_datetime <= NOW())
       `).all() as any[];
 
       if (!pendingEnrollments || pendingEnrollments.length === 0) {
@@ -134,9 +138,15 @@ Your Mission:
              console.log(`[DAEMON] Agent requested halt for sequence ${enrollment.id}.`);
              await db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
           } else {
-             // Advance the sequence
-             await db.prepare("UPDATE sequence_enrollments SET current_step_idx = current_step_idx + 1 WHERE id = ?").run(enrollment.id);
-             console.log(`[DAEMON] Successfully processed step ${enrollment.current_step_idx + 1} for sequence ${enrollment.id}.`);
+             const nextStepIdx = enrollment.current_step_idx + 1;
+             // Respect the next step's delayMinutes so we don't fire all steps back-to-back
+             const nextStep = steps[nextStepIdx];
+             const delayMinutes = nextStep?.delayMinutes ?? 0;
+             const nextExecution = new Date(Date.now() + delayMinutes * 60 * 1000).toISOString();
+             await db.prepare(
+               "UPDATE sequence_enrollments SET current_step_idx = ?, next_execution_datetime = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+             ).run(nextStepIdx, nextExecution, enrollment.id);
+             console.log(`[DAEMON] Processed step ${enrollment.current_step_idx + 1} for sequence ${enrollment.id}. Next step in ${delayMinutes} min.`);
           }
 
         } catch (err: any) {
