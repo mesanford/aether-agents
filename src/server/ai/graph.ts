@@ -1,7 +1,8 @@
 import { config } from 'dotenv';
 config({ path: '.env.local', override: true });
 
-import { END, START, StateGraph, MemorySaver } from '@langchain/langgraph';
+import { END, START, StateGraph } from '@langchain/langgraph';
+import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { AgentState, customMessagesReducer } from './state';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
@@ -416,8 +417,12 @@ const toolEdgeMap: Record<string, string> = {};
 agentIds.forEach(id => { toolEdgeMap[id] = id; });
 builder.addConditionalEdges('tool_node' as any, (state) => state.sender, toolEdgeMap as any);
 
-export const checkpointer = new MemorySaver();
-export const workflow = builder.compile({ 
+const checkpointer = PostgresSaver.fromConnString(
+  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/agencyos'
+);
+await checkpointer.setup();
+
+export const workflow = builder.compile({
   checkpointer,
   interruptBefore: ['approval_node' as any]
 });
