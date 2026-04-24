@@ -203,6 +203,13 @@ async function startServer() {
 
   // 6. STATIC ASSETS & VITE
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
     app.use(express.static(path.join(__dirname, "dist")));
     app.use(express.static(path.join(__dirname, "public")));
     app.get("*", (req, res) => {
