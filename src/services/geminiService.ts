@@ -55,9 +55,11 @@ export async function getAgentResponse(
     });
 
     return { text: data?.response || "Task executed.", sender: data?.sender };
-  } catch (error) {
-    console.error("Agent response proxy error:", error);
-    return { text: "Error: Failed to connect to my neural network." };
+  } catch (error: any) {
+    // Log the full payload so the actual Gemini/LangGraph error is visible in the console
+    const details = error?.payload?.details || error?.payload?.error || error?.message || 'Unknown error';
+    console.error("Agent response proxy error:", error, "| details:", details);
+    return { text: `Error: ${details}` };
   }
 }
 

@@ -157,38 +157,39 @@ export function registerAiRoutes({
          return res.status(400).json({ error: 'Missing parameters threadId or message' });
       }
 
-      // Build message parts for Gemini (multimodal support)
-      const messageParts: any[] = [{ text: message }];
-      
+      // Build message content for LangGraph/LangChain.
+      // Plain text → string (LangGraph serializes this cleanly).
+      // With image attachments → LangChain multimodal array using { type, ... } format.
+      // NOTE: raw Gemini SDK { inlineData } / { text } objects (without `type`) cause
+      //       "Unknown content" errors in LangGraph's message state serializer.
+      let humanMessageContent: string | any[] = message;
+
       if (attachments && attachments.length > 0) {
+        const parts: any[] = [{ type: 'text', text: message }];
+
         for (const att of attachments) {
           if (att.type === 'image') {
             if (att.url.startsWith('data:')) {
-              const [header, data] = att.url.split(',');
-              const mimeType = header.split(':')[1].split(';')[0];
-              messageParts.push({
-                inlineData: {
-                  data,
-                  mimeType
-                }
-              });
+              // LangChain image_url with data URI
+              parts.push({ type: 'image_url', image_url: { url: att.url } });
             } else if (att.url.startsWith('http')) {
               try {
                 const imgRes = await fetch(att.url);
                 const buf = await imgRes.arrayBuffer();
                 const base64 = Buffer.from(buf).toString('base64');
                 const mimeType = imgRes.headers.get('content-type') || 'image/png';
-                messageParts.push({
-                  inlineData: { data: base64, mimeType }
-                });
+                parts.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } });
               } catch (e) {
                 console.warn(`[AI ROUTE] Failed to fetch attachment URL for AI processing: ${att.url}`);
               }
             }
           } else {
-            messageParts[0].text += `\n\n[User attached file: ${att.name}]`;
+            // Non-image files: append as text note
+            parts[0].text += `\n\n[User attached file: ${att.name}]`;
           }
         }
+
+        humanMessageContent = parts;
       }
 
       // Build injection sections for root project APIs
@@ -268,9 +269,7 @@ export function registerAiRoutes({
 
       console.log(`[AI ROUTE] Invoking workflow for message: "${message.substring(0, 50)}..." | threadId: ${threadId}`);
       
-      const humanMessage = new HumanMessage({
-        content: messageParts
-      });
+      const humanMessage = new HumanMessage({ content: humanMessageContent });
       // @ts-ignore - for timestamp
       humanMessage.additional_kwargs = { timestamp: Date.now() };
 
@@ -336,8 +335,8 @@ export function registerAiRoutes({
       });
 
     } catch (error: any) {
-      console.error('Delegation Error:', error);
-      return res.status(500).json({ error: "Failed to delegate to AI specialist.", details: error.message });
+      console.error('Delegation Error:', error?.message || error, '\nStack:', error?.stack || '(no stack)');
+      return res.status(500).json({ error: "Failed to delegate to AI specialist.", details: error?.message || String(error) });
     }
   });
 

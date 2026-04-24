@@ -7,7 +7,6 @@ config({ path: ".env.local", override: true });
 import express from "express";
 import db from "./src/server/db.ts";
 import path from "path";
-import { existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 import { createSecurityTools } from "./src/server/security.ts";
@@ -201,31 +200,8 @@ async function startServer() {
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
   });
 
-  // 5. MANIFEST
-  app.get(["/manifest.json", "/manifest.webmanifest"], (_req, res) => {
-    const possiblePaths = [
-      path.resolve(__dirname, "public", "manifest.json"),
-      path.resolve(process.cwd(), "public", "manifest.json"),
-      path.resolve(__dirname, "dist", "manifest.json"),
-      path.resolve(process.cwd(), "dist", "manifest.json"),
-    ];
-
-    let foundPath = "";
-    for (const p of possiblePaths) {
-      if (existsSync(p)) {
-        foundPath = p;
-        break;
-      }
-    }
-
-    if (foundPath) {
-      res.header("Content-Type", "application/manifest+json");
-      return res.sendFile(foundPath);
-    }
-
-    console.error("[Manifest] File not found in any of the expected locations:", possiblePaths);
-    return res.status(404).json({ error: "Manifest not found" });
-  });
+  // 5. MANIFEST — served by express.static (production) or Vite dev server (development).
+  // No custom route needed; the previous custom handler blocked the static middleware.
 
   // 6. STATIC ASSETS & VITE
   if (process.env.NODE_ENV !== "production") {
