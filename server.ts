@@ -204,6 +204,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    app.get(["/manifest.json", "/manifest.webmanifest"], (_req, res) => {
+      res.header("Content-Type", "application/manifest+json");
+      res.sendFile(path.join(__dirname, "public", "manifest.json"));
+    });
     app.use(express.static(path.join(__dirname, "dist")));
     app.use(express.static(path.join(__dirname, "public")));
     app.get("*", (req, res) => {
