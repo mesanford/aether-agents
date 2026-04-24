@@ -40,7 +40,7 @@ export async function getAgentResponse(
   }
 
   try {
-    const data = await apiFetch<{ response?: string; sender?: string }>(`/api/workspaces/${activeWorkspaceId}/chat`, {
+    const data = await apiFetch<{ response?: string; sender?: string; requiresApproval?: boolean }>(`/api/workspaces/${activeWorkspaceId}/chat`, {
       method: 'POST',
       token,
       onAuthFailure: () => onAuthFailure?.(),
@@ -54,13 +54,46 @@ export async function getAgentResponse(
       }),
     });
 
-    return { text: data?.response || "Task executed.", sender: data?.sender };
+    return { text: data?.response || "Task executed.", sender: data?.sender, requiresApproval: data?.requiresApproval, threadId };
   } catch (error: any) {
     // Log the full payload so the actual Gemini/LangGraph error is visible in the console
     const details = error?.payload?.details || error?.payload?.error || error?.message || 'Unknown error';
     console.error("Agent response proxy error:", error, "| details:", details);
     return { text: `Error: ${details}` };
   }
+}
+
+export async function approveAgentAction(
+  threadId: string,
+  activeWorkspaceId: number,
+  token: string,
+  onAuthFailure?: () => void,
+) {
+  const data = await apiFetch<{ response?: string; sender?: string }>(`/api/workspaces/${activeWorkspaceId}/chat/approve`, {
+    method: 'POST',
+    token,
+    onAuthFailure: () => onAuthFailure?.(),
+    timeoutMs: 120000,
+    body: JSON.stringify({ threadId }),
+  });
+  return { text: data?.response || "Action approved.", sender: data?.sender };
+}
+
+export async function rejectAgentAction(
+  threadId: string,
+  reason: string,
+  activeWorkspaceId: number,
+  token: string,
+  onAuthFailure?: () => void,
+) {
+  const data = await apiFetch<{ response?: string; sender?: string }>(`/api/workspaces/${activeWorkspaceId}/chat/reject`, {
+    method: 'POST',
+    token,
+    onAuthFailure: () => onAuthFailure?.(),
+    timeoutMs: 120000,
+    body: JSON.stringify({ threadId, reason }),
+  });
+  return { text: data?.response || "Action rejected.", sender: data?.sender };
 }
 
 export async function orchestrateTask(

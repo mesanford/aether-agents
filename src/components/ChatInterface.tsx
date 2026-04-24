@@ -22,6 +22,9 @@ interface ChatInterfaceProps {
   onUpdateName?: (agentId: string, name: string) => Promise<boolean>;
   onBack?: () => void;
   onManageAccounts?: () => void;
+  pendingGraphApproval?: string;
+  onApproveAction?: () => void;
+  onRejectAction?: (reason?: string) => void;
 }
 
 const MAX_AGENT_SKILLS = 25;
@@ -254,7 +257,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onUpdatePersonality,
   onUpdateName,
   onBack,
-  onManageAccounts
+  onManageAccounts,
+  pendingGraphApproval,
+  onApproveAction,
+  onRejectAction,
 }) => {
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState('Chat');
@@ -2881,6 +2887,27 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </div>
 
             <div className="relative">
+              {pendingGraphApproval && !isTyping && (
+                <div className="mb-3 mx-1 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="text-xs text-amber-800 flex-1 font-medium">{agent.name.split(' ')[0]} is requesting approval to schedule this post.</span>
+                  <button
+                    type="button"
+                    onClick={() => onApproveAction?.()}
+                    className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRejectAction?.()}
+                    className="px-3 py-1.5 bg-red-100 text-red-700 text-xs font-semibold rounded-lg hover:bg-red-200 transition-colors"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+
               {isTyping && (
                 <div className="flex items-center gap-2 mb-3 px-3">
                   <img src={agent.avatar} alt={agent.name} className="w-[22px] h-[22px] rounded-full object-cover bg-warm-100 shadow-sm" />

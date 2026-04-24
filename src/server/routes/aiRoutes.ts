@@ -349,7 +349,95 @@ export function registerAiRoutes({
     }
   });
 
-  // 2. Chat History Hydration Endpoint
+  // 2. Chat Approve Endpoint — resumes a graph thread frozen at interruptBefore approval_node
+  app.post("/api/workspaces/:id/chat/approve", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
+    const { threadId } = req.body as { threadId?: string };
+    if (!threadId) return res.status(400).json({ error: 'Missing threadId' });
+
+    const parsedWorkspaceId = Number.parseInt(req.params.id, 10) || 1;
+    const config = { configurable: { thread_id: threadId, workspace_id: parsedWorkspaceId, workspaceId: parsedWorkspaceId } };
+
+    try {
+      const memoryState = await workflow.getState(config);
+      if (!memoryState?.next?.includes('approval_node')) {
+        return res.status(400).json({ error: 'Thread is not awaiting approval' });
+      }
+
+      if (db) {
+        await checkAndIncrementDailyAIRequestLimit(db, req.params.id);
+      }
+
+      // Resume: re-invoke with null (no new message) so LangGraph continues from the interrupt point
+      const finalState = await workflow.invoke(null as any, { ...config, recursionLimit: 100 });
+
+      const msgs = finalState.messages as any[];
+      const lastMessage = msgs?.length ? msgs[msgs.length - 1] : null;
+      let safeResponse = "Action completed.";
+      if (lastMessage?.content) {
+        if (typeof lastMessage.content === 'string') {
+          safeResponse = lastMessage.content;
+        } else if (Array.isArray(lastMessage.content)) {
+          safeResponse = lastMessage.content.map((c: any) => c.text || JSON.stringify(c)).join('\n');
+        }
+      }
+
+      const isKnownAgent = (id: unknown): id is string =>
+        typeof id === "string" && (agentIds.includes(id) || id.split(':')[0] in {});
+      const sender = isKnownAgent(lastMessage?.name) ? lastMessage.name
+        : isKnownAgent(finalState.sender) ? finalState.sender
+        : isKnownAgent(finalState.currentAssignee) ? finalState.currentAssignee
+        : 'System';
+
+      return res.json({ success: true, response: safeResponse, sender });
+    } catch (err: any) {
+      console.error('[APPROVE ROUTE] Error resuming workflow:', err?.message, err?.stack);
+      return res.status(500).json({ error: 'Failed to resume workflow', details: err?.message });
+    }
+  });
+
+  // 3. Chat Reject Endpoint — discards the frozen thread's pending tool call and notifies the agent
+  app.post("/api/workspaces/:id/chat/reject", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
+    const { threadId, reason } = req.body as { threadId?: string; reason?: string };
+    if (!threadId) return res.status(400).json({ error: 'Missing threadId' });
+
+    const parsedWorkspaceId = Number.parseInt(req.params.id, 10) || 1;
+    const config = { configurable: { thread_id: threadId, workspace_id: parsedWorkspaceId, workspaceId: parsedWorkspaceId } };
+
+    try {
+      const memoryState = await workflow.getState(config);
+      if (!memoryState?.next?.includes('approval_node')) {
+        return res.status(400).json({ error: 'Thread is not awaiting approval' });
+      }
+
+      // Inject a human rejection message and resume so the agent can acknowledge and redraft
+      const rejectionText = reason?.trim()
+        ? `[REJECTED] I have rejected your proposed action.\n\nReason: ${reason.trim()}\n\nPlease acknowledge and offer an alternative.`
+        : '[REJECTED] I have rejected your proposed action. Please acknowledge and offer an alternative.';
+
+      await workflow.updateState(config, { messages: [new HumanMessage(rejectionText)] }, 'social-media-manager' as any);
+
+      const finalState = await workflow.invoke(null as any, { ...config, recursionLimit: 100 });
+
+      const msgs = finalState.messages as any[];
+      const lastMessage = msgs?.length ? msgs[msgs.length - 1] : null;
+      let safeResponse = "Action rejected.";
+      if (lastMessage?.content) {
+        if (typeof lastMessage.content === 'string') safeResponse = lastMessage.content;
+        else if (Array.isArray(lastMessage.content)) safeResponse = lastMessage.content.map((c: any) => c.text || JSON.stringify(c)).join('\n');
+      }
+
+      const sender = (lastMessage?.name && agentIds.includes(lastMessage.name as string)) ? lastMessage.name
+        : (typeof finalState.sender === 'string' && agentIds.includes(finalState.sender)) ? finalState.sender
+        : 'System';
+
+      return res.json({ success: true, response: safeResponse, sender });
+    } catch (err: any) {
+      console.error('[REJECT ROUTE] Error rejecting workflow:', err?.message, err?.stack);
+      return res.status(500).json({ error: 'Failed to reject workflow', details: err?.message });
+    }
+  });
+
+  // 4. Chat History Hydration Endpoint
   app.get("/api/workspaces/:id/chat/history", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const threadId = req.query.threadId as string;

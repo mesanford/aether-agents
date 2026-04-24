@@ -72,6 +72,7 @@ export interface Message {
   timestamp: number;
   type: 'user' | 'agent' | 'system';
   metadata?: any;
+  requiresApproval?: boolean;
 }
 
 export interface Lead {

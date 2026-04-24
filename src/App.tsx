@@ -43,7 +43,7 @@ import { SettingsView } from './components/SettingsView';
 import { ApprovalQueue } from './components/ApprovalQueue';
 import { LoginView } from './components/LoginView';
 import { OnboardingWizard } from './components/OnboardingWizard';
-import { getAgentResponse, parseTaskFromResponse, parseDraftEmailFromResponse, stripAgentJson, LiveContext, ConnectedServices } from './services/geminiService';
+import { getAgentResponse, approveAgentAction, rejectAgentAction, parseTaskFromResponse, parseDraftEmailFromResponse, stripAgentJson, LiveContext, ConnectedServices } from './services/geminiService';
 import { apiFetch } from './services/apiClient';
 import { buildAgentPromptContext, cn, normalizeAgentPersonality } from './utils';
 
@@ -83,6 +83,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('sanford-token'));
 
   const [workingAgents, setWorkingAgents] = useState<Set<string>>(new Set());
+  // threadId of a graph thread frozen at interruptBefore(approval_node), keyed by agentId
+  const [pendingGraphApprovals, setPendingGraphApprovals] = useState<Record<string, string>>({});
   const [activeView, setActiveView] = useState<'chat' | 'media' | 'docs' | 'team' | 'tasks' | 'settings' | 'approvals'>(() => {
     const params = new URLSearchParams(window.location.search);
     return (params.get('view') as any) || 'chat';
@@ -673,7 +675,7 @@ export default function App() {
 
     const liveCtx = await fetchLiveContext(content);
 
-    const { text, sender } = await getAgentResponse(
+    const { text, sender, requiresApproval } = await getAgentResponse(
       payloadMessage,
       threadId,
       liveCtx || undefined,
@@ -684,6 +686,10 @@ export default function App() {
       attachments
     );
 
+    if (requiresApproval) {
+      setPendingGraphApprovals(prev => ({ ...prev, [targetAgentId]: threadId }));
+    }
+
     const localAgentMsgId = (Date.now() + 1).toString();
     const agentResponse: Message = {
       id: localAgentMsgId,
@@ -692,7 +698,8 @@ export default function App() {
       senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system&backgroundColor=f5f5f4',
       content: stripAgentJson(text),
       timestamp: Date.now(),
-      type: 'agent'
+      type: 'agent',
+      requiresApproval,
     };
 
     setMessages(prev => ({
@@ -718,6 +725,54 @@ export default function App() {
     });
     updateAgentStatus(targetAgentId, AgentStatus.IDLE);
   }, [user, activeAgentId, agents, connectedServices, token, activeWorkspaceId, persistMessage, fetchLiveContext, updateAgentStatus]);
+
+  const handleApproveAction = useCallback(async (agentId: string) => {
+    const frozenThreadId = pendingGraphApprovals[agentId];
+    if (!frozenThreadId || !token || !activeWorkspaceId) return;
+
+    setPendingGraphApprovals(prev => { const next = { ...prev }; delete next[agentId]; return next; });
+    setWorkingAgents(prev => { const next = new Set(prev); next.add(agentId); return next; });
+    updateAgentStatus(agentId, AgentStatus.THINKING);
+
+    const { text, sender } = await approveAgentAction(frozenThreadId, activeWorkspaceId, token, handleLogout);
+
+    const agentResponse: Message = {
+      id: (Date.now() + 1).toString(),
+      senderId: sender || 'system',
+      senderName: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.name || DEFAULT_AGENT_NAMES[sender || ''] || 'System',
+      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system&backgroundColor=f5f5f4',
+      content: stripAgentJson(text),
+      timestamp: Date.now(),
+      type: 'agent',
+    };
+    setMessages(prev => ({ ...prev, [agentId]: [...(prev[agentId] || []), agentResponse] }));
+    setWorkingAgents(prev => { const next = new Set(prev); next.delete(agentId); return next; });
+    updateAgentStatus(agentId, AgentStatus.IDLE);
+  }, [pendingGraphApprovals, token, activeWorkspaceId, agents, handleLogout, updateAgentStatus]);
+
+  const handleRejectAction = useCallback(async (agentId: string, reason?: string) => {
+    const frozenThreadId = pendingGraphApprovals[agentId];
+    if (!frozenThreadId || !token || !activeWorkspaceId) return;
+
+    setPendingGraphApprovals(prev => { const next = { ...prev }; delete next[agentId]; return next; });
+    setWorkingAgents(prev => { const next = new Set(prev); next.add(agentId); return next; });
+    updateAgentStatus(agentId, AgentStatus.THINKING);
+
+    const { text, sender } = await rejectAgentAction(frozenThreadId, reason || '', activeWorkspaceId, token, handleLogout);
+
+    const agentResponse: Message = {
+      id: (Date.now() + 1).toString(),
+      senderId: sender || 'system',
+      senderName: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.name || DEFAULT_AGENT_NAMES[sender || ''] || 'System',
+      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system&backgroundColor=f5f5f4',
+      content: stripAgentJson(text),
+      timestamp: Date.now(),
+      type: 'agent',
+    };
+    setMessages(prev => ({ ...prev, [agentId]: [...(prev[agentId] || []), agentResponse] }));
+    setWorkingAgents(prev => { const next = new Set(prev); next.delete(agentId); return next; });
+    updateAgentStatus(agentId, AgentStatus.IDLE);
+  }, [pendingGraphApprovals, token, activeWorkspaceId, agents, handleLogout, updateAgentStatus]);
 
   // ── Early returns (after all hooks) ───────────────────────────────────────
   if (!user || !token) {
@@ -1074,6 +1129,9 @@ export default function App() {
                 setSettingsDefaultTab('integrations');
                 setActiveView('settings');
               }}
+              pendingGraphApproval={pendingGraphApprovals[activeAgentId]}
+              onApproveAction={() => handleApproveAction(activeAgentId)}
+              onRejectAction={(reason) => handleRejectAction(activeAgentId, reason)}
             />
             </ErrorBoundary>
           ) : (
