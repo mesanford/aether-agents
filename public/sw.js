@@ -25,7 +25,14 @@ self.addEventListener('fetch', (event) => {
 
   // 1. Always-network paths — never cache these
   if (url.pathname.startsWith('/api/') || url.pathname === '/manifest.json') {
-    event.respondWith(fetch(request));
+    event.respondWith(
+      fetch(request).catch(() =>
+        new Response(JSON.stringify({ error: 'Network request failed' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
     return;
   }
 
@@ -51,7 +58,7 @@ self.addEventListener('fetch', (event) => {
         const networkFetch = fetch(request).then((res) => {
           if (res.ok) cache.put(request, res.clone());
           return res;
-        }).catch(() => cached);
+        }).catch(() => cached || new Response('', { status: 503 }));
         return cached || networkFetch;
       })
     )
