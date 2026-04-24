@@ -195,19 +195,14 @@ async function startServer() {
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
   });
 
-  // 5. STATIC ASSETS & VITE
+  // 5. MANIFEST
+  app.get(["/manifest.json", "/manifest.webmanifest"], (_req, res) => {
+    res.header("Content-Type", "application/manifest+json");
+    res.sendFile(path.join(__dirname, "public", "manifest.json"));
+  });
+
+  // 6. STATIC ASSETS & VITE
   if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.get(["/manifest.json", "/manifest.webmanifest"], (_req, res) => {
-      res.header("Content-Type", "application/manifest+json");
-      res.sendFile(path.join(__dirname, "public", "manifest.json"));
-    });
     app.use(express.static(path.join(__dirname, "dist")));
     app.use(express.static(path.join(__dirname, "public")));
     app.get("*", (req, res) => {
