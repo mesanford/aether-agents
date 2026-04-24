@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Agent, AgentPersonality, Message, GuidelineSection, GuidelineItem, Lead, Attachment } from '../types';
-import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play, Timer, Loader2, FileIcon } from 'lucide-react';
+import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play, Timer, Loader2, FileIcon, Pause, RefreshCw, Zap, AlertCircle } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import toast from 'react-hot-toast';
@@ -1038,6 +1038,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [blogViewTab, setBlogViewTab] = useState<'list'|'calendar'>('list');
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set());
   const [sequenceViewTab, setSequenceViewTab] = useState<'editor' | 'progress'>('progress');
+  const [seqAnalytics, setSeqAnalytics] = useState<any>(null);
+  const [seqEnrollments, setSeqEnrollments] = useState<any[]>([]);
+  const [seqAnalyticsLoading, setSeqAnalyticsLoading] = useState(false);
+  const [seqMenuOpen, setSeqMenuOpen] = useState<number | null>(null);
 
   useEffect(() => {
     if (activeTab === 'Leads' && token && activeWorkspaceId) {
@@ -1056,7 +1060,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         onAuthFailure: () => {}
       });
       if (Array.isArray(data)) {
-        // Parse steps if they are stored as JSON string in DB
         const parsed = data.map(s => ({
           ...s,
           steps: typeof s.steps === 'string' ? JSON.parse(s.steps) : (s.steps || [])
@@ -1065,6 +1068,82 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       }
     } catch (err) {
       console.error("Failed to fetch sequences", err);
+    }
+  };
+
+  const fetchSeqAnalytics = async (seqId: number) => {
+    if (!token || !activeWorkspaceId) return;
+    setSeqAnalyticsLoading(true);
+    try {
+      const [analytics, enrollments] = await Promise.all([
+        apiFetch(`/api/workspaces/${activeWorkspaceId}/sequences/${seqId}/analytics`, { token, onAuthFailure: () => {} }),
+        apiFetch(`/api/workspaces/${activeWorkspaceId}/sequences/${seqId}/enrollments`, { token, onAuthFailure: () => {} }),
+      ]);
+      setSeqAnalytics(analytics);
+      setSeqEnrollments(enrollments || []);
+    } catch (err) {
+      console.error("Failed to fetch sequence analytics", err);
+    } finally {
+      setSeqAnalyticsLoading(false);
+    }
+  };
+
+  const handleDeleteSequence = async (seqId: number) => {
+    if (!window.confirm('Are you sure you want to delete this sequence? This will remove all enrollments and events.')) return;
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/sequences/${seqId}`, { method: 'DELETE', token });
+      toast.success('Sequence deleted');
+      setSelectedSequence(null);
+      setSeqMenuOpen(null);
+      await fetchSequences();
+    } catch (err) {
+      toast.error('Failed to delete sequence');
+    }
+  };
+
+  const handleToggleSeqStatus = async (seqId: number, currentStatus: string) => {
+    const newStatus = currentStatus === 'Active' ? 'Paused' : 'Active';
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/sequences/${seqId}/status`, {
+        method: 'PATCH', token,
+        body: JSON.stringify({ status: newStatus })
+      });
+      toast.success(`Sequence ${newStatus === 'Active' ? 'activated' : 'paused'}`);
+      setSequences(prev => prev.map(s => s.id === seqId ? { ...s, status: newStatus } : s));
+      if (selectedSequence?.id === seqId) {
+        setSelectedSequence((prev: any) => ({ ...prev, status: newStatus }));
+      }
+    } catch (err) {
+      toast.error('Failed to update sequence status');
+    }
+  };
+
+  const handleUnenrollContact = async (seqId: number, enrollmentId: number) => {
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/sequences/${seqId}/enrollments/${enrollmentId}`, { method: 'DELETE', token });
+      toast.success('Contact unenrolled');
+      setSeqEnrollments(prev => prev.filter(e => e.enrollment_id !== enrollmentId));
+      if (seqAnalytics) {
+        setSeqAnalytics((prev: any) => ({
+          ...prev,
+          totalEnrolled: Math.max(0, (prev.totalEnrolled || 0) - 1),
+          active: Math.max(0, (prev.active || 0) - 1),
+        }));
+      }
+    } catch (err) {
+      toast.error('Failed to unenroll contact');
+    }
+  };
+
+  const handleSaveSteps = async (seqId: number, steps: any[]) => {
+    try {
+      await apiFetch(`/api/workspaces/${activeWorkspaceId}/sequences/${seqId}`, {
+        method: 'PATCH', token,
+        body: JSON.stringify({ steps })
+      });
+      toast.success('Steps saved');
+    } catch (err) {
+      toast.error('Failed to save steps');
     }
   };
 
@@ -1368,6 +1447,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const renderSequences = () => {
     if (selectedSequence) {
+      // Auto-fetch analytics when selecting a sequence
+      if (!seqAnalytics || seqAnalytics._seqId !== selectedSequence.id) {
+        fetchSeqAnalytics(selectedSequence.id);
+        setSeqAnalytics({ _seqId: selectedSequence.id });
+      }
+
+      const seqStatus = selectedSequence.status || 'Draft';
+      const isActive = seqStatus === 'Active' || seqStatus === 'Running';
+      const isPaused = seqStatus === 'Paused';
+
       return (
         <div className="flex-1 bg-white overflow-auto flex flex-col">
           {sequenceViewTab === 'editor' ? (
@@ -1376,25 +1465,43 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               <div className="px-8 py-6 border-b border-warm-200 flex items-center justify-between sticky top-0 bg-white z-20">
                 <div className="flex items-center gap-4">
                   <button 
-                    onClick={() => setSelectedSequence(null)}
+                    onClick={() => { setSelectedSequence(null); setSeqAnalytics(null); setSeqEnrollments([]); }}
                     className="p-2 hover:bg-warm-50 rounded-lg text-stone-400 transition-colors"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
                   <div className="flex items-center gap-3">
                     <h2 className="text-[20px] font-bold text-stone-900 tracking-tight">{selectedSequence.title}</h2>
-                    <button className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
+                    {selectedSequence.zernio_sequence_id && (
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-500 text-[10px] font-bold rounded-full border border-blue-100">SYNCED</span>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 px-3 py-1 bg-white text-[#10b981] rounded-full border border-[#10b981]">
-                    <div className="w-[7px] h-[7px] rounded-full bg-[#10b981] animate-pulse" />
-                    <span className="text-[11px] font-bold">Running</span>
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "flex items-center gap-2 px-3 py-1 rounded-full border",
+                    isActive ? "bg-white text-[#10b981] border-[#10b981]" :
+                    isPaused ? "bg-orange-50 text-orange-500 border-orange-200" :
+                    "bg-warm-50 text-stone-500 border-warm-200"
+                  )}>
+                    {isActive && <div className="w-[7px] h-[7px] rounded-full bg-[#10b981] animate-pulse" />}
+                    {isPaused && <Pause className="w-3 h-3" />}
+                    <span className="text-[11px] font-bold">{seqStatus}</span>
                   </div>
+                  {seqStatus !== 'Draft' && (
+                    <button
+                      onClick={() => handleToggleSeqStatus(selectedSequence.id, isActive ? 'Active' : 'Paused')}
+                      className="px-3 py-1.5 bg-warm-50 border border-warm-200 rounded-lg text-[12px] font-bold text-stone-600 hover:bg-warm-100 transition-all"
+                    >
+                      {isActive ? 'Pause' : 'Activate'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDeleteSequence(selectedSequence.id)}
+                    className="p-1.5 hover:bg-rose-50 rounded-lg text-stone-400 hover:text-rose-500 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                   <button onClick={() => setSequenceViewTab('progress')} className="px-4 py-2 bg-black text-white rounded-[10px] text-[13px] font-bold hover:bg-stone-800 transition-all shadow-sm">
                     View Progress
                   </button>
@@ -1468,109 +1575,168 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           ) : (
             <div className="flex-1 bg-white overflow-auto">
               <div className="p-8 max-w-[1400px] mx-auto w-full">
-                <button onClick={() => setSequenceViewTab('editor')} className="flex items-center gap-2 text-stone-600 text-[13px] font-bold mb-6 hover:text-stone-900 transition-colors">
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to sequence editor
-                </button>
+                <div className="flex items-center justify-between mb-6">
+                  <button onClick={() => setSequenceViewTab('editor')} className="flex items-center gap-2 text-stone-600 text-[13px] font-bold hover:text-stone-900 transition-colors">
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to sequence editor
+                  </button>
+                  <button 
+                    onClick={() => fetchSeqAnalytics(selectedSequence.id)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-warm-50 border border-warm-200 rounded-lg text-[12px] font-bold text-stone-500 hover:bg-warm-100 transition-all"
+                  >
+                    <RefreshCw className={cn("w-3.5 h-3.5", seqAnalyticsLoading && "animate-spin")} />
+                    Refresh
+                  </button>
+                </div>
                 <h1 className="text-[26px] font-bold text-stone-900 mb-8 tracking-tight">{selectedSequence.title}</h1>
                 
+                {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                   <div className="p-5 bg-white border border-warm-200 rounded-2xl shadow-sm">
                     <div className="flex items-center gap-2.5 mb-2">
                        <Users className="w-4 h-4 text-stone-500" />
-                       <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-widest">Leads enrolled in the sequence</span>
+                       <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-widest">Total Enrolled</span>
                     </div>
-                    <div className="text-[26px] font-bold text-stone-900 mt-1">404</div>
+                    <div className="text-[26px] font-bold text-stone-900 mt-1">{seqAnalytics?.totalEnrolled ?? '—'}</div>
                   </div>
                   <div className="p-5 bg-white border border-warm-200 rounded-2xl shadow-sm">
                     <div className="flex items-center gap-2.5 mb-2">
                        <Activity className="w-4 h-4 text-stone-500" />
-                       <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-widest">Leads still active</span>
+                       <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-widest">Active</span>
                     </div>
-                    <div className="text-[26px] font-bold text-stone-900 mt-1">92</div>
+                    <div className="text-[26px] font-bold text-stone-900 mt-1">{seqAnalytics?.active ?? '—'}</div>
                   </div>
                   <div className="p-5 bg-white border border-warm-200 rounded-2xl shadow-sm">
                     <div className="flex items-center gap-2.5 mb-2">
-                       <Clock className="w-4 h-4 text-stone-500" />
-                       <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-widest">Leads in the email queue</span>
+                       <Check className="w-4 h-4 text-stone-500" />
+                       <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-widest">Completed</span>
                     </div>
-                    <div className="text-[26px] font-bold text-stone-900 mt-1">1</div>
+                    <div className="text-[26px] font-bold text-stone-900 mt-1">{seqAnalytics?.completed ?? '—'}</div>
                   </div>
                   <div className="p-5 bg-white border border-warm-200 rounded-2xl shadow-sm">
                     <div className="flex items-center gap-2.5 mb-2">
                        <BarChart2 className="w-4 h-4 text-stone-500" />
                        <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-widest">Completion Rate</span>
                     </div>
-                    <div className="text-[26px] font-bold text-stone-900 mt-1">77%</div>
+                    <div className="text-[26px] font-bold text-stone-900 mt-1">{seqAnalytics?.completionRate != null ? `${seqAnalytics.completionRate}%` : '—'}</div>
                   </div>
                 </div>
 
-                <div className="flex gap-4 mb-6">
-                  <div className="relative w-[320px]">
-                    <input 
-                      type="text" 
-                      placeholder="Search leads, emails, ..." 
-                      className="w-full pl-9 pr-4 py-2 bg-warm-50 border border-warm-200 rounded-lg text-[13.5px] focus:ring-2 focus:ring-brand-500/20"
-                    />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
-                      <Search className="w-4 h-4" />
+                {/* Zernio Remote Stats */}
+                {seqAnalytics?.zernio && (
+                  <div className="mb-8 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="w-4 h-4 text-blue-500" />
+                      <span className="text-[12px] font-bold text-blue-600">Zernio Remote Stats</span>
+                    </div>
+                    <div className="flex gap-6 text-[13px]">
+                      <span className="text-stone-600">Enrolled: <b>{seqAnalytics.zernio.totalEnrolled}</b></span>
+                      <span className="text-stone-600">Completed: <b>{seqAnalytics.zernio.totalCompleted}</b></span>
+                      <span className="text-stone-600">Exited: <b>{seqAnalytics.zernio.totalExited}</b></span>
+                      <span className="text-stone-600">Status: <b className="capitalize">{seqAnalytics.zernio.status}</b></span>
                     </div>
                   </div>
-                  <button className="px-4 py-2 bg-white border border-warm-200 rounded-lg text-[13.5px] font-medium text-stone-700 flex items-center justify-between w-40 hover:bg-warm-50">
-                    All Status <ChevronDown className="w-4 h-4 text-stone-300" />
-                  </button>
-                  <button className="px-4 py-2 bg-white border border-warm-200 rounded-lg text-[13.5px] font-medium text-stone-700 flex items-center justify-between w-40 hover:bg-warm-50">
-                    Newest First <ChevronDown className="w-4 h-4 text-stone-300" />
-                  </button>
-                </div>
+                )}
 
-                <div className="border border-warm-200 rounded-2xl overflow-hidden mt-4">
+                {/* Enrollments Table */}
+                <div className="border border-warm-200 rounded-2xl overflow-hidden">
                   <table className="w-full text-left border-collapse bg-white">
                     <thead>
                       <tr className="border-b border-warm-200 bg-white">
                         <th className="px-6 py-4 text-[13px] font-medium text-stone-400">Lead</th>
-                        <th className="px-6 py-4 text-[13px] font-medium text-stone-400 flex items-center gap-1">Status <ChevronDown className="w-3 h-3" /></th>
-                        <th className="px-6 py-4 text-[13px] font-medium text-stone-400">Next Action</th>
-                        <th className="px-6 py-4 text-[13px] font-medium text-stone-400 flex items-center gap-1">Last Contacted At <ChevronDown className="w-3 h-3" /></th>
-                        <th className="px-6 py-4 text-[13px] font-medium text-stone-400 flex items-center gap-1">LinkedIn Invited At <ChevronDown className="w-3 h-3" /></th>
+                        <th className="px-6 py-4 text-[13px] font-medium text-stone-400">Status</th>
+                        <th className="px-6 py-4 text-[13px] font-medium text-stone-400">Step</th>
+                        <th className="px-6 py-4 text-[13px] font-medium text-stone-400">Next Execution</th>
+                        <th className="px-6 py-4 text-[13px] font-medium text-stone-400">Enrolled</th>
                         <th className="px-6 py-4 text-[13px] font-medium text-stone-400">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50/50">
-                      {[
-                        { name: 'Steffen Petersen', email: 'steffen@getsona.com', comp: 'Sona (getsona.com)', stat: 'Running', next: 'Send email', btn: 'green', last: 'Never', inv: 'N/A' },
-                        { name: 'Joyce Hampton', email: 'hamptonj@elms.edu', comp: 'Elms College', stat: 'Running', next: 'Send email', btn: 'green', last: 'Never', inv: 'N/A' },
-                        { name: 'Sandie Jones', email: 'sandie.jones@brado.net', comp: 'Brado', stat: 'Running', next: 'Waiting for 3 days', btn: 'orange', last: 'Apr 07 11:39:30', inv: 'N/A' },
-                        { name: 'Colin McDuffie', email: 'colin.mcduffie@serenaandlily.com', comp: 'Serena & Lily', stat: 'Running', next: 'Waiting for 3 days', btn: 'orange', last: 'Apr 07 11:34:29', inv: 'N/A' },
-                        { name: 'Matthew Dwinell', email: 'matthew.dwinell@brooklinen.com', comp: 'Brooklinen', stat: 'Running', next: 'Waiting for 3 days', btn: 'orange', last: 'Apr 07 11:29:28', inv: 'N/A' },
-                      ].map((enr, i) => (
-                        <tr key={i} className="hover:bg-warm-50/50 transition-colors group">
-                          <td className="px-6 py-4">
-                            <div className="text-[13.5px] font-bold text-stone-900 mb-0.5">{enr.name}</div>
-                            <div className="text-[12.5px] text-stone-500">{enr.email}</div>
-                            <div className="text-[12.5px] text-stone-400">{enr.comp}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <div className="w-[5px] h-[5px] rounded-full bg-blue-500" />
-                              <span className="text-[13px] font-bold text-stone-700">{enr.stat}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={cn("px-2.5 py-1 rounded-[4px] border text-[11.5px] font-bold", enr.btn === 'green' ? "border-[#10b981]/30 text-[#10b981] bg-[#10b981]/5" : "border-orange-300 text-orange-400 bg-orange-50/50")}>
-                              {enr.next}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-[13px] text-stone-500">{enr.last}</td>
-                          <td className="px-6 py-4 text-[13px] text-stone-500">{enr.inv}</td>
-                          <td className="px-6 py-4">
-                            <button className="text-rose-400 hover:text-rose-500 transition-colors"><Trash2 className="w-4 h-4 fill-current" /></button>
+                      {seqEnrollments.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-12 text-center text-stone-400 text-[13px]">
+                            {seqAnalyticsLoading ? (
+                              <div className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading enrollments...</div>
+                            ) : 'No leads enrolled in this sequence yet.'}
                           </td>
                         </tr>
-                      ))}
+                      ) : seqEnrollments.map((enr) => {
+                        const steps = selectedSequence.steps || [];
+                        const currentStepName = steps[enr.current_step_idx]?.title || `Step ${(enr.current_step_idx || 0) + 1}`;
+                        return (
+                          <tr key={enr.enrollment_id} className="hover:bg-warm-50/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="text-[13.5px] font-bold text-stone-900 mb-0.5">{enr.name}</div>
+                              <div className="text-[12.5px] text-stone-500">{enr.email || '—'}</div>
+                              <div className="text-[12.5px] text-stone-400">{enr.company || ''}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <div className={cn("w-[5px] h-[5px] rounded-full",
+                                  enr.enrollment_status === 'Active' ? "bg-blue-500" :
+                                  enr.enrollment_status === 'Completed' ? "bg-emerald-500" : "bg-stone-300"
+                                )} />
+                                <span className="text-[13px] font-bold text-stone-700">{enr.enrollment_status}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-[13px] text-stone-600">{currentStepName}</td>
+                            <td className="px-6 py-4 text-[13px] text-stone-500">
+                              {enr.next_execution_datetime ? new Date(enr.next_execution_datetime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                            </td>
+                            <td className="px-6 py-4 text-[13px] text-stone-500">
+                              {enr.enrolled_at ? new Date(enr.enrolled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                            </td>
+                            <td className="px-6 py-4">
+                              <button 
+                                onClick={() => handleUnenrollContact(selectedSequence.id, enr.enrollment_id)}
+                                className="text-rose-400 hover:text-rose-500 transition-colors"
+                                title="Unenroll contact"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
+
+                {/* Recent Events Timeline */}
+                {seqAnalytics?.recentEvents && seqAnalytics.recentEvents.length > 0 && (
+                  <div className="mt-8">
+                    <h3 className="text-[14px] font-bold text-stone-900 mb-4 flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-stone-500" />
+                      Recent Activity
+                    </h3>
+                    <div className="space-y-2">
+                      {seqAnalytics.recentEvents.slice(0, 10).map((ev: any, i: number) => (
+                        <div key={ev.id || i} className="flex items-start gap-3 p-3 bg-warm-50/50 rounded-xl border border-warm-100">
+                          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                            ev.event_type === 'reply' ? "bg-emerald-100 text-emerald-600" :
+                            ev.event_type === 'failure' ? "bg-rose-100 text-rose-500" :
+                            ev.event_type === 'delivery' ? "bg-blue-100 text-blue-500" :
+                            "bg-warm-100 text-stone-500"
+                          )}>
+                            {ev.event_type === 'reply' ? <MessageSquare className="w-3.5 h-3.5" /> :
+                             ev.event_type === 'failure' ? <AlertCircle className="w-3.5 h-3.5" /> :
+                             <Mail className="w-3.5 h-3.5" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] text-stone-700">
+                              <span className="font-bold">{ev.lead_name || 'Unknown'}</span>
+                              <span className="text-stone-400"> — {ev.event_type}</span>
+                            </div>
+                            {ev.content && <p className="text-[12px] text-stone-500 mt-0.5 truncate">{ev.content}</p>}
+                          </div>
+                          <span className="text-[11px] text-stone-400 whitespace-nowrap shrink-0">
+                            {ev.created_at ? new Date(ev.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1631,20 +1797,47 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   <div>
                     <h3 className="text-lg font-bold text-stone-900 group-hover:text-brand-600 transition-colors">{seq.title}</h3>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs font-bold text-stone-400">{seq.date}</span>
+                      <span className="text-xs font-bold text-stone-400">{(seq.steps || []).length} step{(seq.steps || []).length !== 1 ? 's' : ''}</span>
                       <div className={cn(
                         "flex items-center gap-1.5 px-2 py-0.5 rounded-full border",
-                        seq.status === 'Running' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-warm-50 text-stone-600 border-warm-200"
+                        (seq.status === 'Active' || seq.status === 'Running') ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                        seq.status === 'Paused' ? "bg-orange-50 text-orange-500 border-orange-100" :
+                        "bg-warm-50 text-stone-600 border-warm-200"
                       )}>
-                        {seq.status === 'Running' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{seq.status}</span>
+                        {(seq.status === 'Active' || seq.status === 'Running') && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                        {seq.status === 'Paused' && <Pause className="w-2.5 h-2.5" />}
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{seq.status || 'Draft'}</span>
                       </div>
+                      {seq.zernio_sequence_id && (
+                        <span className="text-[9px] font-bold text-blue-400 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">SYNCED</span>
+                      )}
                     </div>
                   </div>
                 </div>
-                <button className="p-2 hover:bg-warm-50 rounded-lg text-stone-400">
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setSeqMenuOpen(seqMenuOpen === seq.id ? null : seq.id); }}
+                    className="p-2 hover:bg-warm-50 rounded-lg text-stone-400"
+                  >
+                    <MoreHorizontal className="w-5 h-5" />
+                  </button>
+                  {seqMenuOpen === seq.id && (
+                    <div className="absolute right-0 top-10 bg-white border border-warm-200 rounded-xl shadow-lg z-30 w-44 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => { handleToggleSeqStatus(seq.id, seq.status === 'Active' || seq.status === 'Running' ? 'Active' : 'Paused'); setSeqMenuOpen(null); }}
+                        className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-stone-700 hover:bg-warm-50 flex items-center gap-2"
+                      >
+                        {seq.status === 'Active' || seq.status === 'Running' ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Activate</>}
+                      </button>
+                      <button
+                        onClick={() => { handleDeleteSequence(seq.id); }}
+                        className="w-full px-4 py-2.5 text-left text-[13px] font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 border-t border-warm-100"
+                      >
+                        <Trash2 className="w-4 h-4" /> Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -1726,18 +1919,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               </button>
               <button 
                 onClick={() => {
+                  const updatedSteps = (selectedSequence.steps || []).map((s: any) => s.id === editingStep.id ? editingStep : s);
                   const updatedSequences = sequences.map(seq => {
                     if (seq.id === selectedSequence.id) {
-                      return {
-                        ...seq,
-                        steps: seq.steps.map((s: any) => s.id === editingStep.id ? editingStep : s)
-                      };
+                      return { ...seq, steps: updatedSteps };
                     }
                     return seq;
                   });
                   setSequences(updatedSequences);
                   setSelectedSequence(updatedSequences.find(s => s.id === selectedSequence.id));
                   setEditingStep(null);
+                  handleSaveSteps(selectedSequence.id, updatedSteps);
                 }}
                 className="flex-1 px-6 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-500/20"
               >

@@ -29,6 +29,7 @@ import { registerNotificationRoutes } from "./src/server/routes/notificationRout
 import { bootstrapDatabase } from "./src/server/dbBootstrap.ts";
 import { startTaskEngine } from "./src/server/taskEngine.ts";
 import { startSequenceDaemon } from "./src/server/sequenceDaemon.ts";
+import { mountZernioWebhook, registerZernioWebhook } from "./src/server/zernioWebhook.ts";
 
 import { migrateBase64ToGCS } from "./src/server/gcpStorage.ts";
 
@@ -200,6 +201,9 @@ async function startServer() {
     requireWorkspaceAccess: requireWorkspaceAccess as express.RequestHandler,
   });
 
+  // Zernio webhook endpoint (no auth — verified by signature)
+  mountZernioWebhook(app, db);
+
   // 5. MANIFEST — served by express.static (production) or Vite dev server (development).
   // No custom route needed; the previous custom handler blocked the static middleware.
 
@@ -255,6 +259,9 @@ async function startServer() {
   // they gracefully handle empty tables or missing data.
   startTaskEngine({ db, pollIntervalMs: 60000, aiClient, googleClientId: process.env.GOOGLE_CLIENT_ID, googleClientSecret: process.env.GOOGLE_CLIENT_SECRET });
   startSequenceDaemon(db);
+
+  // Auto-register Zernio webhook (best-effort, non-blocking)
+  registerZernioWebhook().catch(err => console.warn('[Server] Zernio webhook registration failed:', err.message));
 
   // Error handler
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

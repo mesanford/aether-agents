@@ -586,6 +586,16 @@ export async function bootstrapDatabase(db: PostgresShim) {
   `);
 
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS zernio_webhook_events (
+      id SERIAL PRIMARY KEY,
+      event_id TEXT UNIQUE NOT NULL,
+      event_type TEXT NOT NULL,
+      payload TEXT,
+      received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS stan_memory_ledger (
       id SERIAL PRIMARY KEY,
       workspace_id INTEGER NOT NULL,

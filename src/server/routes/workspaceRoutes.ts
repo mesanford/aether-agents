@@ -804,6 +804,157 @@ export function registerWorkspaceRoutes({
     }
   });
 
+  // ── Sequence Enrollments ──────────────────────
+  app.get("/api/workspaces/:id/sequences/:seqId/enrollments", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const rows = await db.prepare(`
+        SELECT se.id as enrollment_id, se.current_step_idx, se.next_execution_datetime, se.status as enrollment_status, se.created_at as enrolled_at,
+               l.id as lead_id, l.name, l.email, l.company, l.role, l.linkedin_url, l.status as lead_status
+        FROM sequence_enrollments se
+        JOIN leads l ON se.lead_id = l.id
+        WHERE se.sequence_id = $1 AND se.workspace_id = $2
+        ORDER BY se.created_at DESC
+      `).all(req.params.seqId, req.workspaceId) as any[];
+      res.json(rows);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch enrollments" });
+    }
+  });
+
+  // ── Sequence Analytics ──────────────────────
+  app.get("/api/workspaces/:id/sequences/:seqId/analytics", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const seq = await db.prepare("SELECT * FROM sales_sequences WHERE id = $1 AND workspace_id = $2").get(req.params.seqId, req.workspaceId) as any;
+      if (!seq) return res.status(404).json({ error: "Sequence not found" });
+
+      // Count local enrollments by status
+      const enrollmentCounts = await db.prepare(`
+        SELECT status, COUNT(*) as count FROM sequence_enrollments
+        WHERE sequence_id = $1 AND workspace_id = $2 GROUP BY status
+      `).all(req.params.seqId, req.workspaceId) as any[];
+
+      const counts: Record<string, number> = { Active: 0, Completed: 0, Failed: 0 };
+      for (const e of enrollmentCounts) {
+        counts[e.status] = Number(e.count);
+      }
+      const totalEnrolled = Object.values(counts).reduce((a, b) => a + b, 0);
+
+      // Zernio remote stats (if synced)
+      let zernio: any = null;
+      if (seq.zernio_sequence_id && process.env.ZERNIO_API_KEY) {
+        try {
+          const zRes = await fetch(`https://zernio.com/api/v1/sequences/${seq.zernio_sequence_id}`, {
+            headers: { 'Authorization': `Bearer ${process.env.ZERNIO_API_KEY}` }
+          });
+          if (zRes.ok) {
+            const zData = await zRes.json() as any;
+            const zSeq = zData?.sequence || zData;
+            zernio = {
+              totalEnrolled: zSeq.totalEnrolled || 0,
+              totalCompleted: zSeq.totalCompleted || 0,
+              totalExited: zSeq.totalExited || 0,
+              status: zSeq.status || 'unknown',
+            };
+          }
+        } catch { /* Zernio unavailable — degrade gracefully */ }
+      }
+
+      // Recent events
+      const recentEvents = await db.prepare(`
+        SELECT se.*, l.name as lead_name FROM sequence_events se
+        LEFT JOIN leads l ON se.lead_id = l.id
+        WHERE se.sequence_id = $1 AND se.workspace_id = $2
+        ORDER BY se.created_at DESC LIMIT 20
+      `).all(req.params.seqId, req.workspaceId) as any[];
+
+      const completionRate = totalEnrolled > 0 ? Math.round((counts.Completed / totalEnrolled) * 100) : 0;
+
+      res.json({
+        totalEnrolled,
+        active: counts.Active,
+        completed: counts.Completed,
+        failed: counts.Failed,
+        completionRate,
+        zernio,
+        recentEvents,
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
+  // ── Delete Sequence ──────────────────────
+  app.delete("/api/workspaces/:id/sequences/:seqId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const seq = await db.prepare("SELECT * FROM sales_sequences WHERE id = $1 AND workspace_id = $2").get(req.params.seqId, req.workspaceId) as any;
+      if (!seq) return res.status(404).json({ error: "Sequence not found" });
+
+      // Delete from Zernio if synced
+      if (seq.zernio_sequence_id && process.env.ZERNIO_API_KEY) {
+        try {
+          await fetch(`https://zernio.com/api/v1/sequences/${seq.zernio_sequence_id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${process.env.ZERNIO_API_KEY}` }
+          });
+        } catch { /* Best-effort remote cleanup */ }
+      }
+
+      // Cascade delete: events → enrollments → sequence
+      await db.prepare("DELETE FROM sequence_events WHERE sequence_id = $1 AND workspace_id = $2").run(req.params.seqId, req.workspaceId);
+      await db.prepare("DELETE FROM sequence_enrollments WHERE sequence_id = $1 AND workspace_id = $2").run(req.params.seqId, req.workspaceId);
+      await db.prepare("DELETE FROM sales_sequences WHERE id = $1 AND workspace_id = $2").run(req.params.seqId, req.workspaceId);
+
+      writeAuditLog({ workspaceId: req.workspaceId, userId: (req as any).userId, action: "delete", resource: "sequence", details: { sequenceId: req.params.seqId, title: seq.title } });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to delete sequence" });
+    }
+  });
+
+  // ── Toggle Sequence Status ──────────────────────
+  app.patch("/api/workspaces/:id/sequences/:seqId/status", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { status } = req.body; // 'Active' or 'Paused'
+      if (!['Active', 'Paused'].includes(status)) {
+        return res.status(400).json({ error: "Status must be 'Active' or 'Paused'" });
+      }
+
+      const seq = await db.prepare("SELECT * FROM sales_sequences WHERE id = $1 AND workspace_id = $2").get(req.params.seqId, req.workspaceId) as any;
+      if (!seq) return res.status(404).json({ error: "Sequence not found" });
+
+      // Sync to Zernio if connected
+      if (seq.zernio_sequence_id && process.env.ZERNIO_API_KEY) {
+        try {
+          const zAction = status === 'Active' ? 'activate' : 'pause';
+          await fetch(`https://zernio.com/api/v1/sequences/${seq.zernio_sequence_id}/${zAction}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${process.env.ZERNIO_API_KEY}` }
+          });
+        } catch { /* Best-effort sync */ }
+      }
+
+      await db.prepare("UPDATE sales_sequences SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND workspace_id = $3").run(status, req.params.seqId, req.workspaceId);
+      res.json({ success: true, status });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to update sequence status" });
+    }
+  });
+
+  // ── Unenroll Contact ──────────────────────
+  app.delete("/api/workspaces/:id/sequences/:seqId/enrollments/:enrollmentId", requireAuth, requireWorkspaceAccess, requireWorkspaceRole("owner", "admin"), async (req: AuthenticatedRequest, res) => {
+    try {
+      const enrollment = await db.prepare(
+        "SELECT * FROM sequence_enrollments WHERE id = $1 AND sequence_id = $2 AND workspace_id = $3"
+      ).get(req.params.enrollmentId, req.params.seqId, req.workspaceId) as any;
+      if (!enrollment) return res.status(404).json({ error: "Enrollment not found" });
+
+      await db.prepare("DELETE FROM sequence_enrollments WHERE id = $1").run(req.params.enrollmentId);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to unenroll contact" });
+    }
+  });
+
   app.get("/api/workspaces/:id/agents", requireAuth, requireWorkspaceAccess, async (req: AuthenticatedRequest, res) => {
     try {
       const rows = await db.prepare("SELECT * FROM agents WHERE workspace_id = ?").all(req.workspaceId) as any[];

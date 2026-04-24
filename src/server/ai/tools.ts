@@ -1960,6 +1960,53 @@ export const syncLeadsToZernioTool = tool(
   }
 );
 
+export const unenrollContactTool = tool(
+  async ({ sequenceId, leadId, reason }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const enrollment = await db.prepare(
+        "SELECT e.id, e.status, s.zernio_sequence_id, s.title, l.name as lead_name, l.zernio_contact_id FROM sequence_enrollments e JOIN sales_sequences s ON e.sequence_id = s.id JOIN leads l ON e.lead_id = l.id WHERE e.sequence_id = ? AND e.lead_id = ? AND e.workspace_id = ?"
+      ).get(sequenceId, leadId, workspaceId) as any;
+
+      if (!enrollment) return `[FAILED] No enrollment found for lead ${leadId} in sequence ${sequenceId}.`;
+
+      // Remove from Zernio if synced
+      if (enrollment.zernio_sequence_id && enrollment.zernio_contact_id) {
+        try {
+          await zernioFetch(`/sequences/${enrollment.zernio_sequence_id}/contacts/${enrollment.zernio_contact_id}`, {
+            method: 'DELETE'
+          });
+        } catch (zErr: any) {
+          console.warn(`Zernio unenroll failed (non-blocking): ${zErr.message}`);
+        }
+      }
+
+      // Update local enrollment status
+      await db.prepare(
+        "UPDATE sequence_enrollments SET status = 'Unenrolled' WHERE id = ?"
+      ).run(enrollment.id);
+
+      // Log the event
+      await db.prepare(
+        "INSERT INTO sequence_events (workspace_id, lead_id, sequence_id, event_type, content, agent_feedback) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run(workspaceId, leadId, sequenceId, 'Unenrolled', `Reason: ${reason || 'Manual unenroll'}`, 'Agent-initiated unenrollment.');
+
+      return `[SUCCESS] Lead "${enrollment.lead_name}" unenrolled from sequence "${enrollment.title}". Reason: ${reason || 'Not specified'}.`;
+    } catch (err: any) {
+      return `[FAILED] Could not unenroll contact: ${err.message}`;
+    }
+  },
+  {
+    name: "unenroll_contact",
+    description: "Remove a specific lead from an active sequence. Use when a lead replies negatively, requests to stop, or when you need to manually remove them from a drip campaign. Updates both local and Zernio enrollment status.",
+    schema: z.object({
+      sequenceId: z.union([z.string(), z.number()]).describe("The local sequence ID."),
+      leadId: z.union([z.string(), z.number()]).describe("The local lead ID to unenroll."),
+      reason: z.string().optional().describe("Why this contact is being unenrolled (e.g., 'replied positively', 'requested stop', 'bounced').")
+    })
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   writeToMemoryTool,
@@ -1983,6 +2030,7 @@ export const allTools = [
   getSequenceAnalyticsTool,
   updateSequenceTool,
   syncLeadsToZernioTool,
+  unenrollContactTool,
   deleteTaskTool,
   writeWorkspaceFileTool,
   getWorkspaceTasksTool,

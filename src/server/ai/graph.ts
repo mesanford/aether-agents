@@ -29,6 +29,7 @@ import {
   getSequenceAnalyticsTool,
   updateSequenceTool,
   syncLeadsToZernioTool,
+  unenrollContactTool,
   deleteTaskTool,
   writeWorkspaceFileTool,
   getWorkspaceTasksTool,
@@ -169,7 +170,7 @@ const memoryTools = [queryBrainTool, writeToMemoryTool];
 
 const agentToolMapping: Record<string, any[]> = {
   'executive-assistant': [...memoryTools, getWorkspaceTasksTool, listEmailsTool, draftEmailTool, readGoogleChatTool, searchWebTool, readWebsiteTool, createGenericTaskTool, manageTaskStatusTool, updateWorkspaceTaskTool, deleteTaskTool, manageCalendarTool, sendSlackMessageTool, listSlackChannelsTool, sendTeamsMessageTool, sendSmsTool, updateAgentScheduleTool, sendPushNotificationTool],
-  'sales-associate': [...memoryTools, getWorkspaceTasksTool, updateCrmTool, enrollSequenceContactsTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, activateSequenceTool, pauseSequenceTool, getSequenceAnalyticsTool, updateSequenceTool, syncLeadsToZernioTool, draftEmailTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
+  'sales-associate': [...memoryTools, getWorkspaceTasksTool, updateCrmTool, enrollSequenceContactsTool, linkedinOutreachTool, createSequenceTool, getSequencesTool, activateSequenceTool, pauseSequenceTool, getSequenceAnalyticsTool, updateSequenceTool, syncLeadsToZernioTool, unenrollContactTool, draftEmailTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, sendSmsTool, syncHubspotLeadTool, listLocalLeadsTool, updateAgentScheduleTool, sendPushNotificationTool],
   'blog-writer': [...memoryTools, getWorkspaceTasksTool, generateImageTool, publishBlogPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
   'social-media-manager': [...memoryTools, getWorkspaceTasksTool, generateImageTool, draftSocialPostTool, scheduleSocialPostTool, searchWebTool, readWebsiteTool, manageTaskStatusTool, deleteTaskTool, sendSlackMessageTool, listSlackChannelsTool, updateAgentScheduleTool, sendPushNotificationTool],
   'legal-associate': [...memoryTools, getWorkspaceTasksTool, searchGoogleDriveTool, publishBlogPostTool, writeWorkspaceFileTool, searchWebTool, readWebsiteTool, sendSlackMessageTool, listSlackChannelsTool, manageNotionTool, publishHubspotPostTool, updateAgentScheduleTool, sendPushNotificationTool],
