@@ -46,17 +46,27 @@ import { agentRegistry, agentIds } from './agents';
 
 // Initialize the LLMs
 const llm = new ChatGoogleGenerativeAI({
-  model: 'gemini-3-flash-preview',
+  model: 'gemini-1.5-flash',
   temperature: 0,
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
 });
 
 // A faster, cheaper model for utility tasks like history compaction
 const liteLLM = new ChatGoogleGenerativeAI({
-  model: 'gemini-3.1-flash-lite-preview',
+  model: 'gemini-1.5-flash-lite',
   temperature: 0,
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
 });
+
+const stringifyMessageContent = (content: any): string => {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => (typeof part === 'string' ? part : part.text || ''))
+      .join('');
+  }
+  return String(content || '');
+};
 
 const defaultSpecialists = agentIds;
 
@@ -82,7 +92,8 @@ async function supervisorNode(state: AgentState): Promise<Partial<AgentState>> {
     return { currentAssignee: 'END', sender: 'supervisor' };
   }
 
-  const lastHumanMessage = [...messages].reverse().find(m => m?.getType?.() === 'human')?.content as string;
+  const lastHumanMsgObj = [...messages].reverse().find(m => m?.getType?.() === 'human');
+  const lastHumanMessage = stringifyMessageContent(lastHumanMsgObj?.content);
   if (lastHumanMessage) {
     const dmMatch = lastHumanMessage.match(/^\[Direct message to ([^\]]+)\]/);
     if (dmMatch && dmMatch[1]) {
@@ -265,7 +276,7 @@ async function compactionNode(state: AgentState): Promise<Partial<AgentState>> {
      } as any;
   }
 
-  const totalChars = msgs.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0);
+  const totalChars = msgs.reduce((acc, m) => acc + stringifyMessageContent(m.content).length, 0);
   const estimatedTokens = totalChars / 4;
 
   if (estimatedTokens > 60000 && msgs.length > 10) {
@@ -317,8 +328,9 @@ builder.addNode('tool_node', toolNode);
 
 builder.addConditionalEdges(START, (state: AgentState) => {
   const lastMsg = state.messages[state.messages.length - 1];
-  if (lastMsg && typeof lastMsg.content === 'string' && lastMsg.content.includes('[Direct message to ')) {
-      const match = lastMsg.content.match(/\[Direct message to ([^\]]+)\]/);
+  const lastContent = stringifyMessageContent(lastMsg?.content);
+  if (lastContent && lastContent.includes('[Direct message to ')) {
+      const match = lastContent.match(/\[Direct message to ([^\]]+)\]/);
       if (match && match[1]) {
         const baseId = match[1].split(':')[0];
         if (agentIds.includes(baseId)) return baseId as any;
