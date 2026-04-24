@@ -1,3 +1,6 @@
+import type { Attachment } from './server/types.ts';
+export type { Attachment };
+
 export enum AgentRole {
   EXECUTIVE_ASSISTANT = 'Executive Assistant',
   SOCIAL_MEDIA_MANAGER = 'Social Media Manager',
@@ -64,7 +67,8 @@ export interface Message {
   senderName: string;
   senderAvatar?: string;
   content: string;
-  imageUrl?: string;
+  imageUrl?: string; // Legacy/Single image support
+  attachments?: Attachment[];
   timestamp: number;
   type: 'user' | 'agent' | 'system';
   metadata?: any;

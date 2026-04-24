@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Agent, AgentPersonality, Message, GuidelineSection, GuidelineItem, Lead } from '../types';
-import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play, Timer, Loader2 } from 'lucide-react';
+import { Agent, AgentPersonality, Message, GuidelineSection, GuidelineItem, Lead, Attachment } from '../types';
+import { Send, Settings, MoreHorizontal, Paperclip, ArrowUp, ChevronLeft, ChevronRight, Users, X, Calendar, Mail, Clock, Plus, MessageSquare, Share2, FileText, Download, Eye, Trash2, File, Edit2, Check, Trash, Search, Navigation, ArrowLeft, Activity, BarChart2, ChevronDown, Filter, Phone, Play, Timer, Loader2, FileIcon } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import toast from 'react-hot-toast';
@@ -14,7 +14,7 @@ interface ChatInterfaceProps {
   token: string | null;
   activeWorkspaceId: number | null;
   onAuthFailure?: () => void;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachments?: Attachment[]) => void;
   isTyping: boolean;
   onUpdateInstructions: (agentId: string, instructions: string) => Promise<boolean>;
   onUpdateCapabilities: (agentId: string, capabilities: string[]) => Promise<boolean>;
@@ -260,7 +260,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [activeTab, setActiveTab] = useState('Chat');
   const [nameDraft, setNameDraft] = useState(agent.name);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [pendingAttachment, setPendingAttachment] = useState<string | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [showClearHistoryModal, setShowClearHistoryModal] = useState(false);
@@ -433,46 +433,76 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && activeWorkspaceId && token) {
+    const files = e.target.files;
+    if (files && files.length > 0 && activeWorkspaceId && token) {
       setIsUploadingAttachment(true);
       try {
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64Url = reader.result as string;
-          const result = await apiFetch(`/api/workspaces/${activeWorkspaceId}/media`, {
-            method: 'POST',
-            token,
-            onAuthFailure,
-            body: JSON.stringify({
-              name: file.name,
-              type: file.type.startsWith('image/') ? 'image' : 'file',
-              category: 'uploads',
-              thumbnail: base64Url,
-              size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
-            }),
+        const newAttachments: Attachment[] = [];
+        
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          
+          if (file.size > 5 * 1024 * 1024) {
+            toast.error(`File ${file.name} is too large (max 5MB)`);
+            continue;
+          }
+
+          const reader = new FileReader();
+          const uploadPromise = new Promise<void>((resolve, reject) => {
+            reader.onload = async () => {
+              try {
+                const base64Url = reader.result as string;
+                const type = file.type.startsWith('image/') ? 'image' : 'file';
+                
+                const result = await apiFetch(`/api/workspaces/${activeWorkspaceId}/media`, {
+                  method: 'POST',
+                  token,
+                  onAuthFailure,
+                  body: JSON.stringify({
+                    name: file.name,
+                    type,
+                    category: 'uploads',
+                    thumbnail: base64Url,
+                    size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
+                  }),
+                });
+                
+                newAttachments.push({
+                  name: file.name,
+                  type,
+                  url: result.thumbnail,
+                  mimeType: file.type,
+                  size: `${Math.max(1, Math.round(file.size / 1024))} KB`
+                });
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            };
+            reader.onerror = reject;
           });
-          setPendingAttachment(result.thumbnail);
-        };
-        reader.readAsDataURL(file);
+          
+          reader.readAsDataURL(file);
+          await uploadPromise;
+        }
+        
+        setPendingAttachments(prev => [...prev, ...newAttachments]);
       } catch (err) {
-        console.error(err);
+        console.error('Upload failed:', err);
+        toast.error('Failed to upload one or more files');
       } finally {
         setIsUploadingAttachment(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() || pendingAttachment) {
-      let finalContent = input.trim();
-      if (pendingAttachment) {
-         finalContent += finalContent ? `\n\n[Attached image: ${pendingAttachment}]` : `[Attached image: ${pendingAttachment}]`;
-      }
-      onSendMessage(finalContent);
+    if (input.trim() || pendingAttachments.length > 0) {
+      onSendMessage(input.trim(), pendingAttachments);
       setInput('');
-      setPendingAttachment(null);
+      setPendingAttachments([]);
     }
   };
 
@@ -2478,7 +2508,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       </button>
                     )}
 
-                    {msg.imageUrl && (
+                    {msg.imageUrl && !msg.attachments?.length && (
                       <div className="mt-4 rounded-2xl overflow-hidden border border-warm-200 shadow-sm max-w-lg">
                         <img 
                           src={msg.imageUrl} 
@@ -2486,6 +2516,41 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           className="w-full h-auto object-cover"
                           referrerPolicy="no-referrer"
                         />
+                      </div>
+                    )}
+
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-4">
+                        {msg.attachments.map((att, attIdx) => (
+                          <div key={attIdx} className="max-w-sm">
+                            {att.type === 'image' ? (
+                              <div className="rounded-2xl overflow-hidden border border-warm-200 shadow-sm">
+                                <img 
+                                  src={att.url} 
+                                  alt={att.name} 
+                                  className="w-full h-auto max-h-[400px] object-contain bg-warm-50"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                            ) : (
+                              <a 
+                                href={att.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-warm-50 border border-warm-200 rounded-xl hover:bg-warm-100 transition-all group"
+                              >
+                                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-warm-100 shadow-sm group-hover:border-brand-200">
+                                  <FileIcon className="w-5 h-5 text-stone-400 group-hover:text-brand-500" />
+                                </div>
+                                <div className="flex flex-col min-w-0 pr-2">
+                                  <span className="text-sm font-bold text-stone-700 truncate max-w-[200px]">{att.name}</span>
+                                  <span className="text-xs text-stone-400">{att.size}</span>
+                                </div>
+                                <Download className="w-4 h-4 text-stone-300 group-hover:text-stone-500 ml-auto" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
 
@@ -2627,30 +2692,46 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               )}
               
               <form onSubmit={handleSubmit} className="relative">
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
                   onChange={handleFileChange}
-                  accept="image/*"
+                  accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                  multiple
                 />
-                
-                {pendingAttachment && (
-                  <div className="mb-3 p-3 bg-warm-50 border border-warm-200 rounded-xl flex items-center justify-between shadow-sm max-w-xs">
-                    <div className="flex items-center gap-3">
-                      <img src={pendingAttachment} alt="Attachment preview" className="w-10 h-10 object-cover rounded-lg border border-warm-200" />
-                      <span className="text-xs font-semibold text-stone-600">Image attached</span>
-                    </div>
-                    <button type="button" onClick={() => setPendingAttachment(null)} className="p-1.5 hover:bg-warm-200 rounded-lg text-stone-400 hover:text-stone-600 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
+
+                {pendingAttachments.length > 0 && (
+                  <div className="mb-3 flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">
+                    {pendingAttachments.map((att, idx) => (
+                      <div key={idx} className="p-2 bg-warm-50 border border-warm-200 rounded-xl flex items-center gap-3 shadow-sm group relative">
+                        {att.type === 'image' ? (
+                          <img src={att.url} alt={att.name} className="w-8 h-8 object-cover rounded-lg border border-warm-200" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-warm-100 flex items-center justify-center border border-warm-200">
+                            <FileIcon className="w-4 h-4 text-stone-400" />
+                          </div>
+                        )}
+                        <div className="flex flex-col min-w-0 pr-6">
+                          <span className="text-[10px] font-bold text-stone-600 truncate max-w-[100px]">{att.name}</span>
+                          <span className="text-[9px] text-stone-400">{att.size}</span>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => setPendingAttachments(prev => prev.filter((_, i) => i !== idx))}
+                          className="absolute -top-1 -right-1 p-1 bg-white border border-warm-200 shadow-sm hover:bg-red-50 hover:text-red-500 rounded-full text-stone-400 transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
                 <div className={cn(
-                  "flex items-center bg-white border rounded-2xl px-4 py-3 transition-all shadow-sm duration-300", 
-                  pendingAttachment 
-                    ? "border-brand-500 ring-4 ring-brand-500/10" 
+                  "flex items-center bg-white border rounded-2xl px-4 py-3 transition-all shadow-sm duration-300",
+                  pendingAttachments.length > 0
+                    ? "border-brand-500 ring-4 ring-brand-500/10"
                     : "border-warm-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10 focus-within:shadow-md"
                 )}>
                   <button
@@ -2665,17 +2746,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder={pendingAttachment ? "Add a message about this image..." : "Write message"}
+                    placeholder={pendingAttachments.length > 0 ? "Add a message about these files..." : "Write message"}
                     className="flex-1 bg-transparent border-none p-0 text-[15px] focus:ring-0 outline-none placeholder:text-stone-300"
                   />
                   <button
                     type="submit"
-                    disabled={(!input.trim() && !pendingAttachment) || isTyping || isUploadingAttachment}
+                    disabled={(!input.trim() && pendingAttachments.length === 0) || isTyping || isUploadingAttachment}
                     className="ml-3 p-1.5 bg-warm-100 text-stone-300 rounded-lg hover:bg-brand-600 hover:text-white disabled:opacity-50 transition-all"
                   >
                     <ArrowUp className="w-5 h-5" />
                   </button>
                 </div>
+
               </form>
             </div>
           </div>

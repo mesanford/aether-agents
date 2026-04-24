@@ -31,7 +31,7 @@ import {
   Layout,
   Plus,
 } from 'lucide-react';
-import { Agent, AgentPersonality, AgentRole, AgentStatus, Message, Task, Workspace } from './types';
+import { Agent, AgentPersonality, AgentRole, AgentStatus, Message, Task, Workspace, Attachment } from './types';
 import { AgentCard } from './components/AgentCard';
 import { ChatInterface } from './components/ChatInterface';
 import { MediaLibrary } from './components/MediaLibrary';
@@ -742,7 +742,7 @@ export default function App() {
 
 
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, attachments?: Attachment[]) => {
     if (!user) return;
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -750,6 +750,7 @@ export default function App() {
       senderName: user.name,
       senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}&backgroundColor=f5f5f4`,
       content,
+      attachments,
       timestamp: Date.now(),
       type: 'user'
     };
@@ -780,7 +781,8 @@ export default function App() {
       connectedServices,
       token,
       activeWorkspaceId,
-      handleLogout
+      handleLogout,
+      attachments
     );
 
     const agentResponse: Message = {

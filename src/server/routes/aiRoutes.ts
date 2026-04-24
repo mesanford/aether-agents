@@ -1,7 +1,7 @@
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
 import { HumanMessage } from "@langchain/core/messages";
-import type { AuthenticatedRequest, ConnectedServices, LiveContext } from "../types.ts";
+import type { AuthenticatedRequest, ConnectedServices, LiveContext, Attachment } from "../types.ts";
 import { workflow } from "../ai/graph.ts";
 import { agentIds } from "../ai/agents.ts";
 import { checkAndIncrementDailyAIRequestLimit, DailyLimitExceededError } from "../ai/rateLimiterUtility.ts";
@@ -145,15 +145,50 @@ export function registerAiRoutes({
   // 1. Core Chat Delegation Endpoint
   app.post("/api/workspaces/:id/chat", requireAuth, requireWorkspaceAccess, aiRateLimiter, async (req: AuthenticatedRequest, res) => {
     try {
-      const { threadId, message, liveContext, connectedServices } = req.body as {
+      const { threadId, message, liveContext, connectedServices, attachments } = req.body as {
         threadId?: string;
         message?: string;
         liveContext?: LiveContext;
         connectedServices?: ConnectedServices;
+        attachments?: Attachment[];
       };
 
       if (!threadId || !message) {
          return res.status(400).json({ error: 'Missing parameters threadId or message' });
+      }
+
+      // Build message parts for Gemini (multimodal support)
+      const messageParts: any[] = [{ text: message }];
+      
+      if (attachments && attachments.length > 0) {
+        for (const att of attachments) {
+          if (att.type === 'image') {
+            if (att.url.startsWith('data:')) {
+              const [header, data] = att.url.split(',');
+              const mimeType = header.split(':')[1].split(';')[0];
+              messageParts.push({
+                inlineData: {
+                  data,
+                  mimeType
+                }
+              });
+            } else if (att.url.startsWith('http')) {
+              try {
+                const imgRes = await fetch(att.url);
+                const buf = await imgRes.arrayBuffer();
+                const base64 = Buffer.from(buf).toString('base64');
+                const mimeType = imgRes.headers.get('content-type') || 'image/png';
+                messageParts.push({
+                  inlineData: { data: base64, mimeType }
+                });
+              } catch (e) {
+                console.warn(`[AI ROUTE] Failed to fetch attachment URL for AI processing: ${att.url}`);
+              }
+            }
+          } else {
+            messageParts[0].text += `\n\n[User attached file: ${att.name}]`;
+          }
+        }
       }
 
       // Build injection sections for root project APIs
@@ -235,7 +270,7 @@ export function registerAiRoutes({
       
       const finalState = await workflow.invoke({
         messages: [new HumanMessage({
-          content: message,
+          content: messageParts,
           additional_kwargs: { timestamp: Date.now() }
         })],
         task: message,

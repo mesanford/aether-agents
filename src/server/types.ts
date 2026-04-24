@@ -24,3 +24,11 @@ export type ConnectedServices = {
   wordpress?: boolean;
   hubspot?: boolean;
 };
+
+export interface Attachment {
+  name: string;
+  type: 'image' | 'file';
+  url: string; // Base64 or signed GCS URL
+  mimeType?: string;
+  size?: string;
+}

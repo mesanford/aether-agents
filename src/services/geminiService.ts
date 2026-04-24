@@ -1,4 +1,4 @@
-import { AgentRole } from "../types";
+import { AgentRole, Attachment } from "../types";
 import { apiFetch } from "./apiClient";
 
 export interface LiveContext {
@@ -33,6 +33,7 @@ export async function getAgentResponse(
   token?: string | null,
   activeWorkspaceId?: number | null,
   onAuthFailure?: () => void,
+  attachments?: Attachment[]
 ) {
   if (!token || !activeWorkspaceId) {
     return { text: "Error: Missing authenticated workspace context." };
@@ -49,6 +50,7 @@ export async function getAgentResponse(
         message,
         liveContext,
         connectedServices,
+        attachments
       }),
     });
 
