@@ -14,11 +14,12 @@ export function startSequenceDaemon(db: PostgresShim) {
     try {
       const now = new Date().toISOString();
       const pendingEnrollments = await db.prepare(`
-        SELECT e.*, s.steps, s.title, l.name as lead_name, l.email as lead_email, l.company as lead_company, l.notes as lead_notes 
+        SELECT e.*, s.steps, s.title, s.zernio_sequence_id, l.name as lead_name, l.email as lead_email, l.company as lead_company, l.notes as lead_notes 
         FROM sequence_enrollments e
         JOIN sales_sequences s ON e.sequence_id = s.id
         JOIN leads l ON e.lead_id = l.id
         WHERE e.status = 'Active' 
+        AND s.zernio_sequence_id IS NULL
         AND (e.next_execution_datetime <= ? OR e.next_execution_datetime IS NULL)
       `).all(now) as any[];
 
@@ -59,9 +60,10 @@ Email: ${enrollment.lead_email}
 Company: ${enrollment.lead_company}
 Notes: ${enrollment.lead_notes}
 
-Step Instruction from Sequence Visualizer Builder:
-Type: ${currentStep.type}
-Prompt/Rules: ${currentStep.prompt || currentStep.subject || 'Execute outreach naturally'}
+Step Instruction:
+Order: ${currentStep.order || enrollment.current_step_idx + 1}
+Message: ${currentStep.message?.text || currentStep.prompt || 'Execute outreach naturally'}
+Delay (minutes from previous step): ${currentStep.delayMinutes || 'N/A'}
 
 Your Internal Operational Memory (Lessons Learned):
 ${ledgerContext || 'No previous macroscopic lessons recorded yet.'}
@@ -126,9 +128,11 @@ Your Mission:
           if (isHalted) {
             await db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
           } else {
-            // Advance cursor to next step and set the delay for next_execution_datetime (Default 1 day for now)
-            const nextDate = new Date();
-            nextDate.setDate(nextDate.getDate() + 1);
+            // Advance cursor to next step using the NEXT step's delayMinutes for timing
+            const nextStepIdx = enrollment.current_step_idx + 1;
+            const nextStep = steps[nextStepIdx + 1]; // Look ahead to the step AFTER next
+            const delayMinutes = steps[nextStepIdx]?.delayMinutes || 1440; // Default 1 day
+            const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
             
             await db.prepare("UPDATE sequence_enrollments SET current_step_idx = current_step_idx + 1, next_execution_datetime = ? WHERE id = ?").run(
               nextDate.toISOString(), enrollment.id

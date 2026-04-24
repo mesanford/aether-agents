@@ -527,7 +527,8 @@ export async function bootstrapDatabase(db: PostgresShim) {
       sequence TEXT DEFAULT 'None',
       notes TEXT,
       linkedin_url TEXT,
-      avatar TEXT
+      avatar TEXT,
+      zernio_contact_id TEXT
     )
   `);
 
@@ -539,6 +540,12 @@ export async function bootstrapDatabase(db: PostgresShim) {
       status TEXT DEFAULT 'Draft',
       schedule TEXT DEFAULT 'Runs every day',
       steps TEXT NOT NULL DEFAULT '[]',
+      zernio_sequence_id TEXT,
+      platform TEXT DEFAULT 'linkedin',
+      profile_id TEXT,
+      account_id TEXT,
+      exit_on_reply BOOLEAN DEFAULT true,
+      exit_on_unsubscribe BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)

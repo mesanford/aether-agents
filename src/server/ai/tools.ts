@@ -764,32 +764,94 @@ export const updateCrmTool = tool(
   }
 );
 
-export const linkedinOutreachTool = tool(
-  async ({ contactEmail, sequenceId }, config) => {
+export const enrollSequenceContactsTool = tool(
+  async ({ sequenceId, contactIds, leadEmails }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
     try {
-      // Zernio uses a unified 'enroll_contacts' flow
-      const res = await zernioFetch(`/sequences/${sequenceId}/enroll`, {
-        method: 'POST',
-        body: JSON.stringify({
-          emails: [contactEmail]
-        }),
-      });
+      let resolvedContactIds = contactIds || [];
 
-      return `[SUCCESS] Contact ${contactEmail} enrolled in Zernio sequence ${sequenceId}.`;
+      // If lead emails were provided instead of contactIds, resolve them
+      if (leadEmails?.length && resolvedContactIds.length === 0) {
+        for (const email of leadEmails) {
+          // Check local DB for existing zernio_contact_id
+          const lead = await db.prepare("SELECT zernio_contact_id, name FROM leads WHERE email = ? AND workspace_id = ?").get(email, workspaceId) as any;
+          
+          if (lead?.zernio_contact_id) {
+            resolvedContactIds.push(lead.zernio_contact_id);
+          } else {
+            // Create contact in Zernio, then store the ID locally
+            try {
+              const zConfig = await getZernioConfig();
+              if (!zConfig) {
+                return `[FAILED] Cannot resolve contact ${email} — Zernio config unavailable. Please sync leads first with sync_leads_to_zernio.`;
+              }
+              const createRes = await zernioFetch('/contacts', {
+                method: 'POST',
+                body: JSON.stringify({
+                  profileId: zConfig.profileId,
+                  name: lead?.name || email.split('@')[0],
+                  email: email
+                })
+              });
+              const newContactId = createRes?.contact?.id;
+              if (newContactId) {
+                resolvedContactIds.push(newContactId);
+                // Store back to local lead record
+                await db.prepare("UPDATE leads SET zernio_contact_id = ? WHERE email = ? AND workspace_id = ?").run(newContactId, email, workspaceId);
+              }
+            } catch (cErr: any) {
+              console.warn(`Failed to create Zernio contact for ${email}:`, cErr.message);
+            }
+          }
+        }
+      }
+
+      if (resolvedContactIds.length === 0) {
+        return `[FAILED] No valid Zernio contact IDs could be resolved. Make sure leads are synced to Zernio first (use sync_leads_to_zernio).`;
+      }
+
+      // Determine if this is a Zernio sequence or local-only
+      const seq = await db.prepare("SELECT zernio_sequence_id FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
+      const zernioSeqId = seq?.zernio_sequence_id;
+
+      if (zernioSeqId) {
+        // Enroll via Zernio API
+        const res = await zernioFetch(`/sequences/${zernioSeqId}/enroll`, {
+          method: 'POST',
+          body: JSON.stringify({ contactIds: resolvedContactIds })
+        });
+        return `[SUCCESS] ${res?.enrolled || resolvedContactIds.length} contact(s) enrolled in Zernio sequence ${zernioSeqId}. Skipped: ${res?.skipped || 0}.`;
+      } else {
+        // Local enrollment for daemon-managed sequences
+        for (const cId of resolvedContactIds) {
+          const lead = await db.prepare("SELECT id FROM leads WHERE zernio_contact_id = ? AND workspace_id = ?").get(cId, workspaceId) as any;
+          if (lead) {
+            await db.prepare(`
+              INSERT INTO sequence_enrollments (workspace_id, lead_id, sequence_id, status)
+              VALUES (?, ?, ?, 'Active')
+            `).run(workspaceId, lead.id, sequenceId);
+          }
+        }
+        return `[SUCCESS] ${resolvedContactIds.length} contact(s) enrolled in local sequence ${sequenceId}. The daemon will begin processing steps.`;
+      }
     } catch (err: any) {
-      console.error("Zernio outreach error:", err);
-      return `[FAILED] Could not enroll in Zernio sequence: ${err.message}`;
+      console.error("enroll_sequence_contacts error:", err);
+      return `[FAILED] Could not enroll contacts: ${err.message}`;
     }
   },
   {
-    name: "linkedin_outreach",
-    description: "Enroll a contact into an automated outreach sequence via Zernio. Use this for LinkedIn or Email sequences managed in your Zernio dashboard. NOTE: You MUST ask the user for the exact Zernio Sequence ID before using this tool, as local CRM sequence IDs will not work here.",
+    name: "enroll_sequence_contacts",
+    description: "Enroll one or more contacts into an outreach sequence. Provide either Zernio contactIds directly, or leadEmails which will be auto-resolved to Zernio contacts (creating them if needed). For Zernio-synced sequences, enrollment is handled server-side. For local sequences, the daemon manages delivery.",
     schema: z.object({ 
-      contactEmail: z.string().describe("The email of the contact to enroll."),
-      sequenceId: z.string().describe("The Zernio Sequence ID.")
+      sequenceId: z.union([z.string(), z.number()]).describe("The local sequence ID (from create_sequence) or Zernio sequence ID."),
+      contactIds: z.array(z.string()).optional().describe("Zernio contact IDs to enroll directly."),
+      leadEmails: z.array(z.string()).optional().describe("Email addresses of leads to enroll. Will be resolved to Zernio contact IDs automatically.")
     })
   }
 );
+
+// Keep backward-compatible alias
+export const linkedinOutreachTool = enrollSequenceContactsTool;
 
 export const deleteTaskTool = tool(
   async ({ query }, config) => {
@@ -1491,16 +1553,95 @@ export const updateAgentScheduleTool = tool(
   }
 );
 
+/**
+ * Helper to fetch and cache Zernio profile/account config.
+ * Returns the first available profileId and accountId for the given platform.
+ */
+async function getZernioConfig(platform: string = 'linkedin'): Promise<{ profileId: string; accountId: string; connectedPlatforms: string[] } | null> {
+  try {
+    const profilesRes = await zernioFetch('/profiles');
+    const profiles = profilesRes?.profiles || profilesRes?.data || [];
+    if (!profiles.length) return null;
+
+    const profileId = profiles[0].id;
+
+    const accountsRes = await zernioFetch('/accounts');
+    const accounts = accountsRes?.accounts || accountsRes?.data || [];
+    
+    const connectedPlatforms = [...new Set(accounts.map((a: any) => a.platform))] as string[];
+    
+    // Find account matching requested platform, fallback to first available
+    const matchingAccount = accounts.find((a: any) => a.platform === platform) || accounts[0];
+    const accountId = matchingAccount?.id || '';
+    const resolvedPlatform = matchingAccount?.platform || platform;
+
+    return { profileId, accountId: accountId, connectedPlatforms };
+  } catch (err: any) {
+    console.error("getZernioConfig error:", err.message);
+    return null;
+  }
+}
+
 export const createSequenceTool = tool(
-  async ({ title, schedule, steps }, config) => {
+  async ({ title, description, platform, steps, syncToZernio, profileId, accountId }, config) => {
     const workspaceId = config?.configurable?.workspace_id || 1;
+    const resolvedPlatform = platform || 'linkedin';
+    
     try {
+      let zernioSequenceId: string | null = null;
+      let resolvedProfileId = profileId || null;
+      let resolvedAccountId = accountId || null;
+
+      // If syncing to Zernio, resolve config and create remotely first
+      if (syncToZernio !== false) {
+        if (!resolvedProfileId || !resolvedAccountId) {
+          const zConfig = await getZernioConfig(resolvedPlatform);
+          if (zConfig) {
+            resolvedProfileId = resolvedProfileId || zConfig.profileId;
+            resolvedAccountId = resolvedAccountId || zConfig.accountId;
+          }
+        }
+
+        if (resolvedProfileId && resolvedAccountId) {
+          try {
+            const zernioRes = await zernioFetch('/sequences', {
+              method: 'POST',
+              body: JSON.stringify({
+                profileId: resolvedProfileId,
+                accountId: resolvedAccountId,
+                platform: resolvedPlatform,
+                name: title,
+                description: description || '',
+                steps: steps.map(s => ({
+                  order: s.order,
+                  delayMinutes: s.delayMinutes,
+                  message: { text: s.message.text }
+                })),
+                exitOnReply: true,
+                exitOnUnsubscribe: true
+              })
+            });
+            zernioSequenceId = zernioRes?.sequence?.id || null;
+          } catch (zErr: any) {
+            console.warn("Zernio sequence sync failed (continuing with local):", zErr.message);
+          }
+        }
+      }
+
+      // Write to local DB
       const result = await db.prepare(`
-        INSERT INTO sales_sequences (workspace_id, title, status, schedule, steps)
-        VALUES (?, ?, 'Paused', ?, ?) RETURNING id
-      `).get(workspaceId, title, schedule || 'Not scheduled', JSON.stringify(steps)) as any;
+        INSERT INTO sales_sequences (workspace_id, title, status, schedule, steps, zernio_sequence_id, platform, profile_id, account_id, exit_on_reply, exit_on_unsubscribe)
+        VALUES (?, ?, 'Draft', ?, ?, ?, ?, ?, ?, true, true) RETURNING id
+      `).get(
+        workspaceId, title, 'Runs every day', JSON.stringify(steps),
+        zernioSequenceId, resolvedPlatform, resolvedProfileId, resolvedAccountId
+      ) as any;
       
-      return `[SUCCESS] Sequence "${title}" created with ${steps.length} steps. ID: ${result.id}. Status set to Paused by default.`;
+      const syncStatus = zernioSequenceId 
+        ? `Synced to Zernio (ID: ${zernioSequenceId}). Zernio will manage delivery.` 
+        : 'Local only — use activate_sequence to push to Zernio.';
+      
+      return `[SUCCESS] Sequence "${title}" created with ${steps.length} steps on ${resolvedPlatform}. Local ID: ${result.id}. ${syncStatus}\n\nNext steps: Use activate_sequence to start it, then enroll_sequence_contacts to add leads.`;
     } catch (err: any) {
       console.error("create_sequence error:", err);
       return `[FAILED] Could not create sequence: ${err.message}`;
@@ -1508,16 +1649,21 @@ export const createSequenceTool = tool(
   },
   {
     name: "create_sequence",
-    description: "Create a new sales outreach sequence in the local CRM. A sequence consists of multiple steps (Enroll, Email, Wait, LinkedIn). Use this when the user wants to set up an outreach campaign.",
+    description: "Create a multi-step outreach sequence. Steps use Zernio's format: each step has an order, delayMinutes (0=immediate, 1440=1 day, 4320=3 days), and a message with text. By default, sequences sync to Zernio for server-side delivery and default to LinkedIn. Use this when the user wants to set up a drip campaign or outreach sequence.",
     schema: z.object({
-      title: z.string().describe("The name of the sequence."),
-      schedule: z.string().optional().describe("Description of when it runs (e.g. 'Daily at 9AM')."),
+      title: z.string().describe("The name of the sequence (e.g. 'Welcome Series', 'Cold Outreach Q2')."),
+      description: z.string().optional().describe("A brief description of the sequence's purpose."),
+      platform: z.enum(['linkedin', 'instagram', 'facebook', 'telegram', 'twitter', 'bluesky', 'reddit', 'whatsapp']).optional().describe("Target platform. Defaults to 'linkedin'. Must be a platform the user has connected in Zernio."),
+      profileId: z.string().optional().describe("Zernio profile ID. Auto-detected if not provided."),
+      accountId: z.string().optional().describe("Zernio account ID. Auto-detected if not provided."),
+      syncToZernio: z.boolean().optional().describe("If true (default), also creates the sequence in Zernio for server-side delivery. Set false for daemon-managed agent-generated sequences."),
       steps: z.array(z.object({
-        type: z.enum(['Enroll', 'Email', 'Wait', 'LinkedIn']),
-        title: z.string(),
-        subtitle: z.string().optional(),
-        prompt: z.string().optional().describe("If type is Email or LinkedIn, provide the instruction/prompt for the agent to generate content.")
-      })).describe("List of steps in the sequence.")
+        order: z.number().describe("Step position in the sequence (1-based)."),
+        delayMinutes: z.number().describe("Delay in minutes before this step fires after the previous one. 0 = immediate, 1440 = 1 day, 4320 = 3 days, 10080 = 1 week."),
+        message: z.object({
+          text: z.string().describe("The message text to send to the contact. Write complete, ready-to-send copy.")
+        }).describe("The message content for this step.")
+      })).describe("Ordered list of timed message steps in the sequence.")
     })
   }
 );
@@ -1567,6 +1713,253 @@ export const sendPushNotificationTool = tool(
   }
 );
 
+export const activateSequenceTool = tool(
+  async ({ sequenceId }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const seq = await db.prepare("SELECT zernio_sequence_id, title FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
+      if (!seq) return `[FAILED] Sequence ${sequenceId} not found.`;
+
+      if (seq.zernio_sequence_id) {
+        await zernioFetch(`/sequences/${seq.zernio_sequence_id}/activate`, { method: 'POST' });
+      }
+      await db.prepare("UPDATE sales_sequences SET status = 'Active', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(sequenceId);
+      return `[SUCCESS] Sequence "${seq.title}" is now active.${seq.zernio_sequence_id ? ' Zernio will begin processing enrolled contacts.' : ' The local daemon will process steps.'}`;
+    } catch (err: any) {
+      return `[FAILED] Could not activate sequence: ${err.message}`;
+    }
+  },
+  {
+    name: "activate_sequence",
+    description: "Activate a draft or paused sequence. For Zernio-synced sequences, this starts server-side delivery. For local sequences, the daemon begins processing. The sequence must have at least one step.",
+    schema: z.object({
+      sequenceId: z.union([z.string(), z.number()]).describe("The local sequence ID to activate.")
+    })
+  }
+);
+
+export const pauseSequenceTool = tool(
+  async ({ sequenceId }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const seq = await db.prepare("SELECT zernio_sequence_id, title FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
+      if (!seq) return `[FAILED] Sequence ${sequenceId} not found.`;
+
+      if (seq.zernio_sequence_id) {
+        await zernioFetch(`/sequences/${seq.zernio_sequence_id}/pause`, { method: 'POST' });
+      }
+      await db.prepare("UPDATE sales_sequences SET status = 'Paused', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(sequenceId);
+      return `[SUCCESS] Sequence "${seq.title}" is now paused. Enrolled contacts will stop receiving messages until reactivated.`;
+    } catch (err: any) {
+      return `[FAILED] Could not pause sequence: ${err.message}`;
+    }
+  },
+  {
+    name: "pause_sequence",
+    description: "Pause an active sequence. Enrolled contacts stop receiving messages until the sequence is reactivated with activate_sequence.",
+    schema: z.object({
+      sequenceId: z.union([z.string(), z.number()]).describe("The local sequence ID to pause.")
+    })
+  }
+);
+
+export const getSequenceAnalyticsTool = tool(
+  async ({ sequenceId }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const seq = await db.prepare("SELECT * FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
+      if (!seq) return `[FAILED] Sequence ${sequenceId} not found.`;
+
+      let analytics: any = {
+        localId: seq.id,
+        title: seq.title,
+        status: seq.status,
+        platform: seq.platform || 'unknown',
+        steps: JSON.parse(seq.steps || '[]'),
+        localEnrollments: { active: 0, completed: 0, failed: 0 }
+      };
+
+      // Count local enrollments
+      const enrollments = await db.prepare(`
+        SELECT status, COUNT(*) as count FROM sequence_enrollments 
+        WHERE sequence_id = ? AND workspace_id = ? GROUP BY status
+      `).all(sequenceId, workspaceId) as any[];
+      for (const e of enrollments) {
+        if (e.status === 'Active') analytics.localEnrollments.active = e.count;
+        else if (e.status === 'Completed') analytics.localEnrollments.completed = e.count;
+        else if (e.status === 'Failed') analytics.localEnrollments.failed = e.count;
+      }
+
+      // If Zernio-synced, fetch remote stats
+      if (seq.zernio_sequence_id) {
+        try {
+          const zernioData = await zernioFetch(`/sequences/${seq.zernio_sequence_id}`);
+          const zSeq = zernioData?.sequence || zernioData;
+          analytics.zernio = {
+            id: seq.zernio_sequence_id,
+            totalEnrolled: zSeq.totalEnrolled || 0,
+            totalCompleted: zSeq.totalCompleted || 0,
+            totalExited: zSeq.totalExited || 0,
+            status: zSeq.status || 'unknown',
+            steps: zSeq.steps || []
+          };
+          // Calculate performance metrics
+          const enrolled = zSeq.totalEnrolled || 0;
+          if (enrolled > 0) {
+            analytics.performance = {
+              completionRate: `${Math.round(((zSeq.totalCompleted || 0) / enrolled) * 100)}%`,
+              exitRate: `${Math.round(((zSeq.totalExited || 0) / enrolled) * 100)}%`,
+              activeRate: `${Math.round(((enrolled - (zSeq.totalCompleted || 0) - (zSeq.totalExited || 0)) / enrolled) * 100)}%`
+            };
+          }
+        } catch (zErr: any) {
+          analytics.zernio = { error: `Could not fetch from Zernio: ${zErr.message}` };
+        }
+      }
+
+      // Fetch recent events
+      const events = await db.prepare(`
+        SELECT * FROM sequence_events WHERE sequence_id = ? AND workspace_id = ?
+        ORDER BY created_at DESC LIMIT 10
+      `).all(sequenceId, workspaceId) as any[];
+      analytics.recentEvents = events;
+
+      return `[SEQUENCE ANALYTICS]\n${JSON.stringify(analytics, null, 2)}`;
+    } catch (err: any) {
+      return `[FAILED] Could not fetch analytics: ${err.message}`;
+    }
+  },
+  {
+    name: "get_sequence_analytics",
+    description: "Get detailed performance analytics for a sequence including enrollment counts, completion/exit rates, step details, and recent events. Use this to assess how a sequence is performing and decide whether to optimize, pause, or expand enrollment.",
+    schema: z.object({
+      sequenceId: z.union([z.string(), z.number()]).describe("The local sequence ID to get analytics for.")
+    })
+  }
+);
+
+export const updateSequenceTool = tool(
+  async ({ sequenceId, name, description, steps, exitOnReply, exitOnUnsubscribe }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const seq = await db.prepare("SELECT * FROM sales_sequences WHERE id = ? AND workspace_id = ?").get(sequenceId, workspaceId) as any;
+      if (!seq) return `[FAILED] Sequence ${sequenceId} not found.`;
+
+      // Build update payload for Zernio
+      if (seq.zernio_sequence_id) {
+        const updateBody: any = {};
+        if (name) updateBody.name = name;
+        if (description) updateBody.description = description;
+        if (steps) updateBody.steps = steps.map(s => ({
+          order: s.order,
+          delayMinutes: s.delayMinutes,
+          message: { text: s.message.text }
+        }));
+        if (exitOnReply !== undefined) updateBody.exitOnReply = exitOnReply;
+        if (exitOnUnsubscribe !== undefined) updateBody.exitOnUnsubscribe = exitOnUnsubscribe;
+
+        await zernioFetch(`/sequences/${seq.zernio_sequence_id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updateBody)
+        });
+      }
+
+      // Update local DB
+      const updates: string[] = [];
+      const values: any[] = [];
+      if (name) { updates.push("title = ?"); values.push(name); }
+      if (steps) { updates.push("steps = ?"); values.push(JSON.stringify(steps)); }
+      if (exitOnReply !== undefined) { updates.push("exit_on_reply = ?"); values.push(exitOnReply); }
+      if (exitOnUnsubscribe !== undefined) { updates.push("exit_on_unsubscribe = ?"); values.push(exitOnUnsubscribe); }
+      updates.push("updated_at = CURRENT_TIMESTAMP");
+      values.push(sequenceId);
+
+      await db.prepare(`UPDATE sales_sequences SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+      return `[SUCCESS] Sequence "${name || seq.title}" updated.${seq.zernio_sequence_id ? ' Changes are live on Zernio — active enrollments will use the updated steps.' : ''}`;
+    } catch (err: any) {
+      return `[FAILED] Could not update sequence: ${err.message}`;
+    }
+  },
+  {
+    name: "update_sequence",
+    description: "Update an existing sequence's name, steps, or exit conditions. For Zernio-synced sequences, changes are applied remotely without pausing. Use this to optimize underperforming steps by rewriting message content or adjusting delays.",
+    schema: z.object({
+      sequenceId: z.union([z.string(), z.number()]).describe("The local sequence ID to update."),
+      name: z.string().optional().describe("New name for the sequence."),
+      description: z.string().optional().describe("New description."),
+      steps: z.array(z.object({
+        order: z.number(),
+        delayMinutes: z.number(),
+        message: z.object({ text: z.string() })
+      })).optional().describe("Replacement steps (all steps must be provided, not partial)."),
+      exitOnReply: z.boolean().optional(),
+      exitOnUnsubscribe: z.boolean().optional()
+    })
+  }
+);
+
+export const syncLeadsToZernioTool = tool(
+  async ({ leadIds }, config) => {
+    const workspaceId = config?.configurable?.workspace_id || 1;
+    try {
+      const zConfig = await getZernioConfig();
+      if (!zConfig) return `[FAILED] Could not connect to Zernio. Check your API key.`;
+
+      // Fetch leads that don't have a zernio_contact_id yet
+      let leads: any[];
+      if (leadIds?.length) {
+        const placeholders = leadIds.map(() => '?').join(',');
+        leads = await db.prepare(
+          `SELECT * FROM leads WHERE id IN (${placeholders}) AND zernio_contact_id IS NULL`
+        ).all(...leadIds) as any[];
+      } else {
+        leads = await db.prepare(
+          "SELECT * FROM leads WHERE zernio_contact_id IS NULL LIMIT 50"
+        ).all() as any[];
+      }
+
+      if (!leads.length) return '[INFO] All leads are already synced to Zernio.';
+
+      let synced = 0, failed = 0;
+      for (const lead of leads) {
+        try {
+          const res = await zernioFetch('/contacts', {
+            method: 'POST',
+            body: JSON.stringify({
+              profileId: zConfig.profileId,
+              name: lead.name,
+              email: lead.email || undefined,
+              linkedinUrl: lead.linkedin_url || undefined
+            })
+          });
+          const contactId = res?.contact?.id;
+          if (contactId) {
+            await db.prepare("UPDATE leads SET zernio_contact_id = ? WHERE id = ?").run(contactId, lead.id);
+            synced++;
+          } else {
+            failed++;
+          }
+        } catch (cErr: any) {
+          console.warn(`Failed to sync lead ${lead.name}:`, cErr.message);
+          failed++;
+        }
+      }
+
+      return `[SUCCESS] Synced ${synced} lead(s) to Zernio contacts. Failed: ${failed}. These leads can now be enrolled in sequences by contact ID.`;
+    } catch (err: any) {
+      return `[FAILED] Could not sync leads: ${err.message}`;
+    }
+  },
+  {
+    name: "sync_leads_to_zernio",
+    description: "Proactively push local CRM leads to Zernio's contact system so they can be enrolled in sequences. This creates Zernio contacts and stores the contact IDs locally. Call this before enrolling leads in sequences. If no leadIds are specified, syncs all un-synced leads (up to 50).",
+    schema: z.object({
+      leadIds: z.array(z.number()).optional().describe("Specific local lead IDs to sync. If omitted, syncs all un-synced leads.")
+    })
+  }
+);
+
 export const allTools = [
   queryBrainTool,
   writeToMemoryTool,
@@ -1581,9 +1974,15 @@ export const allTools = [
   draftSocialPostTool,
   publishBlogPostTool,
   updateCrmTool,
+  enrollSequenceContactsTool,
   linkedinOutreachTool,
   createSequenceTool,
   getSequencesTool,
+  activateSequenceTool,
+  pauseSequenceTool,
+  getSequenceAnalyticsTool,
+  updateSequenceTool,
+  syncLeadsToZernioTool,
   deleteTaskTool,
   writeWorkspaceFileTool,
   getWorkspaceTasksTool,
