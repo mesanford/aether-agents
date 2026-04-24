@@ -2031,7 +2031,6 @@ export const allTools = [
   publishBlogPostTool,
   updateCrmTool,
   enrollSequenceContactsTool,
-  linkedinOutreachTool,
   createSequenceTool,
   getSequencesTool,
   activateSequenceTool,
