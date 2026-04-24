@@ -2158,7 +2158,7 @@ export function registerIntegrationsRoutes({
   app.get("/api/auth/linkedin/callback", async (req, res) => {
     const { code, state, error, error_description } = req.query;
     if (error) {
-      return res.send(`<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_ERROR', error: '${error_description || error}', provider: 'linkedin'},'*');window.close();</script></body></html>`);
+      return res.send(`<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_ERROR', error: ${JSON.stringify(String(error_description || error))}, provider: 'linkedin'},'*');window.close();</script></body></html>`);
     }
 
     if (!code || !state) {
@@ -2232,7 +2232,7 @@ export function registerIntegrationsRoutes({
       return res.send("<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_SUCCESS', provider: 'linkedin'},'*');window.close();</script></body></html>");
     } catch (err: any) {
       console.error("LinkedIn OAuth error:", err);
-      return res.send(`<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_ERROR', error: '${err.message.replace(/'/g, "\\'")}', provider: 'linkedin'},'*');window.close();</script></body></html>`);
+      return res.send(`<html><body><script>window.opener.postMessage({type:'WORKSPACE_AUTH_ERROR', error: ${JSON.stringify(String(err.message))}, provider: 'linkedin'},'*');window.close();</script></body></html>`);
     }
   });
 }

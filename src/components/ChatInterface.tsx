@@ -449,6 +449,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             continue;
           }
 
+          // Warn users that only images can be analyzed by agents; other file
+          // types are referenced by name only and cannot be read by the AI.
+          if (!file.type.startsWith('image/')) {
+            toast(`${file.name} will be referenced by name only — agents can only analyze image files.`, { icon: 'ℹ️' });
+          }
+
           const reader = new FileReader();
           const uploadPromise = new Promise<void>((resolve, reject) => {
             reader.onload = async () => {

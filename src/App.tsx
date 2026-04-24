@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Agent, AgentPersonality, AgentRole, AgentStatus, Message, Task, Workspace, Attachment } from './types';
 import { AgentCard } from './components/AgentCard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ChatInterface } from './components/ChatInterface';
 import { MediaLibrary } from './components/MediaLibrary';
 import { CompanyKnowledge } from './components/CompanyKnowledge';
@@ -1055,6 +1056,7 @@ export default function App() {
 
         {activeView === 'chat' ? (
           activeAgent ? (
+            <ErrorBoundary fallbackLabel="Chat failed to load">
             <ChatInterface
               agent={activeAgent}
               messages={messages[activeAgentId] || []}
@@ -1073,6 +1075,7 @@ export default function App() {
                 setActiveView('settings');
               }}
             />
+            </ErrorBoundary>
           ) : (
             <div className="flex-1 flex items-center justify-center px-6">
               <div className="max-w-md text-center">
@@ -1127,6 +1130,7 @@ export default function App() {
             ) : activeView === 'team' ? (
               <TeamManagement activeWorkspaceId={activeWorkspaceId} token={token} onAuthFailure={handleLogout} />
             ) : activeView === 'settings' ? (
+              <ErrorBoundary fallbackLabel="Settings failed to load">
               <SettingsView
                 user={user}
                 token={token}
@@ -1145,7 +1149,9 @@ export default function App() {
                 onClearDeferredPrompt={() => setDeferredPrompt(null)}
                 onShowNotificationPrompt={() => setShowNotifPrompt(true)}
               />
+              </ErrorBoundary>
             ) : (
+              <ErrorBoundary fallbackLabel="Task manager failed to load">
               <TaskManager
                 tasks={tasks}
                 agents={agents}
@@ -1172,6 +1178,7 @@ export default function App() {
                 }}
                 onCreateTask={handleTaskCreation}
               />
+              </ErrorBoundary>
             )}
           </div>
         )}

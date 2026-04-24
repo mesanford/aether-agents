@@ -323,7 +323,7 @@ export function registerAiRoutes({
         if (typeof lastMessage.content === 'string') {
           safeResponse = lastMessage.content;
         } else if (Array.isArray(lastMessage.content)) {
-          safeResponse = lastMessage.content.map((c: any) => c.text || JSON.stringify(c)).join('\\n');
+          safeResponse = lastMessage.content.map((c: any) => c.text || JSON.stringify(c)).join('\n');
         } else {
           safeResponse = JSON.stringify(lastMessage.content);
         }
@@ -358,12 +358,24 @@ export function registerAiRoutes({
       const parts = threadId.split('_');
       const inferredAgentId = parts.length >= 3 ? parts.slice(2).join('_') : '';
 
+      const extractTextContent = (content: any): string => {
+        if (typeof content === 'string') return content;
+        if (Array.isArray(content)) {
+          return content.map((part: any) => (typeof part === 'string' ? part : part.text || '')).filter(Boolean).join('\n');
+        }
+        return '';
+      };
+
       const messages = memoryState.values.messages
-        .filter((msg: any) => msg.getType() !== 'tool' && msg.content && typeof msg.content === 'string' && msg.content.trim().length > 0)
+        .filter((msg: any) => {
+          if (msg.getType() === 'tool') return false;
+          const text = extractTextContent(msg.content);
+          return text.trim().length > 0;
+        })
         .map((msg: any) => {
           const isAI = msg.getType() === 'ai';
-          let rawContent = msg.content;
-          
+          let rawContent = extractTextContent(msg.content);
+
           if (msg.getType() === 'human' && rawContent.startsWith('[Direct message to')) {
              rawContent = rawContent.replace(/\[Direct message to [^\]]+\]\s*/, '');
           }

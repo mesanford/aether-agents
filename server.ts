@@ -117,7 +117,12 @@ async function startServer() {
     if (!liveContext) return "";
     const parts: string[] = [];
     if (liveContext.emails?.length) {
-      parts.push(`LIVE GMAIL DATA (${new Date().toLocaleDateString()}):\n` + liveContext.emails.map((e) => `- From: ${e.from}\n  Subject: ${e.subject}`).join("\n"));
+      parts.push(`LIVE GMAIL DATA (${new Date().toLocaleDateString()}):\n` + liveContext.emails.map((e) => {
+        const lines = [`- From: ${e.from}`, `  Subject: ${e.subject}`];
+        if ((e as any).date) lines.push(`  Date: ${(e as any).date}`);
+        if ((e as any).snippet) lines.push(`  Preview: ${(e as any).snippet}`);
+        return lines.join('\n');
+      }).join("\n"));
     }
     if (liveContext.events?.length) {
       parts.push(`LIVE CALENDAR DATA (${new Date().toLocaleDateString()}):\n` + liveContext.events.map((e) => `- ${e.summary} (${new Date(e.start).toLocaleString()})`).join("\n"));

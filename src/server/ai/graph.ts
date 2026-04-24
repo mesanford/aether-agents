@@ -144,8 +144,18 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
     console.log('[SUPERVISOR TARGET]', nextAssignee);
     return { currentAssignee: nextAssignee, sender: 'supervisor' };
   } catch (err) {
-    console.log('[SUPERVISOR TARGET] parse fallback -> executive-assistant', err);
-    return { currentAssignee: 'executive-assistant', sender: 'supervisor' };
+    // Keyword-based fallback so the right specialist is picked when the LLM parse fails
+    const taskLower = (state.task || '').toLowerCase();
+    const keywordFallback = ((): string => {
+      if (/linkedin|social|tweet|instagram|post|hashtag|reel|tiktok/.test(taskLower)) return 'social-media-manager';
+      if (/lead|prospect|crm|sales|outreach|sequence|hubspot|pipeline/.test(taskLower)) return 'sales-associate';
+      if (/blog|article|seo|keyword|substack|content|copywrite/.test(taskLower)) return 'blog-writer';
+      if (/legal|contract|compliance|nda|clause|gdpr|privacy/.test(taskLower)) return 'legal-associate';
+      if (/call|receptionist|inquiry|faq|visitor|greeting/.test(taskLower)) return 'receptionist';
+      return 'executive-assistant';
+    })();
+    console.log(`[SUPERVISOR TARGET] parse fallback -> ${keywordFallback}`, err);
+    return { currentAssignee: keywordFallback, sender: 'supervisor' };
   }
 }
 
@@ -224,6 +234,8 @@ CRITICAL GUARDRAIL:
     return {
       messages: [namedResponse],
       sender: agentConfig.id,
+      // Reset approval gate so subsequent risky tool calls in the same thread still require approval
+      approvalRequired: false,
     };
   };
 }
@@ -233,7 +245,8 @@ function router(state: AgentState): 'tool_node' | 'compaction_node' | 'approval_
   const lastMessage = messages[messages.length - 1] as AIMessage;
   
   if (lastMessage?.tool_calls?.length) {
-    const isRisky = lastMessage.tool_calls.some(call => call.name === 'write_workspace_file');
+    const APPROVAL_REQUIRED_TOOLS = ['write_workspace_file', 'linkedin_outreach', 'send_sms', 'schedule_social_post'];
+    const isRisky = lastMessage.tool_calls.some(call => APPROVAL_REQUIRED_TOOLS.includes(call.name));
     if (isRisky && !state.approvalRequired) return 'approval_node';
     return 'tool_node';
   }
