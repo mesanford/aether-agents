@@ -1,4 +1,4 @@
-import db from './src/server/db.js';
+import db from './src/server/db.ts';
 
 async function inspect() {
   try {

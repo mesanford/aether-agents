@@ -1,4 +1,5 @@
-import { Pool, PoolConfig } from "pg";
+import { Pool } from "pg";
+import type { PoolConfig } from "pg";
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 

@@ -532,6 +532,14 @@ export async function bootstrapDatabase(db: PostgresShim) {
     )
   `);
 
+  try {
+    if (!(await hasColumn("leads", "zernio_contact_id"))) {
+      await db.exec("ALTER TABLE leads ADD COLUMN zernio_contact_id TEXT");
+    }
+  } catch (err) {
+    console.error("Migration failed for leads table:", err);
+  }
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS sales_sequences (
       id SERIAL PRIMARY KEY,
@@ -551,6 +559,17 @@ export async function bootstrapDatabase(db: PostgresShim) {
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
     )
   `);
+
+  try {
+    if (!(await hasColumn("sales_sequences", "zernio_sequence_id"))) {
+      await db.exec("ALTER TABLE sales_sequences ADD COLUMN zernio_sequence_id TEXT");
+    }
+    if (!(await hasColumn("sales_sequences", "platform"))) {
+      await db.exec("ALTER TABLE sales_sequences ADD COLUMN platform TEXT DEFAULT 'linkedin'");
+    }
+  } catch (err) {
+    console.error("Migration failed for sales_sequences table:", err);
+  }
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS sequence_enrollments (
