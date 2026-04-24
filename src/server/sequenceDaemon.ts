@@ -1,27 +1,27 @@
-import cron from 'node-cron';
-import type { PostgresShim } from "./db.ts";
-import { workflow } from './ai/graph.ts';
-import { HumanMessage } from '@langchain/core/messages';
-import { checkAndIncrementDailyAIRequestLimit, DailyLimitExceededError } from './ai/rateLimiterUtility.ts';
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { db } from "./db.ts";
+import { workflow } from "./ai/graph.ts";
+import { checkAndIncrementDailyAIRequestLimit, DailyLimitExceededError } from "./ai/rateLimiterUtility.ts";
 
-// Background Job that runs every 15 minutes
-export function startSequenceDaemon(db: PostgresShim) {
-  console.log('[DAEMON] Sales Sequence Engine initialized. Running on */15 schedule.');
-  
-  cron.schedule('*/15 * * * *', async () => {
-    console.log('[DAEMON] Waking up to process sequence enrollments...');
-    
+/**
+ * The Sequence Daemon is a proactive system process that periodically checks for 
+ * pending lead sequences and executes the next step autonomously.
+ */
+export function startSequenceDaemon(db: any) {
+  // Check every minute
+  setInterval(async () => {
     try {
-      const now = new Date().toISOString();
+      // Fetch sequences that are 'Active' and have contacts due for outreach
       const pendingEnrollments = await db.prepare(`
-        SELECT e.*, s.steps, s.title, s.zernio_sequence_id, l.name as lead_name, l.email as lead_email, l.company as lead_company, l.notes as lead_notes 
-        FROM sequence_enrollments e
-        JOIN sales_sequences s ON e.sequence_id = s.id
-        JOIN leads l ON e.lead_id = l.id
-        WHERE e.status = 'Active' 
-        AND s.zernio_sequence_id IS NULL
-        AND (e.next_execution_datetime <= ? OR e.next_execution_datetime IS NULL)
-      `).all(now) as any[];
+        SELECT se.id, se.sequence_id, se.lead_id, se.current_step_idx, se.status,
+               s.title, s.steps,
+               l.name as lead_name, l.email as lead_email, l.company as lead_company, l.notes as lead_notes,
+               s.workspace_id
+        FROM sequence_enrollments se
+        JOIN sales_sequences s ON se.sequence_id = s.id
+        JOIN leads l ON se.lead_id = l.id
+        WHERE se.status = 'Active' AND s.status = 'Active'
+      `).all() as any[];
 
       if (!pendingEnrollments || pendingEnrollments.length === 0) {
         return;
@@ -44,7 +44,12 @@ export function startSequenceDaemon(db: PostgresShim) {
           const ledger = await db.prepare("SELECT learning FROM stan_memory_ledger WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 5").all(enrollment.workspace_id) as any[];
 
           const ledgerContext = ledger.map((l: any) => l.learning).join('. ');
-          const historyContext = history.map((h: any) => `[${h.event_type}]: ${h.agent_feedback || h.content}`).join('\n');
+          let historyContext = history.map((h: any) => `[${h.event_type}]: ${h.agent_feedback || h.content}`).join('\n');
+          
+          // Truncate history to avoid context window explosion (keep last ~4000 chars)
+          if (historyContext.length > 4000) {
+            historyContext = '...[Truncated for brevity]...\n' + historyContext.slice(-4000);
+          }
 
           // Compile the prompt for Stan
           const runPrompt = `
@@ -73,7 +78,7 @@ ${historyContext || 'No prior interactions.'}
 
 Your Mission:
 1. Examine the Lead details and the History. If the Lead has already replied positively or requested to stop, DO NOT send further outreach. Formally articulate that the sequence should be halted.
-2. If it is safe to proceed, use your tools (like \`gmail_send\`) to meticulously follow the "Step Instruction" rules. Adjust your tone using your Macroscopic Lessons Learned.
+2. If it is safe to proceed, use your tools (like \`draft_email\`) to meticulously follow the "Step Instruction" rules. Adjust your tone using your Macroscopic Lessons Learned.
 3. Once completed, clearly declare that the step was executed successfully so the Daemon can advance the cursor.
 `;
 
@@ -86,14 +91,14 @@ Your Mission:
             if (a.name) acc[a.id] = a.name;
             return acc;
           }, {} as Record<string, string>);
-          
+
           try {
             await checkAndIncrementDailyAIRequestLimit(db, enrollment.workspace_id);
           } catch (limitErr) {
             if (limitErr instanceof DailyLimitExceededError) {
               console.warn(`[DAEMON] Runaway AI limit hit for workspace ${enrollment.workspace_id}. Pausing sequence ${enrollment.id}.`);
               await db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
-              
+
               await db.prepare("INSERT INTO sequence_events (workspace_id, lead_id, sequence_id, event_type, content, agent_feedback) VALUES (?, ?, ?, ?, ?, ?)").run(
                 enrollment.workspace_id, enrollment.lead_id, enrollment.sequence_id, 'Error', 'Execution paused', 'Daily AI Request Limit Exceeded. Sequence paused permanently until manually resumed.'
               );
@@ -120,33 +125,26 @@ Your Mission:
           const agentReply = msgs[msgs.length - 1]?.content || 'Executed without comment.';
 
           const isHalted = agentReply.toLowerCase().includes('halted') || agentReply.toLowerCase().includes('stopped');
-          
+
           await db.prepare("INSERT INTO sequence_events (workspace_id, lead_id, sequence_id, event_type, content, agent_feedback) VALUES (?, ?, ?, ?, ?, ?)").run(
             enrollment.workspace_id, enrollment.lead_id, enrollment.sequence_id, 'Action Executed', runPrompt, agentReply
           );
 
           if (isHalted) {
-            await db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
+             console.log(`[DAEMON] Agent requested halt for sequence ${enrollment.id}.`);
+             await db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
           } else {
-            // Advance cursor to next step using the NEXT step's delayMinutes for timing
-            const nextStepIdx = enrollment.current_step_idx + 1;
-            const nextStep = steps[nextStepIdx + 1]; // Look ahead to the step AFTER next
-            const delayMinutes = steps[nextStepIdx]?.delayMinutes || 1440; // Default 1 day
-            const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
-            
-            await db.prepare("UPDATE sequence_enrollments SET current_step_idx = current_step_idx + 1, next_execution_datetime = ? WHERE id = ?").run(
-              nextDate.toISOString(), enrollment.id
-            );
+             // Advance the sequence
+             await db.prepare("UPDATE sequence_enrollments SET current_step_idx = current_step_idx + 1 WHERE id = ?").run(enrollment.id);
+             console.log(`[DAEMON] Successfully processed step ${enrollment.current_step_idx + 1} for sequence ${enrollment.id}.`);
           }
 
-        } catch (execError) {
-          console.error(`[DAEMON] Failed to execute run for sequence ${enrollment.id}: `, execError);
-          await db.prepare("UPDATE sequence_enrollments SET status = 'Error' WHERE id = ?").run(enrollment.id);
+        } catch (err: any) {
+          console.error(`[DAEMON] Failed to process enrollment ${enrollment.id}:`, err);
         }
       }
-
-    } catch (err) {
-      console.error('[DAEMON] Top level error during cron evaluation:', err);
+    } catch (err: any) {
+      console.error("[DAEMON] Critical error in sequence daemon loop:", err);
     }
-  });
+  }, 60000); 
 }

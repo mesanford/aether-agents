@@ -67,8 +67,7 @@ export async function getSignedUrlForGcs(gcsPath: string | null | undefined): Pr
     return url;
   } catch (err: any) {
     console.warn(`[GCP Storage] Failed to sign URL for ${fileName}. Ensure GCP credentials are active: ${err.message}`);
-    // Fallback for local development if credentials aren't set up yet
-    return 'https://placehold.co/600x400/png?text=GCP+Mock+Image';
+    return null;
   }
 }
 

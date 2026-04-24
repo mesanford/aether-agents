@@ -1,13 +1,15 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
-// These should eventually be placed in .env
-// We mock them locally until real keys are provided as discussed.
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'mock-client-id';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'mock-client-secret';
+// These should be placed in .env
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/api/integrations/google/callback';
 
 export const getOAuthClient = (redirectUri?: string): OAuth2Client => {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    throw new Error("Google Drive integration is not configured. Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET in .env.");
+  }
   return new google.auth.OAuth2(
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,

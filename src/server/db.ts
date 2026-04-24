@@ -53,7 +53,11 @@ export class PostgresShim {
    * Replaces the synchronous `db.prepare(sql)` from better-sqlite3
    */
   prepare(sql: string) {
-    const pgSql = this.convertSql(sql);
+    let pgSql = this.convertSql(sql);
+    const isInsert = sql.trim().toUpperCase().startsWith("INSERT");
+    if (isInsert && !pgSql.toUpperCase().includes("RETURNING")) {
+      pgSql += " RETURNING id";
+    }
 
     return {
       run: async (...args: any[]) => {

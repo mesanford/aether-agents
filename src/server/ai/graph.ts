@@ -155,11 +155,12 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
     // Keyword-based fallback so the right specialist is picked when the LLM parse fails
     const taskLower = (state.task || '').toLowerCase();
     const keywordFallback = ((): string => {
-      if (/linkedin|social|tweet|instagram|post|hashtag|reel|tiktok/.test(taskLower)) return 'social-media-manager';
-      if (/lead|prospect|crm|sales|outreach|sequence|hubspot|pipeline/.test(taskLower)) return 'sales-associate';
-      if (/blog|article|seo|keyword|substack|content|copywrite/.test(taskLower)) return 'blog-writer';
-      if (/legal|contract|compliance|nda|clause|gdpr|privacy/.test(taskLower)) return 'legal-associate';
-      if (/call|receptionist|inquiry|faq|visitor|greeting/.test(taskLower)) return 'receptionist';
+      if (/linkedin|social|tweet|instagram|post|hashtag|reel|tiktok|content strategy|caption/.test(taskLower)) return 'social-media-manager';
+      if (/lead|prospect|crm|sales|outreach|sequence|hubspot|pipeline|funnel|email outreach|cold mail/.test(taskLower)) return 'sales-associate';
+      if (/blog|article|seo|keyword|substack|content|copywrite|newsletter|medium/.test(taskLower)) return 'blog-writer';
+      if (/legal|contract|compliance|nda|clause|gdpr|privacy|terms of service|tos|policy/.test(taskLower)) return 'legal-associate';
+      if (/call|receptionist|inquiry|faq|visitor|greeting|support|ticket/.test(taskLower)) return 'receptionist';
+      if (/schedule|calendar|meeting|event|appointment|inbox|email triage|clean inbox/.test(taskLower)) return 'executive-assistant';
       return 'executive-assistant';
     })();
     console.log(`[SUPERVISOR TARGET] parse fallback -> ${keywordFallback}`, err);

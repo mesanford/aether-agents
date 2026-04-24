@@ -230,7 +230,7 @@ const formatTimestamp = (value?: number | null) => {
 };
 
 const getTaskState = (task: Task): 'failed' | 'running' | 'done' | 'todo' => {
-  if (task.lastError) return 'failed';
+  if (task.lastError || task.status === 'failed') return 'failed';
   if (task.status === 'running') return 'running';
   if (task.status === 'done') return 'done';
   return 'todo';

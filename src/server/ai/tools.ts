@@ -514,6 +514,7 @@ Instruction: For social posts, pass the string "MEDIA_ASSET_ID:${mediaAssetId}" 
       }
       return `[IMAGE GENERATION FAILED] No image data returned. Text response: ${response.text || 'None'}`;
     } catch (err: any) {
+      console.error("generate_image error:", err);
       return `[IMAGE GENERATION FAILED] ${err.message}`;
     }
   },
@@ -880,6 +881,7 @@ export const deleteTaskTool = tool(
         return `[SUCCESS] Deleted ${result.changes} draft(s) matching '${query}'.`;
       }
     } catch (err: any) {
+      console.error("delete_task error:", err);
       return `[FAILED] Could not delete tasks: ${err.message}`;
     }
   },
@@ -1699,6 +1701,7 @@ export const sendPushNotificationTool = tool(
       }
       return `[SUCCESS] Push notification sent to ${r.sent} device(s).${r.removed ? ` Removed ${r.removed} stale subscription(s).` : ''}`;
     } catch (err: any) {
+      console.error("send_push_notification error:", err);
       return `[FAILED] Could not send push notification: ${err.message}`;
     }
   },
@@ -1726,6 +1729,7 @@ export const activateSequenceTool = tool(
       await db.prepare("UPDATE sales_sequences SET status = 'Active', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(sequenceId);
       return `[SUCCESS] Sequence "${seq.title}" is now active.${seq.zernio_sequence_id ? ' Zernio will begin processing enrolled contacts.' : ' The local daemon will process steps.'}`;
     } catch (err: any) {
+      console.error("activate_sequence error:", err);
       return `[FAILED] Could not activate sequence: ${err.message}`;
     }
   },
@@ -1751,6 +1755,7 @@ export const pauseSequenceTool = tool(
       await db.prepare("UPDATE sales_sequences SET status = 'Paused', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(sequenceId);
       return `[SUCCESS] Sequence "${seq.title}" is now paused. Enrolled contacts will stop receiving messages until reactivated.`;
     } catch (err: any) {
+      console.error("pause_sequence error:", err);
       return `[FAILED] Could not pause sequence: ${err.message}`;
     }
   },
@@ -1826,6 +1831,7 @@ export const getSequenceAnalyticsTool = tool(
 
       return `[SEQUENCE ANALYTICS]\n${JSON.stringify(analytics, null, 2)}`;
     } catch (err: any) {
+      console.error("get_sequence_analytics error:", err);
       return `[FAILED] Could not fetch analytics: ${err.message}`;
     }
   },
@@ -1878,6 +1884,7 @@ export const updateSequenceTool = tool(
 
       return `[SUCCESS] Sequence "${name || seq.title}" updated.${seq.zernio_sequence_id ? ' Changes are live on Zernio — active enrollments will use the updated steps.' : ''}`;
     } catch (err: any) {
+      console.error("update_sequence error:", err);
       return `[FAILED] Could not update sequence: ${err.message}`;
     }
   },
@@ -1948,6 +1955,7 @@ export const syncLeadsToZernioTool = tool(
 
       return `[SUCCESS] Synced ${synced} lead(s) to Zernio contacts. Failed: ${failed}. These leads can now be enrolled in sequences by contact ID.`;
     } catch (err: any) {
+      console.error("sync_leads_to_zernio error:", err);
       return `[FAILED] Could not sync leads: ${err.message}`;
     }
   },
@@ -1993,6 +2001,7 @@ export const unenrollContactTool = tool(
 
       return `[SUCCESS] Lead "${enrollment.lead_name}" unenrolled from sequence "${enrollment.title}". Reason: ${reason || 'Not specified'}.`;
     } catch (err: any) {
+      console.error("unenroll_contact error:", err);
       return `[FAILED] Could not unenroll contact: ${err.message}`;
     }
   },
