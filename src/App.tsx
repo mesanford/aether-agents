@@ -288,12 +288,10 @@ export default function App() {
             type: m.type,
             metadata: m.metadata,
           };
-          
-          let agentId = msg.senderId;
-          if (msg.senderId === 'user') {
-             agentId = (msg.content.match(/\[Direct message to (.*?)\]/) || [])[1] || activeAgentId || 'global';
-          }
-          
+
+          // Use the stored agentId from the DB directly — it's the authoritative conversation key
+          const agentId = m.agentId || activeAgentId || 'global';
+
           if (!grouped[agentId]) grouped[agentId] = [];
           grouped[agentId].push(msg);
         });
@@ -556,9 +554,9 @@ export default function App() {
     }
   }, [activeWorkspaceId, token, agents]);
 
-  const persistMessage = useCallback((msg: Message, agentId: string) => {
-    if (!activeWorkspaceId) return;
-    apiFetch(`/api/workspaces/${activeWorkspaceId}/messages`, {
+  const persistMessage = useCallback((msg: Message, agentId: string, threadId?: string): Promise<string | null> => {
+    if (!activeWorkspaceId) return Promise.resolve(null);
+    return apiFetch(`/api/workspaces/${activeWorkspaceId}/messages`, {
       method: 'POST',
       token,
       onAuthFailure: () => handleLogout(),
@@ -571,8 +569,9 @@ export default function App() {
         imageUrl: msg.imageUrl ?? null,
         timestamp: msg.timestamp,
         type: msg.type,
+        threadId: threadId ?? null,
       }),
-    }).catch(err => console.error('Failed to persist message', err));
+    }).then((res: any) => res?.id ?? null).catch(err => { console.error('Failed to persist message', err); return null; });
   }, [activeWorkspaceId, token]);
 
   // Auto-fetch real Gmail/Calendar/Drive context for Eva based on what the user asked about
@@ -742,10 +741,11 @@ export default function App() {
 
 
 
-  const handleSendMessage = async (content: string, attachments?: Attachment[]) => {
+  const handleSendMessage = useCallback(async (content: string, attachments?: Attachment[]) => {
     if (!user) return;
+    const localUserMsgId = Date.now().toString();
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: localUserMsgId,
       senderId: 'user',
       senderName: user.name,
       senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}&backgroundColor=f5f5f4`,
@@ -755,12 +755,12 @@ export default function App() {
       type: 'user'
     };
 
+    const targetAgentId = activeAgentId;
+
     setMessages(prev => ({
       ...prev,
-      [activeAgentId]: [...(prev[activeAgentId] || []), newMessage]
+      [targetAgentId]: [...(prev[targetAgentId] || []), newMessage]
     }));
-
-    const targetAgentId = activeAgentId;
 
     setWorkingAgents(prev => {
       const next = new Set(prev);
@@ -771,9 +771,20 @@ export default function App() {
 
     const threadId = targetAgentId === 'global' ? `thread_${user.id}_global` : `thread_${user.id}_${targetAgentId}`;
     const payloadMessage = targetAgentId === 'global' ? content : `[Direct message to ${targetAgentId}] ${content}`;
-    
+
+    // Persist user message and update its local ID with the DB-assigned one
+    persistMessage(newMessage, targetAgentId, threadId).then(dbId => {
+      if (dbId) {
+        setMessages(prev => {
+          const msgs = prev[targetAgentId] || [];
+          const updated = msgs.map(m => m.id === localUserMsgId ? { ...m, id: dbId } : m);
+          return { ...prev, [targetAgentId]: updated };
+        });
+      }
+    });
+
     const liveCtx = await fetchLiveContext(content);
-      
+
     const { text, sender } = await getAgentResponse(
       payloadMessage,
       threadId,
@@ -785,8 +796,9 @@ export default function App() {
       attachments
     );
 
+    const localAgentMsgId = (Date.now() + 1).toString();
     const agentResponse: Message = {
-      id: (Date.now() + 1).toString(),
+      id: localAgentMsgId,
       senderId: sender || 'system',
       senderName: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.name || DEFAULT_AGENT_NAMES[sender || ''] || 'System',
       senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system&backgroundColor=f5f5f4',
@@ -800,13 +812,24 @@ export default function App() {
       [targetAgentId]: [...(prev[targetAgentId] || []), agentResponse]
     }));
 
+    // Persist agent response and update its local ID with the DB-assigned one
+    persistMessage(agentResponse, targetAgentId, threadId).then(dbId => {
+      if (dbId) {
+        setMessages(prev => {
+          const msgs = prev[targetAgentId] || [];
+          const updated = msgs.map(m => m.id === localAgentMsgId ? { ...m, id: dbId } : m);
+          return { ...prev, [targetAgentId]: updated };
+        });
+      }
+    });
+
     setWorkingAgents(prev => {
       const next = new Set(prev);
       next.delete(targetAgentId);
       return next;
     });
     updateAgentStatus(targetAgentId, AgentStatus.IDLE);
-  };
+  }, [user, activeAgentId, agents, connectedServices, token, activeWorkspaceId, persistMessage, fetchLiveContext, updateAgentStatus]);
 
 
   if (activeWorkspace && !activeWorkspace.is_onboarded) {
