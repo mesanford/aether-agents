@@ -628,6 +628,96 @@ export default function App() {
     return (ctx.emails || ctx.events || ctx.files || ctx.analyticsRows || ctx.searchConsoleRows) ? ctx : undefined;
   }, [token, googleContextDefaults.analyticsPropertyId, googleContextDefaults.searchConsoleSiteUrl]);
 
+  const handleSendMessage = useCallback(async (content: string, attachments?: Attachment[]) => {
+    if (!user) return;
+    const localUserMsgId = Date.now().toString();
+    const newMessage: Message = {
+      id: localUserMsgId,
+      senderId: 'user',
+      senderName: user.name,
+      senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}&backgroundColor=f5f5f4`,
+      content,
+      attachments,
+      timestamp: Date.now(),
+      type: 'user'
+    };
+
+    const targetAgentId = activeAgentId;
+
+    setMessages(prev => ({
+      ...prev,
+      [targetAgentId]: [...(prev[targetAgentId] || []), newMessage]
+    }));
+
+    setWorkingAgents(prev => {
+      const next = new Set(prev);
+      next.add(targetAgentId);
+      return next;
+    });
+    updateAgentStatus(targetAgentId, AgentStatus.THINKING);
+
+    const threadId = targetAgentId === 'global' ? `thread_${user.id}_global` : `thread_${user.id}_${targetAgentId}`;
+    const payloadMessage = targetAgentId === 'global' ? content : `[Direct message to ${targetAgentId}] ${content}`;
+
+    // Persist user message and update its local ID with the DB-assigned one
+    persistMessage(newMessage, targetAgentId, threadId).then(dbId => {
+      if (dbId) {
+        setMessages(prev => {
+          const msgs = prev[targetAgentId] || [];
+          const updated = msgs.map(m => m.id === localUserMsgId ? { ...m, id: dbId } : m);
+          return { ...prev, [targetAgentId]: updated };
+        });
+      }
+    });
+
+    const liveCtx = await fetchLiveContext(content);
+
+    const { text, sender } = await getAgentResponse(
+      payloadMessage,
+      threadId,
+      liveCtx || undefined,
+      connectedServices,
+      token,
+      activeWorkspaceId,
+      handleLogout,
+      attachments
+    );
+
+    const localAgentMsgId = (Date.now() + 1).toString();
+    const agentResponse: Message = {
+      id: localAgentMsgId,
+      senderId: sender || 'system',
+      senderName: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.name || DEFAULT_AGENT_NAMES[sender || ''] || 'System',
+      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system&backgroundColor=f5f5f4',
+      content: stripAgentJson(text),
+      timestamp: Date.now(),
+      type: 'agent'
+    };
+
+    setMessages(prev => ({
+      ...prev,
+      [targetAgentId]: [...(prev[targetAgentId] || []), agentResponse]
+    }));
+
+    // Persist agent response and update its local ID with the DB-assigned one
+    persistMessage(agentResponse, targetAgentId, threadId).then(dbId => {
+      if (dbId) {
+        setMessages(prev => {
+          const msgs = prev[targetAgentId] || [];
+          const updated = msgs.map(m => m.id === localUserMsgId ? { ...m, id: dbId } : m);
+          return { ...prev, [targetAgentId]: updated };
+        });
+      }
+    });
+
+    setWorkingAgents(prev => {
+      const next = new Set(prev);
+      next.delete(targetAgentId);
+      return next;
+    });
+    updateAgentStatus(targetAgentId, AgentStatus.IDLE);
+  }, [user, activeAgentId, agents, connectedServices, token, activeWorkspaceId, persistMessage, fetchLiveContext, updateAgentStatus]);
+
   // ── Early returns (after all hooks) ───────────────────────────────────────
   if (!user || !token) {
     return <LoginView onLogin={handleLogin} />;
@@ -737,122 +827,6 @@ export default function App() {
   }
 
   const activeWorkspace = workspaces.find((ws) => ws.id === activeWorkspaceId) || null;
-
-
-
-
-  const handleSendMessage = useCallback(async (content: string, attachments?: Attachment[]) => {
-    if (!user) return;
-    const localUserMsgId = Date.now().toString();
-    const newMessage: Message = {
-      id: localUserMsgId,
-      senderId: 'user',
-      senderName: user.name,
-      senderAvatar: user?.avatar || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user.email}&backgroundColor=f5f5f4`,
-      content,
-      attachments,
-      timestamp: Date.now(),
-      type: 'user'
-    };
-
-    const targetAgentId = activeAgentId;
-
-    setMessages(prev => ({
-      ...prev,
-      [targetAgentId]: [...(prev[targetAgentId] || []), newMessage]
-    }));
-
-    setWorkingAgents(prev => {
-      const next = new Set(prev);
-      next.add(targetAgentId);
-      return next;
-    });
-    updateAgentStatus(targetAgentId, AgentStatus.THINKING);
-
-    const threadId = targetAgentId === 'global' ? `thread_${user.id}_global` : `thread_${user.id}_${targetAgentId}`;
-    const payloadMessage = targetAgentId === 'global' ? content : `[Direct message to ${targetAgentId}] ${content}`;
-
-    // Persist user message and update its local ID with the DB-assigned one
-    persistMessage(newMessage, targetAgentId, threadId).then(dbId => {
-      if (dbId) {
-        setMessages(prev => {
-          const msgs = prev[targetAgentId] || [];
-          const updated = msgs.map(m => m.id === localUserMsgId ? { ...m, id: dbId } : m);
-          return { ...prev, [targetAgentId]: updated };
-        });
-      }
-    });
-
-    const liveCtx = await fetchLiveContext(content);
-
-    const { text, sender } = await getAgentResponse(
-      payloadMessage,
-      threadId,
-      liveCtx || undefined,
-      connectedServices,
-      token,
-      activeWorkspaceId,
-      handleLogout,
-      attachments
-    );
-
-    const localAgentMsgId = (Date.now() + 1).toString();
-    const agentResponse: Message = {
-      id: localAgentMsgId,
-      senderId: sender || 'system',
-      senderName: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.name || DEFAULT_AGENT_NAMES[sender || ''] || 'System',
-      senderAvatar: agents.find(a => a.id === sender || (sender && a.id.startsWith(sender + ':')))?.avatar || 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=system&backgroundColor=f5f5f4',
-      content: stripAgentJson(text),
-      timestamp: Date.now(),
-      type: 'agent'
-    };
-
-    setMessages(prev => ({
-      ...prev,
-      [targetAgentId]: [...(prev[targetAgentId] || []), agentResponse]
-    }));
-
-    // Persist agent response and update its local ID with the DB-assigned one
-    persistMessage(agentResponse, targetAgentId, threadId).then(dbId => {
-      if (dbId) {
-        setMessages(prev => {
-          const msgs = prev[targetAgentId] || [];
-          const updated = msgs.map(m => m.id === localAgentMsgId ? { ...m, id: dbId } : m);
-          return { ...prev, [targetAgentId]: updated };
-        });
-      }
-    });
-
-    setWorkingAgents(prev => {
-      const next = new Set(prev);
-      next.delete(targetAgentId);
-      return next;
-    });
-    updateAgentStatus(targetAgentId, AgentStatus.IDLE);
-  }, [user, activeAgentId, agents, connectedServices, token, activeWorkspaceId, persistMessage, fetchLiveContext, updateAgentStatus]);
-
-
-  if (activeWorkspace && !activeWorkspace.is_onboarded) {
-    return (
-      <div className="flex relative h-[100dvh] bg-white overflow-hidden text-stone-800">
-        <Toaster 
-          position="top-center" 
-          toastOptions={{
-            style: { background: '#1e293b', color: '#fff', borderRadius: '12px' },
-            success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
-          }}
-        />
-        <OnboardingWizard
-          token={token!}
-          activeWorkspaceId={activeWorkspaceId!}
-          onAuthFailure={handleLogout}
-          onComplete={() => {
-            window.location.reload();
-          }}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="flex relative h-[100dvh] bg-warm-50 overflow-hidden text-stone-800">
@@ -1252,7 +1226,8 @@ export default function App() {
                     setActiveWorkspaceId(newWs.id);
                     setShowWorkspacePrompt(false);
                     toast.success('Workspace created! Agents are starting up...');
-                  });                }
+                  });
+                }
               }}
               placeholder="e.g. Acme Corp"
               className="w-full px-4 py-3 bg-warm-50 border border-warm-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all"
@@ -1278,7 +1253,8 @@ export default function App() {
                       setActiveWorkspaceId(newWs.id);
                       setShowWorkspacePrompt(false);
                       toast.success('Workspace created! Agents are starting up...');
-                    });                  }
+                    });
+                  }
                 }}
                 disabled={!workspaceNameDraft.trim()}
                 className="flex-1 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all"
