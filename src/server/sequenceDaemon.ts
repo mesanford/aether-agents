@@ -136,17 +136,24 @@ Your Mission:
 
           if (isHalted) {
              console.log(`[DAEMON] Agent requested halt for sequence ${enrollment.id}.`);
-             await db.prepare("UPDATE sequence_enrollments SET status = 'Paused' WHERE id = ?").run(enrollment.id);
+             await db.prepare("UPDATE sequence_enrollments SET status = 'Paused', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(enrollment.id);
           } else {
              const nextStepIdx = enrollment.current_step_idx + 1;
-             // Respect the next step's delayMinutes so we don't fire all steps back-to-back
-             const nextStep = steps[nextStepIdx];
-             const delayMinutes = nextStep?.delayMinutes ?? 0;
-             const nextExecution = new Date(Date.now() + delayMinutes * 60 * 1000).toISOString();
-             await db.prepare(
-               "UPDATE sequence_enrollments SET current_step_idx = ?, next_execution_datetime = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-             ).run(nextStepIdx, nextExecution, enrollment.id);
-             console.log(`[DAEMON] Processed step ${enrollment.current_step_idx + 1} for sequence ${enrollment.id}. Next step in ${delayMinutes} min.`);
+             if (nextStepIdx >= steps.length) {
+               // Final step just executed — mark complete immediately
+               await db.prepare(
+                 "UPDATE sequence_enrollments SET status = 'Completed', current_step_idx = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+               ).run(nextStepIdx, enrollment.id);
+               console.log(`[DAEMON] Sequence ${enrollment.id} completed all steps.`);
+             } else {
+               // Respect the next step's delayMinutes so we don't fire all steps back-to-back
+               const delayMinutes = steps[nextStepIdx]?.delayMinutes ?? 0;
+               const nextExecution = new Date(Date.now() + delayMinutes * 60 * 1000).toISOString();
+               await db.prepare(
+                 "UPDATE sequence_enrollments SET current_step_idx = ?, next_execution_datetime = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+               ).run(nextStepIdx, nextExecution, enrollment.id);
+               console.log(`[DAEMON] Processed step ${enrollment.current_step_idx + 1} for sequence ${enrollment.id}. Next step in ${delayMinutes} min.`);
+             }
           }
 
         } catch (err: any) {

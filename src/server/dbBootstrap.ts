@@ -272,7 +272,7 @@ const INITIAL_MESSAGES_SEED: SeedMessage[] = [
 
 export async function bootstrapDatabase(db: PostgresShim) {
   async function hasColumn(tableName: string, colName: string): Promise<boolean> {
-    const res = await db.prepare("SELECT column_name FROM information_schema.columns WHERE table_name = ? AND column_name = ?").get(tableName, colName);
+    const res = await db.prepare("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? AND column_name = ?").get(tableName, colName);
     return !!res;
   }
 
@@ -509,6 +509,38 @@ export async function bootstrapDatabase(db: PostgresShim) {
       integration_token TEXT NOT NULL,
       bot_name TEXT,
       default_parent_page_id TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS instagram_connections (
+      workspace_id INTEGER PRIMARY KEY,
+      access_token TEXT NOT NULL,
+      ig_user_id TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS twitter_connections (
+      workspace_id INTEGER PRIMARY KEY,
+      access_token TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS facebook_connections (
+      workspace_id INTEGER PRIMARY KEY,
+      page_access_token TEXT NOT NULL,
+      page_id TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
