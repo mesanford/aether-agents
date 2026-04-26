@@ -1,6 +1,8 @@
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { llm, llmFallback } from "../ai/models.ts";
+import { getSemanticPlan } from "../ai/semanticRouter.ts";
 import type { AuthenticatedRequest, ConnectedServices, LiveContext, Attachment } from "../types.ts";
 import { workflow } from "../ai/graph.ts";
 import { agentIds } from "../ai/agents.ts";
@@ -488,6 +490,42 @@ export function registerAiRoutes({
     } catch (err) {
       console.error('History API Error:', err);
       return res.status(500).json({ error: 'Internal Server Error fetching thread' });
+    }
+  });
+
+  // 5. Task Orchestration Endpoint
+  app.post("/api/workspaces/:id/ai/orchestrate", requireAuth, requireWorkspaceAccess, aiRateLimiter, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { taskDescription } = req.body as { taskDescription?: string };
+      if (!taskDescription) return res.status(400).json({ error: "Missing taskDescription" });
+
+      // 1. EFFICIENCY: Try semantic routing first to bypass planning LLM
+      const semanticPlan = await getSemanticPlan(taskDescription);
+      if (semanticPlan) {
+        console.log(`[ORCHESTRATOR] Semantic hit for task: "${taskDescription.substring(0, 30)}..."`);
+        return res.json({ plan: semanticPlan });
+      }
+
+      // 2. Fallback to frontier LLM for complex/unseen plans
+      const teamContext = agentIds.map(id => `- ${id}`).join('\n');
+      const orchestratorPrompt = `You are a task orchestrator.
+Goal: "${taskDescription}"
+Available Specialist IDs:
+${teamContext}
+
+Break this goal into a high-level plan of 2-4 concrete actions.
+Output exactly JSON: { "plan": [ { "agentId": "id", "action": "description", "priority": "high/medium/low" } ] }`;
+
+      const response = await llm.withFallbacks([llmFallback]).invoke([new SystemMessage(orchestratorPrompt)]);
+      let rawContent = response.content as string;
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) rawContent = jsonMatch[0];
+
+      const planData = JSON.parse(rawContent);
+      return res.json({ plan: planData.plan || [] });
+    } catch (err: any) {
+      console.error("Orchestration Error:", err);
+      return res.status(500).json({ error: "Failed to orchestrate task." });
     }
   });
 

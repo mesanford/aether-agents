@@ -5,8 +5,8 @@ import { END, START, StateGraph } from '@langchain/langgraph';
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { AgentState, customMessagesReducer } from './state';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { llm, llmFallback, liteLLM, liteLLMFallback } from './models';
 import {
   allTools,
   queryBrainTool,
@@ -51,20 +51,6 @@ import {
   draftSocialPostTool
 } from './tools';
 import { agentRegistry, agentIds } from './agents';
-
-const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-
-// Primary model — frontier-class, used for all agent and supervisor calls
-const llm = new ChatGoogleGenerativeAI({ model: 'gemini-3-flash-preview', temperature: 0, apiKey });
-
-// Stable fallback — used when the primary model returns 429/503 or "overloaded" errors
-const llmFallback = new ChatGoogleGenerativeAI({ model: 'gemini-2.5-flash', temperature: 0, apiKey });
-
-// Lite model for utility tasks (context compaction / summarisation)
-const liteLLM = new ChatGoogleGenerativeAI({ model: 'gemini-3.1-flash-lite-preview', temperature: 0, apiKey });
-
-// Stable fallback for the lite model
-const liteLLMFallback = new ChatGoogleGenerativeAI({ model: 'gemini-2.5-flash-lite', temperature: 0, apiKey });
 
 const stringifyMessageContent = (content: any): string => {
   if (typeof content === 'string') return content;
@@ -120,8 +106,9 @@ ${state.episodicGist ? `Memory of previous conversation: ${state.episodicGist}` 
 CRITICAL RULES:
 1. If the latest turn came from the USER, assign the most appropriate team member to reply by outputting their exact ID.
 2. If the latest turn came from a TEAM MEMBER and there is no explicit unfinished handoff request, return "next_assignee": "END".
-3. Do NOT call tools yourself.
-Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
+3. For the assigned specialist, also suggest a list of 2-5 specific tool IDs they will likely need for this step.
+4. Do NOT call tools yourself.
+Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END", "suggested_tools": ["tool_id_1", "tool_id_2"] }`;
 
   const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
   const lastMsg = conversationMessages[conversationMessages.length - 1];
@@ -145,12 +132,13 @@ Output exactly JSON format: { "next_assignee": "EXACT_ID_OR_END" }`;
 
     const payload = JSON.parse(rawContent);
     let nextAssignee = payload.next_assignee;
+    let suggestedTools = payload.suggested_tools || [];
     
     if (nextAssignee !== 'END' && !agentIds.includes(nextAssignee)) {
       nextAssignee = 'executive-assistant';
     }
-    console.log('[SUPERVISOR TARGET]', nextAssignee);
-    return { currentAssignee: nextAssignee, sender: 'supervisor' };
+    console.log('[SUPERVISOR TARGET]', nextAssignee, '| suggested tools:', suggestedTools.length);
+    return { currentAssignee: nextAssignee, sender: 'supervisor', suggestedTools };
   } catch (err) {
     // Keyword-based fallback so the right specialist is picked when the LLM parse fails
     const taskLower = (state.task || '').toLowerCase();
@@ -181,12 +169,24 @@ const agentToolMapping: Record<string, any[]> = {
 };
 
 function createAgentNode(agentConfig: typeof agentRegistry[0]) {
-  const agentTools = agentToolMapping[agentConfig.id] || allTools;
-  const agentLLM = llm.bindTools(agentTools).withFallbacks([llmFallback.bindTools(agentTools)]);
-
   return async (state: AgentState): Promise<Partial<AgentState>> => {
+    // 1. DYNAMIC TOOL BINDING: Filter agent tools based on supervisor suggestions to reduce prompt size.
+    const baseTools = agentToolMapping[agentConfig.id] || allTools;
+    const suggested = state.suggestedTools || [];
+    
+    // Always include memory tools as they are critical infrastructure
+    const essentialTools = ['query_brain', 'write_to_memory'];
+    const filteredTools = suggested.length > 0 
+      ? baseTools.filter(t => suggested.includes(t.name) || essentialTools.includes(t.name))
+      : baseTools;
+    
+    // Fallback to base tools if supervisor didn't suggest any matching tools for this agent
+    const finalTools = filteredTools.length > essentialTools.length ? filteredTools : baseTools;
+    
+    const agentLLM = llm.bindTools(finalTools).withFallbacks([llmFallback.bindTools(finalTools)]);
+
     const displayName = state.agentNames?.[agentConfig.id] || agentConfig.name;
-    console.log(`[NODE: agent] specialist: ${displayName} (sender: ${agentConfig.id})`);
+    console.log(`[NODE: agent] specialist: ${displayName} (sender: ${agentConfig.id}) | tools: ${finalTools.length}`);
     const workspaceProfile = state.agentProfiles?.[agentConfig.id] || '';
 
     // Build a teammate directory so every agent knows the current custom names of
@@ -203,10 +203,9 @@ function createAgentNode(agentConfig: typeof agentRegistry[0]) {
 
     const customInstructions = state.agentInstructions?.[agentConfig.id]?.trim() || '';
 
-    const prompt = `You are ${displayName}. ${agentConfig.roleDescription}
+    // 2. PROMPT CACHING OPTIMIZATION: Move static content to the top.
+    const staticSystemPrompt = `You are ${displayName}. ${agentConfig.roleDescription}
 Your name is ${displayName} — always use this name when introducing yourself.
-Current Date/Time: ${new Date().toLocaleString()}
-Client ID: ${state.clientId} Tenant: ${state.tenantId}.
 
 Your Teammates (always refer to them by these names; use their id when sending a direct message via [Direct message to id]):
 ${teammateLines}
@@ -220,18 +219,10 @@ ${customInstructions}
 Personality & Tone:
 ${agentConfig.personality}
 
-${state.episodicGist ? `Memory of previous conversation: ${state.episodicGist}` : ''}
-
-${workspaceProfile ? `Additional Workspace Context (personality/capabilities):\n${workspaceProfile}` : ''}
-
-${state.dataAccessSection || ''}
-${state.liveDataSection || ''}
-
 Memory Protocol (follow every conversation):
 - At the start of each conversation, your context already includes pre-loaded memories. Use them.
-- Use write_to_memory whenever you learn something worth retaining: a user preference, a business fact, a recurring pattern, or an explicit directive. Write it immediately — don't wait until the end.
+- Use write_to_memory whenever you learn something worth retaining. Write it immediately — don't wait until the end.
 - Use query_brain mid-conversation when you need to recall something specific not already in your context.
-- Good examples to save: "User prefers responses in bullet points", "Company's target market is SMB healthcare", "User always wants draft emails reviewed before sending", "Blog posts should be 800–1000 words".
 - Write memories in clear, standalone declarative form so any agent can understand them without conversation context.
 
 Guidelines:
@@ -248,9 +239,21 @@ CRITICAL GUARDRAIL:
 - You MUST execute the full tool sequence exactly as described.
 - You MUST capture IDs from one tool (like MEDIA_ASSET_ID) and pass them into the next tool.`;
 
+    // Dynamic components move to the end to maximize cache hits on the static prefix
+    const dynamicContext = `
+--- DYNAMIC SESSION CONTEXT ---
+Current Date/Time: ${new Date().toLocaleString()}
+Client ID: ${state.clientId} Tenant: ${state.tenantId}.
+${state.episodicGist ? `Memory of previous conversation: ${state.episodicGist}` : ''}
+${workspaceProfile ? `Additional Workspace Context (personality/capabilities):\n${workspaceProfile}` : ''}
+${state.dataAccessSection || ''}
+${state.liveDataSection || ''}
+`;
+
     const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
     const response = await agentLLM.invoke([
-      new SystemMessage(prompt),
+      new SystemMessage(staticSystemPrompt),
+      new SystemMessage(dynamicContext),
       ...conversationMessages
     ]);
 
@@ -310,6 +313,7 @@ const builder = new StateGraph<AgentState>({
     agentProfiles: { value: (x, y) => y ?? x, default: () => ({}) },
     agentNames: { value: (x, y) => y ?? x, default: () => ({}) },
     agentInstructions: { value: (x, y) => y ?? x, default: () => ({}) },
+    suggestedTools: { value: (x, y) => y ?? x, default: () => [] },
   }
 });
 

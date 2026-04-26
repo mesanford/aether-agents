@@ -23,6 +23,8 @@ export interface AgentState {
   agentNames: Record<string, string>;
   // Raw instruction text per agent id — injected as mandatory directives, NOT soft context
   agentInstructions: Record<string, string>;
+  // Dynamic tool suggestions from the supervisor to reduce prompt size
+  suggestedTools?: string[];
 }
 
 export function customMessagesReducer(left: BaseMessage[], right: BaseMessage[] | any): BaseMessage[] {

@@ -1,5 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { GoogleGenAI } from '@google/genai';
+import { HumanMessage } from "@langchain/core/messages";
+import { liteLLM, liteLLMFallback } from './models';
 import { z } from "zod";
 import fs from 'fs';
 import path from 'path';
@@ -97,7 +99,44 @@ export const writeToMemoryTool = tool(
   async ({ learning, category, subject, confidence_score }, config) => {
     const workspaceId = config?.configurable?.workspace_id || 1;
     try {
-      // Dedup: look for an existing entry whose first 100 chars closely match
+      // 1. SEMANTIC DEDUPLICATION: Fetch recent/relevant memories and ask Lite model if this is redundant.
+      const existingMemories = await db.prepare(`
+        SELECT id, learning FROM stan_memory_ledger
+        WHERE workspace_id = ? AND category = ?
+        ORDER BY updated_at DESC LIMIT 10
+      `).all(workspaceId, category) as any[];
+
+      if (existingMemories.length > 0) {
+        const memoryList = existingMemories.map(m => `- [ID: ${m.id}] ${m.learning}`).join('\n');
+        const dedupPrompt = `You are a memory deduplication utility. 
+New observation: "${learning}"
+Recent similar memories:
+${memoryList}
+
+Is the new observation semantically redundant or a direct contradiction of an existing memory?
+- If redundant or a slight update: Output { "action": "update", "id": existing_id }
+- If new information: Output { "action": "create" }
+JSON output:`;
+
+        const dedupResponse = await liteLLM.withFallbacks([liteLLMFallback]).invoke([new HumanMessage(dedupPrompt)]);
+        try {
+          const match = (dedupResponse.content as string).match(/\{[\s\S]*\}/);
+          const decision = JSON.parse(match ? match[0] : '{}');
+
+          if (decision.action === 'update' && decision.id) {
+            await db.prepare(`
+              UPDATE stan_memory_ledger
+              SET learning = ?, subject = ?, confidence_score = ?, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(learning.trim(), subject || 'user', confidence_score ?? 75, decision.id);
+            return `Memory refined (id ${decision.id}): "${learning.trim().substring(0, 80)}…"`;
+          }
+        } catch (e) {
+          console.warn("Semantic dedup parse failed, falling back to substring matching", e);
+        }
+      }
+
+      // Fallback/Legacy dedup: look for an existing entry whose first 100 chars closely match
       const fingerprint = learning.trim().substring(0, 100);
       const existing = await db.prepare(`
         SELECT id FROM stan_memory_ledger
