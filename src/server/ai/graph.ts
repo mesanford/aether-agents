@@ -252,8 +252,7 @@ ${state.liveDataSection || ''}
 
     const conversationMessages = state.messages.filter(m => m?.getType?.() !== 'system');
     const response = await agentLLM.invoke([
-      new SystemMessage(staticSystemPrompt),
-      new SystemMessage(dynamicContext),
+      new SystemMessage(`${staticSystemPrompt}\n\n${dynamicContext}`),
       ...conversationMessages
     ]);
 
